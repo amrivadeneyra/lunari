@@ -8,6 +8,14 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   try {
+    // Verificar autenticación para GitHub Actions
+    const authHeader = request.headers.get('authorization')
+    const expectedToken = process.env.CRON_SECRET
+    
+    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     console.log('🔍 Sistema Proactivo FR2, FR3, FR4 - Verificando chats...')
 
     const now = new Date()
@@ -32,7 +40,7 @@ export async function GET(request: Request) {
       }
     })
 
-    const helpChatRoomIds = Array.from(new Set(recentHelpMessages.map(msg => msg.chatRoomId)))
+    const helpChatRoomIds = Array.from(new Set(recentHelpMessages.map(msg => msg.chatRoomId).filter(id => id !== null)))
 
     const chatsWithRecentHelp = await client.chatRoom.findMany({
       where: {
@@ -99,7 +107,7 @@ export async function GET(request: Request) {
         }
       })
 
-      console.log(`✅ FR3 - Efectividad solicitada: ${chat.id} (${chat.Customer?.email})`)
+      console.log(`✅ FR3 - Efectividad solicitada: ${chat.id} (${chat.Customer?.email || 'Sin email'})`)
       processed++
     }
 
@@ -119,7 +127,7 @@ export async function GET(request: Request) {
         }
       })
 
-      console.log(`✅ FR2+FR4 - Conversación marcada como IDLE: ${chat.id} (${chat.Customer?.email})`)
+      console.log(`✅ FR2+FR4 - Conversación marcada como IDLE: ${chat.id} (${chat.Customer?.email || 'Sin email'})`)
       processed++
     }
 
