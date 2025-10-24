@@ -1,0 +1,34 @@
+name: Sistema Proactivo - Verificar Chats Inactivos
+
+on:
+  schedule:
+    # Ejecutar cada 5 minutos
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Permitir ejecución manual
+
+jobs:
+  check-inactive-chats:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Instalar dependencias
+        run: npm ci
+        
+      - name: Generar Prisma Client
+        run: npx prisma generate
+        
+      - name: Ejecutar verificación de chats
+        run: |
+          curl -X GET "${{ secrets.VERCEL_URL }}/api/cron/check-inactive-chats" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
