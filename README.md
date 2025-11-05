@@ -30,7 +30,6 @@ Lunari AI es una plataforma completa de chatbots inteligentes que permite a empr
 ### Gestión de Productos
 - **Catálogo Digital**: Gestión completa de productos con imágenes y precios
 - **Recomendaciones IA**: Sugerencias inteligentes basadas en el contexto
-- **Integración de Pagos**: Conexión con MercadoPago y Stripe
 
 ### Sistema de Citas
 - **Agendamiento Automático**: Reserva de citas con calendario integrado
@@ -60,9 +59,6 @@ Lunari AI es una plataforma completa de chatbots inteligentes que permite a empr
 
 ### IA y Servicios Externos
 - **OpenAI GPT-3.5** - Modelo de lenguaje para el chatbot
-- **MercadoPago** - Procesamiento de pagos en Latinoamérica
-- **Stripe** - Procesamiento de pagos internacional
-- **Pusher** - Comunicación en tiempo real
 - **UploadCare** - Gestión de archivos y imágenes
 
 ### Herramientas de Desarrollo
@@ -79,7 +75,6 @@ Lunari AI es una plataforma completa de chatbots inteligentes que permite a empr
 - PostgreSQL
 - Cuenta de OpenAI
 - Cuenta de Clerk
-- Cuenta de MercadoPago/Stripe (opcional)
 
 ### Pasos de Instalación
 
@@ -118,17 +113,6 @@ OPEN_AI_KEY=your_openai_api_key
 # UploadCare
 NEXT_PUBLIC_UPLOAD_CARE_PUBLIC_KEY=your_uploadcare_key
 
-# Pusher (opcional)
-PUSHER_APP_ID=your_pusher_app_id
-PUSHER_KEY=your_pusher_key
-PUSHER_SECRET=your_pusher_secret
-
-# MercadoPago (opcional)
-MERCADOPAGO_ACCESS_TOKEN=your_mercadopago_token
-
-# Stripe (opcional)
-STRIPE_SECRET_KEY=your_stripe_secret_key
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 ```
 
 4. **Configurar la base de datos**
@@ -154,9 +138,9 @@ http://localhost:3000
 ## Estructura del Proyecto
 
 ```
-s7-temporal/
+lunari/
 ├── src/
-│   ├── action/           # Server actions
+│   ├── action/          # Server actions
 │   ├── app/             # Next.js App Router
 │   ├── components/      # Componentes React
 │   ├── constants/       # Constantes y configuraciones
@@ -198,7 +182,6 @@ El proyecto utiliza PostgreSQL con Prisma como ORM. Los modelos principales incl
 - **ChatMessage**: Mensajes de conversación
 - **Product**: Productos de las empresas
 - **Bookings**: Citas agendadas
-- **Billings**: Facturación y suscripciones
 
 ## Configuración del Asistente Virtual
 
@@ -217,38 +200,7 @@ El proyecto utiliza PostgreSQL con Prisma como ORM. Los modelos principales incl
 
 ### Integraciones
 - OpenAI para respuestas inteligentes
-- MercadoPago/Stripe para pagos
 - Email para notificaciones
-- Pusher para tiempo real
-
-## Contribución
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## Licencia
-
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
-
-## Soporte
-
-Para soporte técnico o consultas:
-- Email: soporte@lunari-ai.com
-- Documentación: [docs.lunari-ai.com](https://docs.lunari-ai.com)
-- Issues: [GitHub Issues](https://github.com/your-repo/issues)
-
-## Roadmap
-
-- [ ] Integración con WhatsApp Business
-- [ ] Analytics avanzados de conversaciones
-- [ ] API pública para desarrolladores
-- [ ] Multiidioma
-- [ ] Integración con CRM populares
-- [ ] Chatbot por voz
-- [ ] Machine Learning personalizado
 
 ---
 
