@@ -595,27 +595,6 @@ export const onDeleteFilterQuestion = async (questionId: string) => {
   }
 }
 
-export const onGetPaymentConnected = async () => {
-  try {
-    const user = await currentUser()
-    if (user) {
-      const connected = await client.user.findUnique({
-        where: {
-          clerkId: user.id,
-        },
-        select: {
-          stripeId: true,
-        },
-      })
-      if (connected) {
-        return connected.stripeId
-      }
-    }
-  } catch (error) {
-    console.log(error)
-  }
-}
-
 export const onCreateNewDomainProduct = async (
   id: string,
   name: string,

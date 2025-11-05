@@ -343,7 +343,7 @@ export const onGetConversationStats = async () => {
         const domainId = userDomain.domains[0].id
 
         // Últimos 7 días
-        const stats = []
+        const stats: Array<{ date: string; count: number }> = []
         for (let i = 6; i >= 0; i--) {
             const date = new Date()
             date.setDate(date.getDate() - i)
