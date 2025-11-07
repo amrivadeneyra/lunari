@@ -51,7 +51,8 @@ const MaxMenu = ({ current, domains, onExpand, onSignOut }: Props) => {
               current={current}
               hasCompany={hasCompany}
               isSubmenu={true}
-              children={children.map((child, childKey) => (
+            >
+              {children.map((child, childKey) => (
                 <MenuItem
                   size="max"
                   {...child}
@@ -60,7 +61,7 @@ const MaxMenu = ({ current, domains, onExpand, onSignOut }: Props) => {
                   hasCompany={hasCompany}
                 />
               ))}
-            />
+            </MenuItem>
           )
         } else {
           return (
