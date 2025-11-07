@@ -11,7 +11,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "deploy": "branch=$(git branch --show-current) && if [ \"$branch\" != \"main\" ]; then echo '❌ Solo puedes desplegar desde main'; exit 1; fi && vercel --prod"
   },
   "dependencies": {
     "@clerk/nextjs": "4.29.12",
