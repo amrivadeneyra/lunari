@@ -9,6 +9,8 @@ import {
   validateSessionToken,
   isTokenExpiringSoon,
   getEmailFromToken,
+  getCustomerFromToken,
+  refreshTokenIfNeeded,
 } from './session'
 import { mockPrismaClient } from '@/test/mocks/prisma'
 
@@ -149,6 +151,107 @@ describe('session', () => {
 
       const result = await validateSessionToken(token)
 
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('getCustomerFromToken', () => {
+    it('debe obtener un cliente válido desde el token', async () => {
+      const token = jwt.sign(
+        {
+          customerId: 'customer-123',
+          email: 'test@example.com',
+          domainId: 'domain-123',
+          chatRoomId: 'chatroom-123',
+        },
+        'test-secret-key',
+        {
+          expiresIn: '30d',
+          issuer: 'lunari-ai',
+          subject: 'customer-123',
+        }
+      )
+
+      const mockCustomer = {
+        id: 'customer-123',
+        email: 'test@example.com',
+        name: 'Test User',
+        phone: '987654321',
+        status: true,
+        totalInteractions: 5,
+        lastActiveAt: new Date(),
+        chatRoom: [
+          {
+            id: 'chatroom-123',
+            live: true,
+            mailed: false,
+            satisfactionCollected: false,
+            resolutionType: 'pending',
+            satisfactionRating: null,
+          },
+        ],
+      }
+
+      mockPrismaClient.customer.findUnique.mockResolvedValueOnce(mockCustomer) // validateSessionToken
+      mockPrismaClient.customer.findUnique.mockResolvedValueOnce(mockCustomer) // getCustomerFromToken
+
+      const result = await getCustomerFromToken(token, 'domain-123')
+
+      expect(result).not.toBeNull()
+      expect(result?.id).toBe('customer-123')
+      expect(result?.chatRoom?.[0]?.id).toBe('chatroom-123')
+    })
+
+    it('debe retornar null cuando el token es inválido', async () => {
+      const result = await getCustomerFromToken('token-invalido', 'domain-123')
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('refreshTokenIfNeeded', () => {
+    it('debe refrescar token cuando está próximo a expirar', async () => {
+      const expiringToken = jwt.sign(
+        {
+          customerId: 'customer-123',
+          email: 'test@example.com',
+          domainId: 'domain-123',
+          chatRoomId: 'chatroom-123',
+          exp: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60, // expira en 2 días
+        },
+        'test-secret-key',
+        {
+          issuer: 'lunari-ai',
+          subject: 'customer-123',
+        }
+      )
+
+      const mockCustomer = {
+        id: 'customer-123',
+        email: 'test@example.com',
+        name: 'Test User',
+        phone: '123456789',
+        status: true,
+      }
+
+      mockPrismaClient.customer.findUnique.mockResolvedValue(mockCustomer)
+
+      const result = await refreshTokenIfNeeded(expiringToken)
+
+      expect(result).not.toBeNull()
+      expect(result?.sessionData.customerId).toBe('customer-123')
+      expect(result?.sessionData.domainId).toBe('domain-123')
+    })
+
+    it('no debe refrescar token si aún falta suficiente tiempo', async () => {
+      const token = jwt.sign(
+        {
+          customerId: 'customer-123',
+          exp: Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60, // 10 días
+        },
+        'test-secret-key'
+      )
+
+      const result = await refreshTokenIfNeeded(token)
       expect(result).toBeNull()
     })
   })

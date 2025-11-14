@@ -3,16 +3,20 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { useSignInForm } from './use-sign-in'
 
 // Mock de Clerk
+const mockSetActive = vi.fn()
+const mockSignInCreate = vi.fn()
+let isLoadedValue = true
+
 vi.mock('@clerk/nextjs', () => ({
     useSignIn: () => ({
-        isLoaded: true,
-        setActive: vi.fn(),
+        isLoaded: isLoadedValue,
+        setActive: mockSetActive,
         signIn: {
-            create: vi.fn(),
+            create: mockSignInCreate,
         },
     }),
 }))
@@ -28,15 +32,22 @@ vi.mock('next/navigation', () => ({
 }))
 
 // Mock de useToast
+const mockToast = vi.fn()
 vi.mock('@/components/ui/use-toast', () => ({
     useToast: () => ({
-        toast: vi.fn(),
+        toast: mockToast,
     }),
 }))
 
 describe('useSignInForm', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mockSignInCreate.mockReset()
+        mockSetActive.mockReset()
+        mockToast.mockReset()
+        mockPush.mockReset()
+        mockRefresh.mockReset()
+        isLoadedValue = true
     })
 
     it('debe retornar métodos, onHandleSubmit y loading', () => {
@@ -57,34 +68,82 @@ describe('useSignInForm', () => {
         expect(result.current.methods.handleSubmit).toBeDefined()
     })
 
-    it('debe manejar cuando isLoaded es false', async () => {
-        const { result } = renderHook(() => useSignInForm())
-
-        expect(result.current.onHandleSubmit).toBeDefined()
-        expect(typeof result.current.onHandleSubmit).toBe('function')
-    })
-
-    it('debe manejar errores de autenticación', async () => {
-        // El hook maneja errores internamente
-        const { result } = renderHook(() => useSignInForm())
-
-        expect(result.current.onHandleSubmit).toBeDefined()
-        expect(typeof result.current.onHandleSubmit).toBe('function')
-    })
-
-    it('debe manejar cuando el status no es "complete"', async () => {
-        // El hook maneja diferentes estados internamente
-        const { result } = renderHook(() => useSignInForm())
-
-        expect(result.current.onHandleSubmit).toBeDefined()
-        expect(typeof result.current.onHandleSubmit).toBe('function')
-    })
-
     it('debe establecer loading correctamente', () => {
         const { result } = renderHook(() => useSignInForm())
 
         expect(typeof result.current.loading).toBe('boolean')
         expect(result.current.loading).toBe(false)
+    })
+
+    it('debe iniciar sesión correctamente y redirigir al dashboard', async () => {
+        mockSignInCreate.mockResolvedValue({
+            status: 'complete',
+            createdSessionId: 'sess-123',
+        })
+
+        const { result } = renderHook(() => useSignInForm())
+
+        await act(async () => {
+            result.current.methods.setValue('email', 'test@example.com')
+            result.current.methods.setValue('password', 'password123')
+            await result.current.onHandleSubmit({
+                preventDefault: () => { },
+                stopPropagation: () => { },
+            } as any)
+        })
+
+        expect(mockSignInCreate).toHaveBeenCalledWith({
+            identifier: 'test@example.com',
+            password: 'password123',
+        })
+        expect(mockSetActive).toHaveBeenCalledWith({ session: 'sess-123' })
+        expect(mockPush).toHaveBeenCalledWith('/dashboard')
+        expect(mockToast).toHaveBeenCalledWith({
+            title: 'Éxito',
+            description: 'Bienvenido de nuevo!',
+        })
+    })
+
+    it('debe manejar credenciales incorrectas mostrando error', async () => {
+        mockSignInCreate.mockRejectedValue({
+            errors: [{ code: 'form_password_incorrect' }],
+        })
+
+        const { result } = renderHook(() => useSignInForm())
+
+        await act(async () => {
+            result.current.methods.setValue('email', 'wrong@example.com')
+            result.current.methods.setValue('password', 'wrongpass')
+            await result.current.onHandleSubmit({
+                preventDefault: () => { },
+                stopPropagation: () => { },
+            } as any)
+        })
+
+        expect(mockSignInCreate).toHaveBeenCalled()
+        expect(mockSetActive).not.toHaveBeenCalled()
+        expect(mockToast).toHaveBeenCalledWith({
+            title: 'Error',
+            description: 'email/password es incorrecto, intenta nuevamente',
+        })
+    })
+
+    it('no debe intentar autenticación cuando Clerk no está cargado', async () => {
+        isLoadedValue = false
+        const { result } = renderHook(() => useSignInForm())
+
+        await act(async () => {
+            result.current.methods.setValue('email', 'test@example.com')
+            result.current.methods.setValue('password', 'password123')
+            await result.current.onHandleSubmit({
+                preventDefault: () => { },
+                stopPropagation: () => { },
+            } as any)
+        })
+
+        expect(mockSignInCreate).not.toHaveBeenCalled()
+        expect(mockSetActive).not.toHaveBeenCalled()
+        expect(mockPush).not.toHaveBeenCalled()
     })
 })
 

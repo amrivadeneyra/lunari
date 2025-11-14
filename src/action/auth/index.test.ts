@@ -30,7 +30,7 @@ describe('Auth Actions', () => {
   })
 
   describe('onCompleteUserRegistration', () => {
-    it('debe registrar un usuario correctamente', async () => {
+    it('Registro exitoso con datos completos', async () => {
       const mockUser = {
         id: 'user-123',
         fullname: 'Juan Pérez',
@@ -61,7 +61,7 @@ describe('Auth Actions', () => {
       })
     })
 
-    it('debe retornar error 400 si falla el registro', async () => {
+    it('Error controlado cuando el registro falla', async () => {
       mockPrismaClient.user.create.mockRejectedValue(new Error('Error de BD'))
 
       const result = await onCompleteUserRegistration(
@@ -71,6 +71,32 @@ describe('Auth Actions', () => {
       )
 
       expect(result?.status).toBe(400)
+    })
+
+    it('Error por correo duplicado al registrar usuario', async () => {
+      mockPrismaClient.user.create.mockRejectedValue(
+        new Error('Unique constraint failed on the fields: (`email`)'),
+      )
+
+      const result = await onCompleteUserRegistration(
+        'Juan Pérez',
+        'clerk-123',
+        'business'
+      )
+
+      expect(result?.status).toBe(400)
+    })
+
+    it('Resultado vacío cuando no se crea el usuario', async () => {
+      mockPrismaClient.user.create.mockResolvedValue(null)
+
+      const result = await onCompleteUserRegistration(
+        'Juan Pérez',
+        'clerk-123',
+        'business'
+      )
+
+      expect(result).toBeUndefined()
     })
   })
 
