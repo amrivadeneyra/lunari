@@ -139,6 +139,21 @@ describe('Auth Schemas', () => {
             const result = UserRegistrationSchema.safeParse(invalidData)
             expect(result.success).toBe(false)
         })
+
+        it('debe rechazar tipo de cuenta vacío', () => {
+            const invalidData = {
+                type: '',
+                fullname: 'Juan Pérez',
+                email: 'juan@example.com',
+                confirmEmail: 'juan@example.com',
+                password: 'password123',
+                confirmPassword: 'password123',
+                otp: '123456',
+            }
+
+            const result = UserRegistrationSchema.safeParse(invalidData)
+            expect(result.success).toBe(false)
+        })
     })
 
     describe('UserLoginSchema', () => {
@@ -181,6 +196,16 @@ describe('Auth Schemas', () => {
             const result = UserLoginSchema.safeParse(invalidData)
             expect(result.success).toBe(false)
         })
+
+        it('debe rechazar contraseña con caracteres especiales no permitidos', () => {
+            const invalidData = {
+                email: 'juan@example.com',
+                password: 'password@123',
+            }
+
+            const result = UserLoginSchema.safeParse(invalidData)
+            expect(result.success).toBe(false)
+        })
     })
 
     describe('ChangePasswordSchema', () => {
@@ -211,6 +236,26 @@ describe('Auth Schemas', () => {
             const invalidData = {
                 password: 'short',
                 confirmPassword: 'short',
+            }
+
+            const result = ChangePasswordSchema.safeParse(invalidData)
+            expect(result.success).toBe(false)
+        })
+
+        it('debe rechazar contraseña con caracteres no permitidos', () => {
+            const invalidData = {
+                password: 'password@123',
+                confirmPassword: 'password@123',
+            }
+
+            const result = ChangePasswordSchema.safeParse(invalidData)
+            expect(result.success).toBe(false)
+        })
+
+        it('debe rechazar cuando confirmPassword viene vacío', () => {
+            const invalidData = {
+                password: 'newpassword123',
+                confirmPassword: '',
             }
 
             const result = ChangePasswordSchema.safeParse(invalidData)

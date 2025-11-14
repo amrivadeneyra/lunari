@@ -1,7 +1,7 @@
 "use server";
 
 import { client } from "@/lib/prisma";
-import { currentUser, redirectToSignIn } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs";
 import { onGetAllAccountDomains } from "../settings";
 
 export const onCompleteUserRegistration = async (
@@ -56,9 +56,9 @@ export const onLoginUser = async () => {
         return { status: 200, user: authenticated, domains: domains?.domains };
       }
     } catch (error: any) {
-      return { status:400, error: error.message };
+      return { status: 400, error: error.message };
     }
   }
-  
+
   return null; // Si no se encuentra el usuario en la base de datos
 };
