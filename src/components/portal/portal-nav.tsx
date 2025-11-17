@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Menu, X, ShoppingBag, BookOpen, LogIn, User, Calendar, HelpCircle, Info, Search } from 'lucide-react'
+import { Menu, X, ShoppingBag, BookOpen, LogIn, User, Calendar, HelpCircle, Info, Search, ArrowRight } from 'lucide-react'
 import { useChatSession } from '@/hooks/chatbot/use-chat-session'
 import { useCart } from '@/context/portal/cart-context'
 import { Input } from '@/components/ui/input'
@@ -499,14 +499,24 @@ export function PortalNav({ companyId, companyName, companyIcon }: PortalNavProp
                             {sessionData?.name || sessionData?.email?.split('@')[0] || 'Mi Perfil'}
                         </Link>
                     ) : (
-                        <Link
-                            href={`/portal/${companyId}/login`}
-                            onClick={() => setIsMenuOpen(false)}
-                            className="flex items-center gap-3 px-6 py-3 bg-orange hover:bg-orange/90 text-white text-sm font-medium transition-colors border-t border-orange/20 mt-2"
-                        >
-                            <LogIn className="w-5 h-5" />
-                            Iniciar Sesión
-                        </Link>
+                        <>
+                            <Link
+                                href="/auth/select"
+                                onClick={() => setIsMenuOpen(false)}
+                                className="flex items-center gap-3 px-6 py-3 text-sm font-medium text-gravel hover:bg-peach/50 transition-colors border-t border-orange/20 mt-2"
+                            >
+                                <ArrowRight className="w-5 h-5" />
+                                Seleccionar tipo de usuario
+                            </Link>
+                            <Link
+                                href={`/portal/${companyId}/login`}
+                                onClick={() => setIsMenuOpen(false)}
+                                className="flex items-center gap-3 px-6 py-3 bg-orange hover:bg-orange/90 text-white text-sm font-medium transition-colors"
+                            >
+                                <LogIn className="w-5 h-5" />
+                                Iniciar sesión como cliente
+                            </Link>
+                        </>
                     )}
                 </nav>
             </div>
