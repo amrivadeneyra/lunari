@@ -80,20 +80,14 @@ export const onBookNewAppointment = async (
             return { status: 404, message: 'Cliente no encontrado' }
         }
 
-        // ✅ Crear la reserva
-        const booking = await client.customer.update({
-            where: {
-                id: customerId,
-            },
+        // ✅ Crear la cita
+        const booking = await client.bookings.create({
             data: {
-                booking: {
-                    create: {
-                        domainId,
-                        slot,
-                        date,
-                        email,
-                    },
-                },
+                customerId,
+                domainId,
+                slot,
+                date: new Date(date),
+                email,
             },
         })
 
@@ -129,7 +123,11 @@ export const onBookNewAppointment = async (
                 console.error('❌ Error al enviar email de confirmación:', emailError)
             }
 
-            return { status: 200, message: 'Reunión reservada y confirmación enviada' }
+            return {
+                status: 200,
+                message: 'Reunión reservada y confirmación enviada',
+                bookingId: booking.id // Retornar el ID del booking creado
+            }
         }
     } catch (error) {
         console.error('❌ Error al reservar cita:', error)
@@ -207,13 +205,11 @@ export const onGetAllBookingsForCurrentUser = async (clerkId: string) => {
             }
         }
 
-        // Retornar array vacío si no hay bookings
         return {
             bookings: [],
         }
     } catch (error) {
         console.log('Error getting bookings:', error)
-        // Retornar array vacío en caso de error para evitar fallos en build
         return {
             bookings: [],
         }
@@ -222,14 +218,11 @@ export const onGetAllBookingsForCurrentUser = async (clerkId: string) => {
 
 export const onGetAvailableTimeSlotsForDay = async (domainId: string, date: Date) => {
     try {
-        // Obtener el día de la semana (0 = Domingo, 1 = Lunes, etc)
         const dayOfWeekNumber = date.getDay()
 
-        // Mapear a nuestro enum
         const dayMapping = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
         const dayOfWeek = dayMapping[dayOfWeekNumber]
 
-        // Obtener el horario configurado para este día
         const schedule = await client.availabilitySchedule.findUnique({
             where: {
                 domainId_dayOfWeek: {
@@ -250,7 +243,6 @@ export const onGetAvailableTimeSlotsForDay = async (domainId: string, date: Date
             }
         }
 
-        // Si no hay horarios configurados, retornar array vacío
         return {
             status: 200,
             timeSlots: [],

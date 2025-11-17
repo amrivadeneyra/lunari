@@ -3,7 +3,7 @@
  * Maneja tokens JWT, localStorage y reconocimiento automático
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface SessionData {
   customerId: string
@@ -24,10 +24,87 @@ export const useChatSession = () => {
     data: null,
     isAuthenticated: false
   })
+  const isInitialLoadRef = useRef(true)
 
   // Cargar sesión desde localStorage al montar
   useEffect(() => {
-    loadSession()
+    const loadSessionWrapper = () => {
+      try {
+        const token = localStorage.getItem('lunari_session_token')
+        const dataStr = localStorage.getItem('lunari_session_data')
+
+        if (token && dataStr) {
+          const data = JSON.parse(dataStr) as SessionData
+
+          // Verificar si no ha expirado
+          const expiresAt = new Date(data.expiresAt)
+          const now = new Date()
+
+          if (expiresAt > now) {
+            setSession({
+              token,
+              data,
+              isAuthenticated: true
+            })
+            console.log('Sesión recuperada:', data.email)
+            return true
+          } else {
+            console.log('Sesión expirada, limpiando...')
+            // Limpiar directamente
+            localStorage.removeItem('lunari_session_token')
+            localStorage.removeItem('lunari_session_data')
+            setSession({
+              token: null,
+              data: null,
+              isAuthenticated: false
+            })
+            return false
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error al cargar sesión:', error)
+        // Limpiar directamente
+        localStorage.removeItem('lunari_session_token')
+        localStorage.removeItem('lunari_session_data')
+        setSession({
+          token: null,
+          data: null,
+          isAuthenticated: false
+        })
+      }
+      return false
+    }
+
+    loadSessionWrapper()
+
+    // Escuchar cambios en localStorage (cuando se guarda desde otro componente)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'lunari_session_token' || e.key === 'lunari_session_data') {
+        loadSessionWrapper()
+      }
+    }
+
+    // Escuchar evento personalizado para cambios en la misma ventana
+    const handleSessionUpdate = () => {
+      // Evitar ejecutar en la carga inicial para prevenir loops
+      if (!isInitialLoadRef.current) {
+        loadSessionWrapper()
+      }
+    }
+
+    // Marcar que la carga inicial terminó después de un pequeño delay
+    const initialLoadTimer = setTimeout(() => {
+      isInitialLoadRef.current = false
+    }, 500)
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('lunari_session_updated', handleSessionUpdate)
+
+    return () => {
+      clearTimeout(initialLoadTimer)
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('lunari_session_updated', handleSessionUpdate)
+    }
   }, [])
 
   /**
@@ -40,7 +117,7 @@ export const useChatSession = () => {
 
       if (token && dataStr) {
         const data = JSON.parse(dataStr) as SessionData
-        
+
         // Verificar si no ha expirado
         const expiresAt = new Date(data.expiresAt)
         const now = new Date()
@@ -51,15 +128,15 @@ export const useChatSession = () => {
             data,
             isAuthenticated: true
           })
-          console.log('✅ Sesión recuperada:', data.email)
-          
+          console.log('Sesión recuperada:', data.email)
+
           // Calcular días restantes
           const daysRemaining = Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-          console.log(`⏰ Sesión expira en ${daysRemaining} días`)
-          
+          console.log(`Sesión expira en ${daysRemaining} días`)
+
           return true
         } else {
-          console.log('⏰ Sesión expirada, limpiando...')
+          console.log('Sesión expirada, limpiando...')
           clearSession()
           return false
         }
@@ -78,14 +155,17 @@ export const useChatSession = () => {
     try {
       localStorage.setItem('lunari_session_token', token)
       localStorage.setItem('lunari_session_data', JSON.stringify(data))
-      
+
       setSession({
         token,
         data,
         isAuthenticated: true
       })
 
-      console.log('💾 Sesión guardada:', data.email)
+      console.log('Sesión guardada:', data.email)
+
+      // Disparar evento personalizado para notificar a otros componentes
+      window.dispatchEvent(new Event('lunari_session_updated'))
     } catch (error) {
       console.error('❌ Error al guardar sesión:', error)
     }
@@ -98,14 +178,14 @@ export const useChatSession = () => {
     try {
       localStorage.removeItem('lunari_session_token')
       localStorage.removeItem('lunari_session_data')
-      
+
       setSession({
         token: null,
         data: null,
         isAuthenticated: false
       })
 
-      console.log('🗑️ Sesión limpiada')
+      console.log('Sesión limpiada')
     } catch (error) {
       console.error('❌ Error al limpiar sesión:', error)
     }
@@ -117,7 +197,7 @@ export const useChatSession = () => {
   const updateSession = (newToken: string) => {
     if (session.data) {
       saveSession(newToken, session.data)
-      console.log('🔄 Token actualizado')
+      console.log('Token actualizado')
     }
   }
 
@@ -127,7 +207,7 @@ export const useChatSession = () => {
     token: session.token,
     sessionData: session.data,
     isAuthenticated: session.isAuthenticated,
-    
+
     // Funciones
     saveSession,
     clearSession,

@@ -1,7 +1,9 @@
 import { onBookNewAppointment, onGetAvailableTimeSlotsForDay, saveAnswers } from '@/action/appointment'
+import { createMultipleReservations } from '@/action/portal'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export const usePortal = (
   customerId: string,
@@ -15,6 +17,8 @@ export const usePortal = (
     handleSubmit,
   } = useForm()
   const { toast } = useToast()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<number>(1)
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedSlot, setSelectedSlot] = useState<string | undefined>('')
@@ -22,13 +26,16 @@ export const usePortal = (
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingSlots, setLoadingSlots] = useState<boolean>(false)
 
+  // Verificar si viene del carrito
+  const fromCart = searchParams.get('fromCart') === 'true'
+
   setValue('date', date)
 
   // Cargar horarios disponibles cuando cambia la fecha
   useEffect(() => {
     const loadAvailableSlots = async () => {
       if (!date) return
-      
+
       setLoadingSlots(true)
       const result = await onGetAvailableTimeSlotsForDay(domainId, date)
       if (result?.timeSlots) {
@@ -67,10 +74,69 @@ export const usePortal = (
           email
         )
         if (booked && booked.status == 200) {
-          toast({
-            title: 'Éxito',
-            description: booked.message,
-          })
+          // Si viene del carrito, crear las reservas asociadas a la cita
+          if (fromCart && booked.bookingId) {
+            try {
+              // Obtener items del carrito desde localStorage
+              const pendingItemsStr = localStorage.getItem('lunari_pending_cart_items')
+              if (pendingItemsStr) {
+                const pendingItems = JSON.parse(pendingItemsStr)
+
+                // Crear las reservas asociadas a la cita
+                const reservationResult = await createMultipleReservations(
+                  pendingItems.map((item: any) => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    details: {
+                      unit: item.unit,
+                      width: item.width,
+                      weight: item.weight,
+                      color: item.color,
+                    }
+                  })),
+                  customerId,
+                  booked.bookingId // Asociar a la cita creada
+                )
+
+                if (reservationResult.success) {
+                  // Limpiar el carrito y localStorage
+                  localStorage.removeItem('lunari_pending_cart_items')
+                  localStorage.removeItem('portal-cart')
+
+                  // Disparar evento para limpiar el carrito del contexto
+                  window.dispatchEvent(new Event('lunari_cart_cleared'))
+
+                  toast({
+                    title: '¡Éxito!',
+                    description: `Cita creada y ${pendingItems.length} reserva(s) asociada(s) exitosamente`,
+                  })
+
+                  // Redirigir a reservas después de un pequeño delay
+                  setTimeout(() => {
+                    router.push(`/portal/${domainId}/reservation`)
+                  }, 1500)
+                } else {
+                  toast({
+                    title: 'Cita creada',
+                    description: 'La cita se creó pero hubo un error al crear las reservas',
+                    variant: 'destructive'
+                  })
+                }
+              }
+            } catch (error: any) {
+              console.error('Error creating reservations after booking:', error)
+              toast({
+                title: 'Cita creada',
+                description: 'La cita se creó pero hubo un error al crear las reservas',
+                variant: 'destructive'
+              })
+            }
+          } else {
+            toast({
+              title: 'Éxito',
+              description: booked.message,
+            })
+          }
           setStep(3)
         }
 
