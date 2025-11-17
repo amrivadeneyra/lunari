@@ -5,10 +5,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   onBookNewAppointment,
-  onGetAllDomainBookings,
+  onGetAllCompanyBookings,
   onGetAvailableTimeSlotsForDay,
   onGetAllBookingsForCurrentUser,
-  onDomainCustomerResponses,
+  onCompanyCustomerResponses,
 } from './index'
 import { mockPrismaClient } from '@/test/mocks/prisma'
 import { mockClerkClient } from '@/test/mocks/clerk'
@@ -28,7 +28,7 @@ describe('Appointment Actions', () => {
       const mockCustomer = {
         name: 'Juan Pérez',
         email: 'juan@example.com',
-        Domain: {
+        Company: {
           name: 'Mi Empresa',
           User: {
             clerkId: 'clerk-123',
@@ -50,7 +50,7 @@ describe('Appointment Actions', () => {
         ; (sendAppointmentConfirmation as any).mockResolvedValue({ success: true })
 
       const result = await onBookNewAppointment(
-        'domain-123',
+        'company-123',
         'customer-123',
         '10:00am',
         '2024-12-31T10:00:00Z',
@@ -66,7 +66,7 @@ describe('Appointment Actions', () => {
       mockPrismaClient.customer.findUnique.mockResolvedValue(null)
 
       const result = await onBookNewAppointment(
-        'domain-123',
+        'company-123',
         'customer-123',
         '10:00am',
         '2024-12-31T10:00:00Z',
@@ -83,7 +83,7 @@ describe('Appointment Actions', () => {
       )
 
       const result = await onBookNewAppointment(
-        'domain-123',
+        'company-123',
         'customer-123',
         '10:00am',
         '2024-12-31T10:00:00Z',
@@ -94,7 +94,7 @@ describe('Appointment Actions', () => {
     })
   })
 
-  describe('onGetAllDomainBookings', () => {
+  describe('onGetAllCompanyBookings', () => {
     it('debe obtener todas las citas de un dominio', async () => {
       const mockBookings = [
         {
@@ -109,11 +109,11 @@ describe('Appointment Actions', () => {
 
       mockPrismaClient.bookings.findMany.mockResolvedValue(mockBookings)
 
-      const result = await onGetAllDomainBookings('domain-123')
+      const result = await onGetAllCompanyBookings('company-123')
 
       expect(result).toEqual(mockBookings)
       expect(mockPrismaClient.bookings.findMany).toHaveBeenCalledWith({
-        where: { domainId: 'domain-123' },
+        where: { companyId: 'company-123' },
         select: {
           slot: true,
           date: true,
@@ -134,7 +134,7 @@ describe('Appointment Actions', () => {
       )
 
       const date = new Date('2024-12-31')
-      const result = await onGetAvailableTimeSlotsForDay('domain-123', date)
+      const result = await onGetAvailableTimeSlotsForDay('company-123', date)
 
       expect(result?.status).toBe(200)
       expect(result?.timeSlots).toEqual(['9:00am', '9:30am', '10:00am'])
@@ -144,7 +144,7 @@ describe('Appointment Actions', () => {
       mockPrismaClient.availabilitySchedule.findUnique.mockResolvedValue(null)
 
       const date = new Date('2024-12-31')
-      const result = await onGetAvailableTimeSlotsForDay('domain-123', date)
+      const result = await onGetAvailableTimeSlotsForDay('company-123', date)
 
       expect(result?.status).toBe(200)
       expect(result?.timeSlots).toEqual([])
@@ -161,7 +161,7 @@ describe('Appointment Actions', () => {
       )
 
       const date = new Date('2024-12-31')
-      const result = await onGetAvailableTimeSlotsForDay('domain-123', date)
+      const result = await onGetAvailableTimeSlotsForDay('company-123', date)
 
       expect(result?.status).toBe(200)
       expect(result?.timeSlots).toEqual([])
@@ -176,12 +176,12 @@ describe('Appointment Actions', () => {
           slot: '10:00am',
           date: new Date('2024-12-31'),
           email: 'customer@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
           createdAt: new Date(),
           Customer: {
             name: 'Cliente 1',
             email: 'customer@example.com',
-            Domain: {
+            Company: {
               name: 'Mi Empresa',
             },
           },
@@ -214,7 +214,7 @@ describe('Appointment Actions', () => {
     })
   })
 
-  describe('onDomainCustomerResponses', () => {
+  describe('onCompanyCustomerResponses', () => {
     it('debe obtener las respuestas del cliente', async () => {
       const mockCustomer = {
         email: 'customer@example.com',
@@ -229,7 +229,7 @@ describe('Appointment Actions', () => {
 
       mockPrismaClient.customer.findUnique.mockResolvedValue(mockCustomer)
 
-      const result = await onDomainCustomerResponses('customer-123')
+      const result = await onCompanyCustomerResponses('customer-123')
 
       expect(result).toEqual(mockCustomer)
     })
@@ -240,7 +240,7 @@ describe('Appointment Actions', () => {
         new Error('Error de BD')
       )
 
-      const result = await onDomainCustomerResponses('customer-123')
+      const result = await onCompanyCustomerResponses('customer-123')
 
       expect(result).toBeUndefined()
       consoleSpy.mockRestore()
@@ -249,7 +249,7 @@ describe('Appointment Actions', () => {
     it('debe retornar undefined si no encuentra el cliente', async () => {
       mockPrismaClient.customer.findUnique.mockResolvedValue(null)
 
-      const result = await onDomainCustomerResponses('customer-123')
+      const result = await onCompanyCustomerResponses('customer-123')
 
       expect(result).toBeUndefined()
     })
@@ -291,14 +291,14 @@ describe('Appointment Actions', () => {
     })
   })
 
-  describe('onGetAllDomainBookings', () => {
+  describe('onGetAllCompanyBookings', () => {
     it('debe manejar errores correctamente', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { })
       mockPrismaClient.bookings.findMany.mockRejectedValue(
         new Error('Error de BD')
       )
 
-      const result = await onGetAllDomainBookings('domain-123')
+      const result = await onGetAllCompanyBookings('company-123')
 
       expect(result).toBeUndefined()
       consoleSpy.mockRestore()

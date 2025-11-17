@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useDomain } from "@/hooks/sidebar/use-domain";
+import { useCompany } from "@/hooks/sidebar/use-company";
 import FormGenerator from "@/components/forms/form-generator";
 import UploadButton from "@/components/upload-button";
 import { Button } from "@/components/ui/button";
@@ -10,25 +10,25 @@ import AppDrawer from "@/components/drawer";
 import { Loader } from "@/components/loader";
 import { Plus } from "lucide-react";
 
-type DomainRequiredGuardProps = {
+type CompanyRequiredGuardProps = {
     children: React.ReactNode;
-    domains: {
+    company: {
         id: string;
         name: string;
         icon: string;
-    }[] | null | undefined;
+    } | null | undefined;
 };
 
-export default function DomainRequiredGuard({ children, domains }: DomainRequiredGuardProps) {
+export default function CompanyRequiredGuard({ children, company }: CompanyRequiredGuardProps) {
     const pathname = usePathname();
     const router = useRouter();
-    const { register, onAddDomain, loading, errors, reset } = useDomain();
+    const { register, onAddCompany, loading, errors, reset } = useCompany();
     const [drawerOpen, setDrawerOpen] = useState(false);
 
-    const hasDomains = domains && domains.length > 0;
+    const hasCompany = company !== null && company !== undefined;
 
-    // Si no tiene dominios, mostrar el formulario de crear dominio
-    if (!hasDomains) {
+    // Si no tiene company, mostrar el formulario de crear company
+    if (!hasCompany) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="max-w-md w-full space-y-8 p-8">
@@ -48,7 +48,7 @@ export default function DomainRequiredGuard({ children, domains }: DomainRequire
                         <form
                             className="flex flex-col gap-4"
                             onSubmit={async (e) => {
-                                await onAddDomain(e);
+                                await onAddCompany(e);
                                 // No cerrar el drawer aquí, se maneja en el hook
                             }}
                         >
@@ -56,7 +56,7 @@ export default function DomainRequiredGuard({ children, domains }: DomainRequire
                                 inputType="input"
                                 register={register}
                                 label="Nombre de la empresa"
-                                name="domain"
+                                name="company"
                                 errors={errors}
                                 placeholder="Mi Empresa"
                                 type="text"

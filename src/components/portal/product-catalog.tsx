@@ -18,7 +18,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import { getDomainProducts } from '@/action/portal'
+import { getCompanyProducts } from '@/action/portal'
 
 interface Product {
   id: string
@@ -40,7 +40,7 @@ interface ProductCatalogProps {
   totalProducts: number
   totalPages: number
   currentPage: number
-  domainId: string
+  companyId: string
   initialSearch?: string
   initialCategory?: string
   initialMaterial?: string
@@ -56,7 +56,7 @@ export function ProductCatalog({
   totalProducts: initialTotal,
   totalPages: initialTotalPages,
   currentPage: initialPage,
-  domainId,
+  companyId,
   initialCategory,
   initialMaterial,
   initialSortBy = 'recommended',
@@ -124,7 +124,7 @@ export function ProductCatalog({
       }
     }
 
-    return `/portal/${domainId}${params.toString() ? `?${params.toString()}` : ''}`
+    return `/portal/${companyId}${params.toString() ? `?${params.toString()}` : ''}`
   }
 
   // Manejar cambio de ordenamiento
@@ -158,8 +158,8 @@ export function ProductCatalog({
         const category = searchParams.get('category') || null
         const material = searchParams.get('material') || null
 
-        const result = await getDomainProducts({
-          domainId,
+        const result = await getCompanyProducts({
+          companyId,
           page,
           limit: 24,
           sortBy,
@@ -183,7 +183,7 @@ export function ProductCatalog({
     }
 
     fetchProducts()
-  }, [searchParams.toString(), domainId])
+  }, [searchParams.toString(), companyId])
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">

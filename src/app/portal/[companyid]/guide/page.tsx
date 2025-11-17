@@ -1,22 +1,22 @@
-import { getDomainInfo } from '@/action/portal'
+import { getCompanyInfo } from '@/action/portal'
 import { PortalClientWrapper } from '@/components/portal/portal-client-wrapper'
 import { notFound } from 'next/navigation'
 import React from 'react'
 import { BookOpen, MessageSquare, Sparkles, HelpCircle } from 'lucide-react'
 
 type Props = {
-  params: { domainid: string }
+  params: { companyid: string }
 }
 
 const GuidePage = async ({ params }: Props) => {
-  const domainInfo = await getDomainInfo(params.domainid)
+  const companyInfo = await getCompanyInfo(params.companyid)
 
-  if (!domainInfo) {
+  if (!companyInfo) {
     notFound()
   }
 
   return (
-    <PortalClientWrapper domainId={params.domainid}>
+    <PortalClientWrapper companyId={params.companyid}>
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-4xl">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">

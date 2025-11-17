@@ -1,4 +1,4 @@
-import { getDomainInfo } from '@/action/portal'
+import { getCompanyInfo } from '@/action/portal'
 import { PortalClientWrapper } from '@/components/portal/portal-client-wrapper'
 import { notFound } from 'next/navigation'
 import React from 'react'
@@ -6,19 +6,19 @@ import { LoginForm } from '@/components/portal/login-form'
 import { LoginPageWrapper } from '@/components/portal/login-page-wrapper'
 
 type Props = {
-  params: { domainid: string }
+  params: { companyid: string }
 }
 
 const LoginPage = async ({ params }: Props) => {
-  const domainInfo = await getDomainInfo(params.domainid)
+  const companyInfo = await getCompanyInfo(params.companyid)
 
-  if (!domainInfo) {
+  if (!companyInfo) {
     notFound()
   }
 
   return (
-    <PortalClientWrapper domainId={params.domainid}>
-      <LoginPageWrapper domainId={params.domainid}>
+    <PortalClientWrapper companyId={params.companyid}>
+      <LoginPageWrapper companyId={params.companyid}>
         <main className="container mx-auto px-4 sm:px-6 py-12 max-w-md">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
             <div className="text-center mb-8">
@@ -35,7 +35,7 @@ const LoginPage = async ({ params }: Props) => {
               </p>
             </div>
 
-            <LoginForm domainId={params.domainid} />
+            <LoginForm companyId={params.companyid} />
           </div>
         </main>
       </LoginPageWrapper>

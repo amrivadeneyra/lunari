@@ -1,4 +1,4 @@
-import { onGetAllAccountDomains } from '@/action/settings'
+import { onGetAccountCompany } from '@/action/settings'
 import ConversationMenu from '@/components/conversations'
 import Messenger from '@/components/conversations/messenger'
 import { Separator } from '@/components/ui/separator'
@@ -11,11 +11,11 @@ export const revalidate = 0
 type Props = {}
 
 const ConversationPage = async (props: Props) => {
-  const domains = await onGetAllAccountDomains()
+  const companyData = await onGetAccountCompany()
   return (
     <div className="w-full h-full flex flex-col lg:flex-row">
       <div className="w-full lg:w-[600px] lg:min-w-[600px] lg:max-w-[600px] h-1/2 lg:h-full">
-        <ConversationMenu domains={domains?.domains} />
+        <ConversationMenu company={companyData?.company} />
       </div>
 
       <Separator orientation="horizontal" className="lg:hidden" />

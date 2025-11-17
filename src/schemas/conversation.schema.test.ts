@@ -14,7 +14,7 @@ describe('Conversation Schemas', () => {
     it('debe validar búsqueda correcta', () => {
       const validData = {
         query: 'buscar conversación',
-        domain: 'domain-123',
+        company: 'company-123',
       }
 
       const result = ConversationSearchSchema.safeParse(validData)
@@ -24,17 +24,17 @@ describe('Conversation Schemas', () => {
     it('debe rechazar query vacío', () => {
       const invalidData = {
         query: '',
-        domain: 'domain-123',
+        company: 'company-123',
       }
 
       const result = ConversationSearchSchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
 
-    it('debe rechazar domain vacío', () => {
+    it('debe rechazar company vacío', () => {
       const invalidData = {
         query: 'buscar conversación',
-        domain: '',
+        company: '',
       }
 
       const result = ConversationSearchSchema.safeParse(invalidData)

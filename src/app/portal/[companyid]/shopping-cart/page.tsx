@@ -16,13 +16,13 @@ export default function ShoppingCartPage() {
     const { sessionData } = useChatSession()
     const router = useRouter()
     const params = useParams()
-    const domainId = params.domainid as string
+    const companyId = params.companyid as string
     const [isCreating, setIsCreating] = useState(false)
 
     const handleCreateReservations = () => {
         if (!sessionData?.customerId) {
             toast.error('Debes iniciar sesión para crear reservas')
-            router.push(`/portal/${domainId}/login`)
+            router.push(`/portal/${companyId}/login`)
             return
         }
 
@@ -35,7 +35,7 @@ export default function ShoppingCartPage() {
         localStorage.setItem('lunari_pending_cart_items', JSON.stringify(items))
 
         // Redirigir a la página de appointment para que el usuario seleccione la fecha
-        router.push(`/portal/${domainId}/appointment/${sessionData.customerId}?fromCart=true`)
+        router.push(`/portal/${companyId}/appointment/${sessionData.customerId}?fromCart=true`)
     }
 
     return (
@@ -43,7 +43,7 @@ export default function ShoppingCartPage() {
             {/* Header */}
             <div className="mb-6">
                 <Link
-                    href={`/portal/${domainId}`}
+                    href={`/portal/${companyId}`}
                     className="inline-flex items-center gap-2 text-gravel hover:text-orange transition-colors mb-4"
                 >
                     <ArrowLeft className="w-4 h-4" />
@@ -74,7 +74,7 @@ export default function ShoppingCartPage() {
                     <p className="text-ironside mb-6 max-w-md">
                         Agrega productos desde el catálogo o el chatbot para comenzar a hacer reservas
                     </p>
-                    <Link href={`/portal/${domainId}`}>
+                    <Link href={`/portal/${companyId}`}>
                         <Button className="bg-orange hover:bg-orange/90 text-white">
                             Explorar Productos
                         </Button>
@@ -194,7 +194,7 @@ export default function ShoppingCartPage() {
                                     <p className="text-xs text-gravel text-center mb-2">
                                         Inicia sesión para crear reservas
                                     </p>
-                                    <Link href={`/portal/${domainId}/login`}>
+                                    <Link href={`/portal/${companyId}/login`}>
                                         <Button
                                             variant="outline"
                                             className="w-full border-orange text-orange hover:bg-peach"
@@ -205,7 +205,7 @@ export default function ShoppingCartPage() {
                                 </div>
                             )}
 
-                            <Link href={`/portal/${domainId}`}>
+                            <Link href={`/portal/${companyId}`}>
                                 <Button
                                     variant="outline"
                                     className="w-full mt-3 border-orange/30 text-gravel hover:bg-peach"

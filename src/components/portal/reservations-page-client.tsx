@@ -9,13 +9,13 @@ import { Calendar, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 interface ReservationsPageClientProps {
-    domainId: string
+    companyId: string
 }
 
 // Ref global para evitar múltiples peticiones simultáneas (persiste entre montajes)
 const globalLoadingRef = new Map<string, boolean>()
 
-export function ReservationsPageClient({ domainId }: ReservationsPageClientProps) {
+export function ReservationsPageClient({ companyId }: ReservationsPageClientProps) {
     const { sessionData, isAuthenticated } = useChatSession()
     const router = useRouter()
     const [bookingsData, setBookingsData] = useState<{ bookings: any[], reservationsWithoutBooking: any[] }>({ bookings: [], reservationsWithoutBooking: [] })
@@ -58,11 +58,11 @@ export function ReservationsPageClient({ domainId }: ReservationsPageClientProps
         if ((!isAuthenticated || !customerId) && !hasRedirected.current) {
             hasRedirected.current = true
             const timer = setTimeout(() => {
-                router.push(`/portal/${domainId}/login`)
+                router.push(`/portal/${companyId}/login`)
             }, 100)
             return () => clearTimeout(timer)
         }
-    }, [isCheckingAuth, isAuthenticated, customerId, domainId, router])
+    }, [isCheckingAuth, isAuthenticated, customerId, companyId, router])
 
     // Efecto separado para cargar datos (solo se ejecuta cuando es necesario)
     useEffect(() => {
@@ -155,7 +155,7 @@ export function ReservationsPageClient({ domainId }: ReservationsPageClientProps
             {/* Header */}
             <div className="mb-8">
                 <Link
-                    href={`/portal/${domainId}`}
+                    href={`/portal/${companyId}`}
                     className="inline-flex items-center gap-2 text-gravel hover:text-orange transition-colors mb-6 group"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -185,7 +185,7 @@ export function ReservationsPageClient({ domainId }: ReservationsPageClientProps
                 <ReservationsList
                     bookings={bookingsData.bookings}
                     reservationsWithoutBooking={bookingsData.reservationsWithoutBooking}
-                    domainId={domainId}
+                    companyId={companyId}
                     onReservationDeleted={() => setRefreshKey(prev => prev + 1)}
                 />
             )}

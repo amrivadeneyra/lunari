@@ -10,16 +10,17 @@ import { Loader } from '../loader'
 import ChatCard from './chat-card'
 
 type Props = {
-  domains?:
+  company?:
   | {
     name: string
     id: string
     icon: string
-  }[]
+  }
+  | null
   | undefined
 }
 
-const ConversationMenu = ({ domains }: Props) => {
+const ConversationMenu = ({ company }: Props) => {
   const { register, setValue, chatRooms, loading, activeTab, onGetActiveChatMessages, changeActiveTab, toggleFavorite } =
     useConversation()
 
@@ -36,7 +37,7 @@ const ConversationMenu = ({ domains }: Props) => {
         <TabsMenu triggers={TABS_MENU} onTabChange={changeActiveTab} value={activeTab}>
           <TabsContent value="no leidos" className="mt-3 md:mt-4">
             <ConversationSearch
-              domains={domains}
+              company={company}
               register={register}
               setValue={setValue}
             />
@@ -76,7 +77,7 @@ const ConversationMenu = ({ domains }: Props) => {
           </TabsContent>
           <TabsContent value="todos" className="mt-3 md:mt-4">
             <ConversationSearch
-              domains={domains}
+              company={company}
               register={register}
               setValue={setValue}
             />
@@ -116,7 +117,7 @@ const ConversationMenu = ({ domains }: Props) => {
           </TabsContent>
           <TabsContent value="expirados" className="mt-3 md:mt-4">
             <ConversationSearch
-              domains={domains}
+              company={company}
               register={register}
               setValue={setValue}
             />
@@ -156,7 +157,7 @@ const ConversationMenu = ({ domains }: Props) => {
           </TabsContent>
           <TabsContent value="favoritos" className="mt-3 md:mt-4">
             <ConversationSearch
-              domains={domains}
+              company={company}
               register={register}
               setValue={setValue}
             />

@@ -9,11 +9,11 @@ import Image from 'next/image'
 import { BotIcon } from '@/icons/bot-icon'
 
 interface ChatbotWidgetProps {
-  domainId: string
+  companyId: string
   className?: string
 }
 
-export function ChatbotWidget({ domainId, className }: ChatbotWidgetProps) {
+export function ChatbotWidget({ companyId, className }: ChatbotWidgetProps) {
   const { addItem } = useCart()
 
   const {
@@ -35,7 +35,7 @@ export function ChatbotWidget({ domainId, className }: ChatbotWidgetProps) {
     isHumanMode,
     onToggleHumanMode,
     isToggleDisabled,
-  } = useChatBot(domainId) // ✅ Pasar domainId directamente
+  } = useChatBot(companyId) // ✅ Pasar companyId directamente
 
   // Función para agregar producto al carrito desde el chatbot
   const handleProductRecommended = (productId: string, productName: string) => {
@@ -54,7 +54,7 @@ export function ChatbotWidget({ domainId, className }: ChatbotWidgetProps) {
             setChat={setOnChats}
             realtimeMode={onRealTime}
             helpdesk={currentBot?.helpdesk || []}
-            domainName={currentBot?.name || ''}
+            companyName={currentBot?.name || ''}
             ref={messageWindowRef}
             help={currentBot?.chatBot?.helpdesk}
             theme={currentBot?.chatBot?.background}

@@ -12,13 +12,13 @@ import { Spinner } from '../spinner'
 type CatalogType = 'category' | 'material' | 'texture' | 'season' | 'use' | 'feature'
 
 type Props = {
-  domainId: string
+  companyId: string
   type: CatalogType
   title: string
   description: string
 }
 
-const CatalogManager = ({ domainId, type, title, description }: Props) => {
+const CatalogManager = ({ companyId, type, title, description }: Props) => {
   const {
     items,
     loading,
@@ -36,7 +36,7 @@ const CatalogManager = ({ domainId, type, title, description }: Props) => {
     handleToggle,
     startEditing,
     cancelEditing,
-  } = useCatalog(domainId, type)
+  } = useCatalog(companyId, type)
 
   return (
     <div className="space-y-6">

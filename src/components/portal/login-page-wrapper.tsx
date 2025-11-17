@@ -5,11 +5,11 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useChatSession } from '@/hooks/chatbot/use-chat-session'
 
 interface LoginPageWrapperProps {
-    domainId: string
+    companyId: string
     children: React.ReactNode
 }
 
-export function LoginPageWrapper({ domainId, children }: LoginPageWrapperProps) {
+export function LoginPageWrapper({ companyId, children }: LoginPageWrapperProps) {
     const router = useRouter()
     const pathname = usePathname()
     const { isAuthenticated } = useChatSession()
@@ -21,11 +21,11 @@ export function LoginPageWrapper({ domainId, children }: LoginPageWrapperProps) 
             hasRedirected.current = true
             // Pequeño delay para evitar loops
             const timer = setTimeout(() => {
-                router.push(`/portal/${domainId}/profile`)
+                router.push(`/portal/${companyId}/profile`)
             }, 100)
             return () => clearTimeout(timer)
         }
-    }, [isAuthenticated, domainId, router])
+    }, [isAuthenticated, companyId, router])
 
     // Si está autenticado, no mostrar el contenido (mientras redirige)
     if (isAuthenticated) {

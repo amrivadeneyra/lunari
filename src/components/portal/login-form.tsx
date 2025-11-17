@@ -19,10 +19,10 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 interface LoginFormProps {
-  domainId: string
+  companyId: string
 }
 
-export function LoginForm({ domainId }: LoginFormProps) {
+export function LoginForm({ companyId }: LoginFormProps) {
   const router = useRouter()
   const { saveSession } = useChatSession()
   const [loading, setLoading] = useState(false)
@@ -37,7 +37,7 @@ export function LoginForm({ domainId }: LoginFormProps) {
   const onSubmit = async (data: LoginFormData) => {
     try {
       setLoading(true)
-      const result = await createCustomerSession(domainId, data.email)
+      const result = await createCustomerSession(companyId, data.email)
 
       if (result.success && result.token && result.sessionData) {
         // Calcular expiresAt (30 días desde ahora)
@@ -58,7 +58,7 @@ export function LoginForm({ domainId }: LoginFormProps) {
 
         // Pequeño delay para asegurar que la sesión se guarde
         setTimeout(() => {
-          router.push(`/portal/${domainId}/reservation`)
+          router.push(`/portal/${companyId}/reservation`)
           router.refresh()
         }, 100)
       } else {

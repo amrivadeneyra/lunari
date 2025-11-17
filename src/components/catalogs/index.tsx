@@ -7,10 +7,10 @@ import { CATALOG_TABS_MENU } from '@/constants/menu'
 import CatalogManager from './catalog-manager'
 
 type Props = {
-  domainId: string
+  companyId: string
 }
 
-const CatalogsManager = ({ domainId }: Props) => {
+const CatalogsManager = ({ companyId }: Props) => {
   return (
     <div className="w-full h-full overflow-y-auto">
       <div className="w-full p-4 md:p-6">
@@ -38,7 +38,7 @@ const CatalogsManager = ({ domainId }: Props) => {
         >
           <TabsContent value="categorías" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="category"
               title="Categorías"
               description="Ejemplo: Básicas, Premium, Especiales"
@@ -47,7 +47,7 @@ const CatalogsManager = ({ domainId }: Props) => {
 
           <TabsContent value="materiales" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="material"
               title="Materiales"
               description="Ejemplo: Algodón, Lino, Seda, Polyester"
@@ -56,7 +56,7 @@ const CatalogsManager = ({ domainId }: Props) => {
 
           <TabsContent value="texturas" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="texture"
               title="Texturas"
               description="Ejemplo: Lisa, Texturizada, Satinada, Rizada"
@@ -65,7 +65,7 @@ const CatalogsManager = ({ domainId }: Props) => {
 
           <TabsContent value="temporadas" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="season"
               title="Temporadas"
               description="Ejemplo: Verano, Invierno, Otoño, Primavera, Todo el año"
@@ -74,7 +74,7 @@ const CatalogsManager = ({ domainId }: Props) => {
 
           <TabsContent value="usos" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="use"
               title="Usos Recomendados"
               description="Ejemplo: Vestidos, Camisas, Blusas, Pantalones, Tapicería"
@@ -83,7 +83,7 @@ const CatalogsManager = ({ domainId }: Props) => {
 
           <TabsContent value="características" className="mt-4">
             <CatalogManager
-              domainId={domainId}
+              companyId={companyId}
               type="feature"
               title="Características"
               description="Ejemplo: Impermeable, Elástico, Antibacterial, Antiarrugas"

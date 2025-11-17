@@ -5,8 +5,8 @@ import { generateSessionToken } from '@/lib/session'
 
 type SortOption = 'recommended' | 'price-asc' | 'price-desc' | 'name-asc' | 'name-desc'
 
-interface GetDomainProductsParams {
-    domainId: string
+interface GetCompanyProductsParams {
+    companyId: string
     page?: number
     limit?: number
     sortBy?: SortOption
@@ -18,10 +18,10 @@ interface GetDomainProductsParams {
 /**
  * Obtiene productos activos de un dominio con paginación y ordenamiento (público)
  */
-export const getDomainProducts = async (params: GetDomainProductsParams) => {
+export const getCompanyProducts = async (params: GetCompanyProductsParams) => {
     try {
         const {
-            domainId,
+            companyId,
             page = 1,
             limit = 24,
             sortBy = 'recommended',
@@ -32,7 +32,7 @@ export const getDomainProducts = async (params: GetDomainProductsParams) => {
 
         // Construir filtros
         const where: any = {
-            domainId,
+            companyId,
             active: true,
         }
 
@@ -132,7 +132,7 @@ export const getDomainProducts = async (params: GetDomainProductsParams) => {
             totalPages: Math.ceil(total / limit)
         }
     } catch (error) {
-        console.error('Error getting domain products:', error)
+        console.error('Error getting company products:', error)
         return {
             products: [],
             total: 0,
@@ -146,14 +146,14 @@ export const getDomainProducts = async (params: GetDomainProductsParams) => {
 /**
  * Obtiene sugerencias de productos para búsqueda rápida (máximo 6 resultados)
  */
-export const getSearchSuggestions = async (domainId: string, search: string) => {
+export const getSearchSuggestions = async (companyId: string, search: string) => {
     try {
         if (!search || search.length < 3) {
             return []
         }
 
         const where: any = {
-            domainId,
+            companyId,
             active: true,
             OR: [
                 { name: { contains: search, mode: 'insensitive' } },
@@ -188,10 +188,10 @@ export const getSearchSuggestions = async (domainId: string, search: string) => 
 /**
  * Obtiene información del dominio público
  */
-export const getDomainInfo = async (domainId: string) => {
+export const getCompanyInfo = async (companyId: string) => {
     try {
-        const domain = await client.domain.findUnique({
-            where: { id: domainId },
+        const company = await client.company.findUnique({
+            where: { id: companyId },
             select: {
                 id: true,
                 name: true,
@@ -208,9 +208,9 @@ export const getDomainInfo = async (domainId: string) => {
             }
         })
 
-        return domain
+        return company
     } catch (error) {
-        console.error('Error getting domain info:', error)
+        console.error('Error getting company info:', error)
         return null
     }
 }
@@ -218,12 +218,12 @@ export const getDomainInfo = async (domainId: string) => {
 /**
  * Obtiene todas las categorías y materiales activos de un dominio (para filtros)
  */
-export const getDomainCatalogs = async (domainId: string) => {
+export const getCompanyCatalogs = async (companyId: string) => {
     try {
         const [categories, materials] = await Promise.all([
             client.category.findMany({
                 where: {
-                    domainId,
+                    companyId,
                     active: true
                 },
                 select: {
@@ -235,7 +235,7 @@ export const getDomainCatalogs = async (domainId: string) => {
             }),
             client.material.findMany({
                 where: {
-                    domainId,
+                    companyId,
                     active: true
                 },
                 select: {
@@ -252,7 +252,7 @@ export const getDomainCatalogs = async (domainId: string) => {
             materials: materials.map(m => m.name)
         }
     } catch (error) {
-        console.error('Error getting domain catalogs:', error)
+        console.error('Error getting company catalogs:', error)
         return {
             categories: [],
             materials: []
@@ -284,7 +284,7 @@ export const createProductReservation = async (
                 salePrice: true,
                 unit: true,
                 stock: true,
-                domainId: true,
+                companyId: true,
             }
         })
 
@@ -557,7 +557,7 @@ export const deleteReservation = async (reservationId: string, customerId: strin
  * Crea o recupera una sesión de cliente
  */
 export const createCustomerSession = async (
-    domainId: string,
+    companyId: string,
     email: string,
     name?: string,
     phone?: string
@@ -567,7 +567,7 @@ export const createCustomerSession = async (
         let customer = await client.customer.findFirst({
             where: {
                 email,
-                domainId
+                companyId
             }
         })
 
@@ -578,7 +578,7 @@ export const createCustomerSession = async (
                     email,
                     name: name || null,
                     phone: phone || null,
-                    domainId,
+                    companyId,
                     status: true
                 }
             })
@@ -596,7 +596,7 @@ export const createCustomerSession = async (
         }
 
         // Buscar o crear chatRoom
-        // Nota: ChatRoom no tiene domainId directamente, se obtiene a través de Customer
+        // Nota: ChatRoom no tiene companyId directamente, se obtiene a través de Customer
         let chatRoom = await client.chatRoom.findFirst({
             where: {
                 customerId: customer.id
@@ -615,7 +615,7 @@ export const createCustomerSession = async (
         const sessionToken = await generateSessionToken(
             customer.id,
             email,
-            domainId,
+            companyId,
             chatRoom.id
         )
 

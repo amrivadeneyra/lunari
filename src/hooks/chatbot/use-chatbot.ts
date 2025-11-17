@@ -16,7 +16,7 @@ const upload = new UploadClient({
   publicKey: process.env.NEXT_PUBLIC_UPLOAD_CARE_PUBLIC_KEY as string,
 })
 
-export const useChatBot = (domainId?: string) => {
+export const useChatBot = (companyId?: string) => {
   const {
     register,
     handleSubmit,
@@ -49,7 +49,7 @@ export const useChatBot = (domainId?: string) => {
         id: string
         question: string
         answer: string
-        domainId: string | null
+        companyId: string | null
       }[]
     }
     | undefined
@@ -87,7 +87,7 @@ export const useChatBot = (domainId?: string) => {
 
   useEffect(() => {
     // Solo enviar postMessage si NO estamos en el portal (compatibilidad con iframe)
-    if (!domainId) {
+    if (!companyId) {
       postToParent(
         JSON.stringify({
           width: botOpened ? 550 : 80,
@@ -95,11 +95,11 @@ export const useChatBot = (domainId?: string) => {
         })
       )
     }
-  }, [botOpened, domainId])
+  }, [botOpened, companyId])
 
   let limitRequest = 0
 
-  const onGetDomainChatBot = async (idOrName: string) => {
+  const onGetCompanyChatBot = async (idOrName: string) => {
     setCurrentBotId(idOrName)
     const chatbot = await onGetCurrentChatBot(idOrName)
     if (chatbot) {
@@ -146,11 +146,11 @@ export const useChatBot = (domainId?: string) => {
     }
   }
 
-  // Si domainId viene como prop, usarlo directamente
+  // Si companyId viene como prop, usarlo directamente
   useEffect(() => {
-    if (domainId) {
+    if (companyId) {
       if (limitRequest < 1) {
-        onGetDomainChatBot(domainId)
+        onGetCompanyChatBot(companyId)
         limitRequest++
       }
     } else {
@@ -158,12 +158,12 @@ export const useChatBot = (domainId?: string) => {
       window.addEventListener('message', (e) => {
         const botid = e.data
         if (limitRequest < 1 && typeof botid == 'string') {
-          onGetDomainChatBot(botid)
+          onGetCompanyChatBot(botid)
           limitRequest++
         }
       })
     }
-  }, [domainId])
+  }, [companyId])
 
   const onStartChatting = handleSubmit(async (values) => {
     if (values.image && values.image.length) {

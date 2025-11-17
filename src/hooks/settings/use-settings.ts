@@ -1,10 +1,10 @@
-import { onChatBotImageUpdate, onCreateFilterQuestions, onUpdateFilterQuestion, onDeleteFilterQuestion, onCreateHelpDeskQuestion, onUpdateHelpDeskQuestion, onDeleteHelpDeskQuestion, onCreateNewDomainProduct, onDeleteDomainProduct, onUpdateDomainProduct, onToggleProductStatus, onDeleteUserDomain, onGetAllFilterQuestions, onGetAllHelpDeskQuestions, onUpdateDomain, onUpdatePassword, onUpdateWelcomeMessage, onGetCategories, onCreateCategory, onUpdateCategory, onDeleteCategory, onToggleCategory, onGetMaterials, onCreateMaterial, onUpdateMaterial, onDeleteMaterial, onToggleMaterial, onGetTextures, onCreateTexture, onUpdateTexture, onDeleteTexture, onToggleTexture, onGetSeasons, onCreateSeason, onUpdateSeason, onDeleteSeason, onToggleSeason, onGetUses, onCreateUse, onUpdateUse, onDeleteUse, onToggleUse, onGetFeatures, onCreateFeature, onUpdateFeature, onDeleteFeature, onToggleFeature } from '@/action/settings'
+import { onChatBotImageUpdate, onCreateFilterQuestions, onUpdateFilterQuestion, onDeleteFilterQuestion, onCreateHelpDeskQuestion, onUpdateHelpDeskQuestion, onDeleteHelpDeskQuestion, onCreateNewCompanyProduct, onDeleteCompanyProduct, onUpdateCompanyProduct, onToggleProductStatus, onDeleteUserCompany, onGetAllFilterQuestions, onGetAllHelpDeskQuestions, onUpdateCompany, onUpdatePassword, onUpdateWelcomeMessage, onGetCategories, onCreateCategory, onUpdateCategory, onDeleteCategory, onToggleCategory, onGetMaterials, onCreateMaterial, onUpdateMaterial, onDeleteMaterial, onToggleMaterial, onGetTextures, onCreateTexture, onUpdateTexture, onDeleteTexture, onToggleTexture, onGetSeasons, onCreateSeason, onUpdateSeason, onDeleteSeason, onToggleSeason, onGetUses, onCreateUse, onUpdateUse, onDeleteUse, onToggleUse, onGetFeatures, onCreateFeature, onUpdateFeature, onDeleteFeature, onToggleFeature } from '@/action/settings'
 import { useToast } from '@/components/ui/use-toast'
 import {
     ChangePasswordProps,
     ChangePasswordSchema,
 } from '@/schemas/auth.schema'
-import { AddProductProps, AddProductSchema, DomainSettingsProps, DomainSettingsSchema, FilterQuestionsProps, FilterQuestionsSchema, HelpDeskQuestionsProps, HelpDeskQuestionsSchema } from '@/schemas/settings.schema'
+import { AddProductProps, AddProductSchema, CompanySettingsProps, CompanySettingsSchema, FilterQuestionsProps, FilterQuestionsSchema, HelpDeskQuestionsProps, HelpDeskQuestionsSchema } from '@/schemas/settings.schema'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UploadClient } from '@uploadcare/upload-client'
@@ -57,8 +57,8 @@ export const useSettings = (id: string) => {
         handleSubmit,
         formState: { errors },
         reset,
-    } = useForm<DomainSettingsProps>({
-        resolver: zodResolver(DomainSettingsSchema),
+    } = useForm<CompanySettingsProps>({
+        resolver: zodResolver(CompanySettingsSchema),
     })
     const router = useRouter()
     const { toast } = useToast()
@@ -67,12 +67,12 @@ export const useSettings = (id: string) => {
 
     const onUpdateSettings = handleSubmit(async (values) => {
         setLoading(true)
-        if (values.domain) {
-            const domain = await onUpdateDomain(id, values.domain)
-            if (domain) {
+        if (values.company) {
+            const company = await onUpdateCompany(id, values.company)
+            if (company) {
                 toast({
                     title: 'Éxito al actualizar dominio',
-                    description: domain.message,
+                    description: company.message,
                 })
             }
         }
@@ -101,9 +101,9 @@ export const useSettings = (id: string) => {
         setLoading(false)
     })
 
-    const onDeleteDomain = async () => {
+    const onDeleteCompany = async () => {
         setDeleting(true)
-        const deleted = await onDeleteUserDomain(id)
+        const deleted = await onDeleteUserCompany(id)
         if (deleted) {
             toast({
                 title: 'Éxito al eliminar dominio',
@@ -118,7 +118,7 @@ export const useSettings = (id: string) => {
         onUpdateSettings,
         errors,
         loading,
-        onDeleteDomain,
+        onDeleteCompany,
         deleting,
     }
 }
@@ -372,7 +372,7 @@ export const useFilterQuestions = (id: string, initialData?: Array<{ id: string;
 }
 
 
-export const useProducts = (domainId: string) => {
+export const useProducts = (companyId: string) => {
     const { toast } = useToast()
     const [loading, setLoading] = useState<boolean>(false)
     const [deleting, setDeleting] = useState<string | null>(null)
@@ -455,8 +455,8 @@ export const useProducts = (domainId: string) => {
                 care: values.care,
             }
 
-            const product = await onCreateNewDomainProduct(
-                domainId,
+            const product = await onCreateNewCompanyProduct(
+                companyId,
                 values.name,
                 uploaded.uuid,
                 values.price,
@@ -507,7 +507,7 @@ export const useProducts = (domainId: string) => {
                 care: values.care,
             }
 
-            const result = await onUpdateDomainProduct(
+            const result = await onUpdateCompanyProduct(
                 editingProduct.id,
                 values.name,
                 values.price,
@@ -536,7 +536,7 @@ export const useProducts = (domainId: string) => {
     const onDeleteProduct = async (productId: string) => {
         try {
             setDeleting(productId)
-            const result = await onDeleteDomainProduct(productId)
+            const result = await onDeleteCompanyProduct(productId)
             if (result) {
                 toast({
                     title: result.status === 200 ? 'Éxito al eliminar producto' : 'Error al eliminar producto',
@@ -628,12 +628,12 @@ export const useProducts = (domainId: string) => {
         const loadCatalogs = async () => {
             try {
                 const [cats, mats, texts, seas, us, feats] = await Promise.all([
-                    onGetCategories(domainId),
-                    onGetMaterials(domainId),
-                    onGetTextures(domainId),
-                    onGetSeasons(domainId),
-                    onGetUses(domainId),
-                    onGetFeatures(domainId),
+                    onGetCategories(companyId),
+                    onGetMaterials(companyId),
+                    onGetTextures(companyId),
+                    onGetSeasons(companyId),
+                    onGetUses(companyId),
+                    onGetFeatures(companyId),
                 ])
 
                 if (isMounted) {
@@ -655,7 +655,7 @@ export const useProducts = (domainId: string) => {
             isMounted = false
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [domainId])
+    }, [companyId])
 
     return {
         onCreateNewProduct,
@@ -737,7 +737,7 @@ const catalogActions = {
     },
 }
 
-export const useCatalog = (domainId: string, type: CatalogType) => {
+export const useCatalog = (companyId: string, type: CatalogType) => {
     const { toast } = useToast()
     const [items, setItems] = useState<CatalogItem[]>([])
     const [loading, setLoading] = useState(true)
@@ -753,7 +753,7 @@ export const useCatalog = (domainId: string, type: CatalogType) => {
     // Cargar items
     const loadItems = async () => {
         setLoading(true)
-        const result = await actions.get(domainId)
+        const result = await actions.get(companyId)
         setItems(result || [])
         setLoading(false)
     }
@@ -773,14 +773,14 @@ export const useCatalog = (domainId: string, type: CatalogType) => {
             isMounted = false
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [domainId, type])
+    }, [companyId, type])
 
     // Crear nuevo item
     const handleCreate = async () => {
         if (!newItemName.trim()) return
 
         setCreating(true)
-        const result = await actions.create(domainId, newItemName.trim())
+        const result = await actions.create(companyId, newItemName.trim())
 
         if (result.status === 200) {
             toast({

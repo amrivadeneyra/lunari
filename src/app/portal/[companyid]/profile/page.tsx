@@ -15,7 +15,7 @@ import { updateCustomerProfile } from '@/action/portal'
 export default function ProfilePage() {
     const params = useParams()
     const router = useRouter()
-    const domainId = params.domainid as string
+    const companyId = params.companyid as string
     const { sessionData, isAuthenticated, clearSession, saveSession, token } = useChatSession()
     const hasRedirected = useRef(false)
     const [name, setName] = useState('')
@@ -29,11 +29,11 @@ export default function ProfilePage() {
             hasRedirected.current = true
             // Pequeño delay para evitar loops
             const timer = setTimeout(() => {
-                router.push(`/portal/${domainId}/login`)
+                router.push(`/portal/${companyId}/login`)
             }, 100)
             return () => clearTimeout(timer)
         }
-    }, [isAuthenticated, sessionData, domainId, router])
+    }, [isAuthenticated, sessionData, companyId, router])
 
     // Inicializar valores cuando se carga la sesión
     useEffect(() => {
@@ -107,7 +107,7 @@ export default function ProfilePage() {
     const handleLogout = () => {
         clearSession()
         toast.success('Sesión cerrada')
-        router.push(`/portal/${domainId}`)
+        router.push(`/portal/${companyId}`)
     }
 
     if (!isAuthenticated || !sessionData) {
@@ -119,7 +119,7 @@ export default function ProfilePage() {
             {/* Header */}
             <div className="mb-8">
                 <Link
-                    href={`/portal/${domainId}`}
+                    href={`/portal/${companyId}`}
                     className="inline-flex items-center gap-2 text-gravel hover:text-orange transition-colors mb-6 group"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -240,7 +240,7 @@ export default function ProfilePage() {
                             <CardTitle className="text-gravel text-lg font-semibold">Acciones Rápidas</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 bg-white">
-                            <Link href={`/portal/${domainId}/reservation`}>
+                            <Link href={`/portal/${companyId}/reservation`}>
                                 <Button
                                     variant="outline"
                                     className="w-full border-orange/40 text-gravel hover:bg-orange hover:text-white hover:border-orange justify-start h-12 transition-all duration-200 shadow-sm hover:shadow-md"
@@ -251,7 +251,7 @@ export default function ProfilePage() {
                             </Link>
 
                             <div className="mt-4">
-                                <Link href={`/portal/${domainId}/shopping-cart`}>
+                                <Link href={`/portal/${companyId}/shopping-cart`}>
                                     <Button
                                         variant="outline"
                                         className="w-full border-orange/40 text-gravel hover:bg-orange hover:text-white hover:border-orange justify-start h-12 transition-all duration-200 shadow-sm hover:shadow-md"

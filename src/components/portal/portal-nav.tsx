@@ -12,9 +12,9 @@ import Image from 'next/image'
 import { toast } from 'sonner'
 
 interface PortalNavProps {
-    domainId: string
-    domainName: string
-    domainIcon?: string | null
+    companyId: string
+    companyName: string
+    companyIcon?: string | null
 }
 
 interface SearchSuggestion {
@@ -27,7 +27,7 @@ interface SearchSuggestion {
     material?: { name: string } | null
 }
 
-export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) {
+export function PortalNav({ companyId, companyName, companyIcon }: PortalNavProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
@@ -50,34 +50,34 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
     const menuItems = [
         {
             label: 'Productos',
-            href: `/portal/${domainId}`,
+            href: `/portal/${companyId}`,
             icon: ShoppingBag,
-            active: pathname === `/portal/${domainId}` || pathname === `/portal/${domainId}/products`
+            active: pathname === `/portal/${companyId}` || pathname === `/portal/${companyId}/products`
         },
         {
             label: 'Mis Reservas',
-            href: `/portal/${domainId}/reservation`,
+            href: `/portal/${companyId}/reservation`,
             icon: Calendar,
-            active: pathname === `/portal/${domainId}/reservation`,
+            active: pathname === `/portal/${companyId}/reservation`,
             requiresAuth: true
         },
         {
             label: 'Guía',
-            href: `/portal/${domainId}/guide`,
+            href: `/portal/${companyId}/guide`,
             icon: BookOpen,
-            active: pathname === `/portal/${domainId}/guide`
+            active: pathname === `/portal/${companyId}/guide`
         },
         {
             label: 'Ayuda',
-            href: `/portal/${domainId}/help`,
+            href: `/portal/${companyId}/help`,
             icon: HelpCircle,
-            active: pathname === `/portal/${domainId}/help`
+            active: pathname === `/portal/${companyId}/help`
         },
         {
             label: 'Sobre Nosotros',
-            href: `/portal/${domainId}/about-us`,
+            href: `/portal/${companyId}/about-us`,
             icon: Info,
-            active: pathname === `/portal/${domainId}/about-us`
+            active: pathname === `/portal/${companyId}/about-us`
         }
     ]
 
@@ -154,7 +154,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
         setIsLoadingSuggestions(true)
         suggestionsTimeoutRef.current = setTimeout(async () => {
             try {
-                const suggestions = await getSearchSuggestions(domainId, trimmedQuery)
+                const suggestions = await getSearchSuggestions(companyId, trimmedQuery)
                 setSearchSuggestions(suggestions as SearchSuggestion[])
                 setShowSuggestions(suggestions.length > 0)
             } catch (error) {
@@ -171,7 +171,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                 clearTimeout(suggestionsTimeoutRef.current)
             }
         }
-    }, [searchQuery, domainId])
+    }, [searchQuery, companyId])
 
     // Cerrar sugerencias y resetear input al hacer clic fuera
     useEffect(() => {
@@ -203,7 +203,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
             const params = new URLSearchParams(searchParams.toString())
             params.set('search', trimmedQuery)
             params.delete('page')
-            router.push(`/portal/${domainId}?${params.toString()}`)
+            router.push(`/portal/${companyId}?${params.toString()}`)
         }
     }
 
@@ -212,7 +212,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
         setShowSuggestions(false)
         setSearchQuery('')
         // Redirigir a la página de productos con el producto buscado
-        router.push(`/portal/${domainId}?search=${encodeURIComponent(product.name)}`)
+        router.push(`/portal/${companyId}?search=${encodeURIComponent(product.name)}`)
     }
 
     // Manejar agregar producto al carrito desde sugerencias
@@ -248,18 +248,18 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                 </button>
 
                 {/* Logo y Nombre */}
-                <Link href={`/portal/${domainId}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0 px-2">
-                    {domainIcon && (
+                <Link href={`/portal/${companyId}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0 px-2">
+                    {companyIcon && (
                         <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-peach border border-orange/20">
                             <img
-                                src={`https://ucarecdn.com/${domainIcon}/`}
-                                alt={domainName}
+                                src={`https://ucarecdn.com/${companyIcon}/`}
+                                alt={companyName}
                                 className="w-full h-full object-cover"
                             />
                         </div>
                     )}
                     <h1 className="text-base sm:text-lg font-bold text-gravel hidden md:block">
-                        {domainName}
+                        {companyName}
                     </h1>
                 </Link>
 
@@ -270,7 +270,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                             <Input
                                 ref={searchInputRef}
                                 type="text"
-                                placeholder={`Buscar en ${domainName}...`}
+                                placeholder={`Buscar en ${companyName}...`}
                                 value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value)
@@ -398,7 +398,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                     {/* Iniciar Sesión / Perfil */}
                     {isAuthenticated ? (
                         <Link
-                            href={`/portal/${domainId}/profile`}
+                            href={`/portal/${companyId}/profile`}
                             className="flex flex-col items-start px-2 sm:px-3 py-2 hover:text-orange transition-colors"
                         >
                             <span className="text-xs text-ironside">Hola,</span>
@@ -408,7 +408,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                         </Link>
                     ) : (
                         <Link
-                            href={`/portal/${domainId}/login`}
+                            href={`/portal/${companyId}/login`}
                             className="flex flex-col items-start px-2 sm:px-3 py-2 hover:text-orange transition-colors"
                         >
                             <span className="text-xs text-ironside">Hola,</span>
@@ -423,7 +423,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                     {isAuthenticated && (
                         <>
                             <Link
-                                href={`/portal/${domainId}/reservation`}
+                                href={`/portal/${companyId}/reservation`}
                                 className="px-2 sm:px-3 py-2 text-sm text-gravel hover:text-orange transition-colors hidden lg:block"
                             >
                                 Mis reservas
@@ -437,7 +437,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
 
                     {/* Carrito */}
                     <Link
-                        href={`/portal/${domainId}/shopping-cart`}
+                        href={`/portal/${companyId}/shopping-cart`}
                         className="relative p-2 text-gravel hover:text-orange transition-colors"
                     >
                         <ShoppingBag className="w-5 h-5" />
@@ -479,7 +479,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                     {/* Carrito */}
                     {getItemCount() > 0 && (
                         <Link
-                            href={`/portal/${domainId}/shopping-cart`}
+                            href={`/portal/${companyId}/shopping-cart`}
                             onClick={() => setIsMenuOpen(false)}
                             className="flex items-center gap-3 px-6 py-3 text-sm font-medium text-gravel hover:bg-peach/50 transition-colors border-t border-orange/20 mt-2"
                         >
@@ -491,7 +491,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                     {/* Iniciar Sesión / Perfil */}
                     {isAuthenticated ? (
                         <Link
-                            href={`/portal/${domainId}/profile`}
+                            href={`/portal/${companyId}/profile`}
                             onClick={() => setIsMenuOpen(false)}
                             className="flex items-center gap-3 px-6 py-3 text-sm font-medium text-gravel hover:bg-peach/50 transition-colors border-t border-orange/20 mt-2"
                         >
@@ -500,7 +500,7 @@ export function PortalNav({ domainId, domainName, domainIcon }: PortalNavProps) 
                         </Link>
                     ) : (
                         <Link
-                            href={`/portal/${domainId}/login`}
+                            href={`/portal/${companyId}/login`}
                             onClick={() => setIsMenuOpen(false)}
                             className="flex items-center gap-3 px-6 py-3 bg-orange hover:bg-orange/90 text-white text-sm font-medium transition-colors border-t border-orange/20 mt-2"
                         >

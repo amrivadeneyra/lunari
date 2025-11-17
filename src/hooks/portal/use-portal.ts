@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 
 export const usePortal = (
   customerId: string,
-  domainId: string,
+  companyId: string,
   email: string
 ) => {
   const {
@@ -37,7 +37,7 @@ export const usePortal = (
       if (!date) return
 
       setLoadingSlots(true)
-      const result = await onGetAvailableTimeSlotsForDay(domainId, date)
+      const result = await onGetAvailableTimeSlotsForDay(companyId, date)
       if (result?.timeSlots) {
         setAvailableSlots(result.timeSlots)
       } else {
@@ -47,7 +47,7 @@ export const usePortal = (
     }
 
     loadAvailableSlots()
-  }, [date, domainId])
+  }, [date, companyId])
 
   const onNext = () => setStep((prev) => prev + 1)
 
@@ -67,7 +67,7 @@ export const usePortal = (
 
       if (savedAnswers) {
         const booked = await onBookNewAppointment(
-          domainId,
+          companyId,
           customerId,
           values.slot,
           values.date,
@@ -113,7 +113,7 @@ export const usePortal = (
 
                   // Redirigir a reservas después de un pequeño delay
                   setTimeout(() => {
-                    router.push(`/portal/${domainId}/reservation`)
+                    router.push(`/portal/${companyId}/reservation`)
                   }, 1500)
                 } else {
                   toast({

@@ -40,11 +40,11 @@ interface Reservation {
 interface ReservationsListProps {
   bookings: Booking[]
   reservationsWithoutBooking: Reservation[]
-  domainId: string
+  companyId: string
   onReservationDeleted?: () => void
 }
 
-export function ReservationsList({ bookings, reservationsWithoutBooking, domainId, onReservationDeleted }: ReservationsListProps) {
+export function ReservationsList({ bookings, reservationsWithoutBooking, companyId, onReservationDeleted }: ReservationsListProps) {
   const { sessionData } = useChatSession()
 
   // Helper para obtener el producto de una reserva
@@ -160,7 +160,7 @@ export function ReservationsList({ bookings, reservationsWithoutBooking, domainI
         <p className="text-ironside mb-6">
           Cuando agregues productos a tu carrito y crees una reserva, aparecerán aquí
         </p>
-        <Link href={`/portal/${domainId}`}>
+        <Link href={`/portal/${companyId}`}>
           <Button className="bg-orange hover:bg-orange/90 text-white">
             Explorar Productos
           </Button>

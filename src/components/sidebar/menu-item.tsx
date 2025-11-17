@@ -21,8 +21,8 @@ const MenuItem = ({ icon, label, size, current, onSignOut, path, isSubmenu, pare
     const pathname = usePathname()
     const [isExpanded, setIsExpanded] = useState(true) // Por defecto expandido para Inventario
 
-    // Extraer domainId de la URL actual (ej: /settings/abc-123 -> abc-123)
-    const getDomainFromPath = () => {
+    // Extraer companyId de la URL actual (ej: /settings/abc-123 -> abc-123)
+    const getCompanyFromPath = () => {
         if (!pathname) return null
         const segments = pathname.split('/')
         if (segments.length >= 3 && (segments[1] === 'settings' || segments[1] === 'catalogs')) {
@@ -36,8 +36,8 @@ const MenuItem = ({ icon, label, size, current, onSignOut, path, isSubmenu, pare
         if (!path) return '#'
 
         if (path === 'catalogs') {
-            const domainId = getDomainFromPath()
-            return domainId ? `/catalogs/${domainId}` : '/catalogs'
+            const companyId = getCompanyFromPath()
+            return companyId ? `/catalogs/${companyId}` : '/catalogs'
         }
 
         return `/${path}`

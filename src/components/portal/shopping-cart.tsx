@@ -23,8 +23,8 @@ export function ShoppingCart({ isOpen, onClose }: ShoppingCartProps) {
   const params = useParams()
   const [isCreating, setIsCreating] = useState(false)
 
-  // Obtener domainId de la URL
-  const domainId = params?.domainid as string
+  // Obtener companyId de la URL
+  const companyId = params?.companyid as string
 
   const handleCreateReservations = async () => {
     if (!sessionData?.customerId) {
@@ -62,7 +62,7 @@ export function ShoppingCart({ isOpen, onClose }: ShoppingCartProps) {
         clearCart()
         onClose()
         // Redirigir a reservas (ruta en inglés)
-        router.push(`/portal/${domainId}/reservation`)
+        router.push(`/portal/${companyId}/reservation`)
       } else {
         toast.error(result.error || 'Error al crear las reservas')
       }

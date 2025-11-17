@@ -4,26 +4,25 @@ import { client } from "@/lib/prisma"
 import { currentUser } from "@clerk/nextjs"
 
 /**
- * Obtener el domainId del usuario autenticado
+ * Obtener el companyId del usuario autenticado
  */
-const getUserDomainId = async (): Promise<string | null> => {
+const getUserCompanyId = async (): Promise<string | null> => {
   try {
     const user = await currentUser()
     if (!user) return null
 
-    const userDomain = await client.user.findUnique({
+    const userData = await client.user.findUnique({
       where: { clerkId: user.id },
       select: {
-        domains: {
-          select: { id: true },
-          take: 1
+        company: {
+          select: { id: true }
         }
       }
     })
 
-    return userDomain?.domains[0]?.id || null
+    return userData?.company?.id || null
   } catch (error) {
-    console.log('Error al obtener domainId:', error)
+    console.log('Error al obtener companyId:', error)
     return null
   }
 }
@@ -35,11 +34,11 @@ const getUserDomainId = async (): Promise<string | null> => {
  */
 export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date }) => {
   try {
-    const domainId = await getUserDomainId()
-    if (!domainId) return null
+    const companyId = await getUserCompanyId()
+    if (!companyId) return null
 
     const whereClause: any = {
-      domainId,
+      companyId,
     }
 
     if (dateRange) {
@@ -99,11 +98,11 @@ export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date 
  */
 export const getOnTimeResponsePercentage = async (dateRange?: { from: Date; to: Date }) => {
   try {
-    const domainId = await getUserDomainId()
-    if (!domainId) return null
+    const companyId = await getUserCompanyId()
+    if (!companyId) return null
 
     const whereClause: any = {
-      domainId,
+      companyId,
     }
 
     if (dateRange) {
@@ -154,11 +153,11 @@ export const getOnTimeResponsePercentage = async (dateRange?: { from: Date; to: 
  */
 export const getFirstInteractionResolutionRate = async (dateRange?: { from: Date; to: Date }) => {
   try {
-    const domainId = await getUserDomainId()
-    if (!domainId) return null
+    const companyId = await getUserCompanyId()
+    if (!companyId) return null
 
     const whereClause: any = {
-      Customer: { domainId },
+      Customer: { companyId },
     }
 
     if (dateRange) {
@@ -227,11 +226,11 @@ export const getFirstInteractionResolutionRate = async (dateRange?: { from: Date
  */
 export const getCustomerSatisfactionAverage = async (dateRange?: { from: Date; to: Date }) => {
   try {
-    const domainId = await getUserDomainId()
-    if (!domainId) return null
+    const companyId = await getUserCompanyId()
+    if (!companyId) return null
 
     const whereClause: any = {
-      domainId,
+      companyId,
     }
 
     if (dateRange) {
