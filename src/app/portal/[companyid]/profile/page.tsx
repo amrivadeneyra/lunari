@@ -109,7 +109,11 @@ export default function ProfilePage() {
     const handleLogout = () => {
         clearSession()
         toast.success('Sesión cerrada')
-        router.push(`/portal/${companyId}`)
+        // Pequeño delay para asegurar que el estado se actualice antes de redirigir
+        setTimeout(() => {
+            router.push(`/portal/${companyId}`)
+            router.refresh()
+        }, 100)
     }
 
     if (!isAuthenticated || !sessionData) {

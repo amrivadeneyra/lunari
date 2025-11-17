@@ -29,6 +29,9 @@ export const useChatSession = () => {
 
   // Cargar sesión desde localStorage al montar
   useEffect(() => {
+    // Verificar que estamos en el cliente
+    if (typeof window === 'undefined') return
+
     const loadSessionWrapper = () => {
       try {
         const token = localStorage.getItem('lunari_session_token')
@@ -93,6 +96,18 @@ export const useChatSession = () => {
       }
     }
 
+    // Escuchar evento de limpieza de sesión
+    const handleSessionCleared = () => {
+      // Usar setTimeout para evitar problemas durante el renderizado
+      setTimeout(() => {
+        setSession({
+          token: null,
+          data: null,
+          isAuthenticated: false
+        })
+      }, 0)
+    }
+
     // Marcar que la carga inicial terminó después de un pequeño delay
     const initialLoadTimer = setTimeout(() => {
       isInitialLoadRef.current = false
@@ -100,11 +115,13 @@ export const useChatSession = () => {
 
     window.addEventListener('storage', handleStorageChange)
     window.addEventListener('lunari_session_updated', handleSessionUpdate)
+    window.addEventListener('lunari_session_cleared', handleSessionCleared)
 
     return () => {
       clearTimeout(initialLoadTimer)
       window.removeEventListener('storage', handleStorageChange)
       window.removeEventListener('lunari_session_updated', handleSessionUpdate)
+      window.removeEventListener('lunari_session_cleared', handleSessionCleared)
     }
   }, [])
 
@@ -154,6 +171,9 @@ export const useChatSession = () => {
    */
   const saveSession = (token: string, data: SessionData) => {
     try {
+      // Verificar que estamos en el cliente
+      if (typeof window === 'undefined') return
+
       localStorage.setItem('lunari_session_token', token)
       localStorage.setItem('lunari_session_data', JSON.stringify(data))
 
@@ -165,8 +185,10 @@ export const useChatSession = () => {
 
       console.log('Sesión guardada:', data.email)
 
-      // Disparar evento personalizado para notificar a otros componentes
-      window.dispatchEvent(new Event('lunari_session_updated'))
+      // Disparar evento de forma asíncrona para evitar problemas durante el renderizado
+      setTimeout(() => {
+        window.dispatchEvent(new Event('lunari_session_updated'))
+      }, 0)
     } catch (error) {
       console.error('❌ Error al guardar sesión:', error)
     }
@@ -177,6 +199,9 @@ export const useChatSession = () => {
    */
   const clearSession = () => {
     try {
+      // Verificar que estamos en el cliente
+      if (typeof window === 'undefined') return
+
       localStorage.removeItem('lunari_session_token')
       localStorage.removeItem('lunari_session_data')
 
@@ -185,6 +210,12 @@ export const useChatSession = () => {
         data: null,
         isAuthenticated: false
       })
+
+      // Disparar evento de forma asíncrona para evitar problemas durante el renderizado
+      setTimeout(() => {
+        window.dispatchEvent(new Event('lunari_session_updated'))
+        window.dispatchEvent(new Event('lunari_session_cleared'))
+      }, 0)
 
       console.log('Sesión limpiada')
     } catch (error) {
