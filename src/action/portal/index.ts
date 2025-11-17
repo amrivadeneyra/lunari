@@ -216,6 +216,33 @@ export const getCompanyInfo = async (companyId: string) => {
 }
 
 /**
+ * Busca empresas por nombre (para la página de selección de clientes)
+ */
+export const searchCompanies = async (search: string) => {
+    try {
+        const companies = await client.company.findMany({
+            where: {
+                name: {
+                    contains: search,
+                    mode: 'insensitive',
+                },
+            },
+            select: {
+                id: true,
+                name: true,
+                icon: true,
+            },
+            take: 10, // Limitar a 10 resultados
+        });
+
+        return companies;
+    } catch (error) {
+        console.error('Error searching companies:', error);
+        return [];
+    }
+}
+
+/**
  * Obtiene todas las categorías y materiales activos de un dominio (para filtros)
  */
 export const getCompanyCatalogs = async (companyId: string) => {

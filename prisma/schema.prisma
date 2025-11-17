@@ -20,14 +20,14 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   campaign  Campaign[]
-  company   Company?   // ✅ Una sola empresa por usuario
+  company   Company?   // Una sola empresa por usuario
 }
 
 model Company {
   id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name            String
   icon            String
-  userId          String?                @unique @db.Uuid // ✅ @unique para relación one-to-one
+  userId          String?                @unique @db.Uuid // @unique para relación one-to-one
   campaignId      String?                @db.Uuid
   chatBot         ChatBot?
   customer        Customer[]
@@ -97,7 +97,7 @@ model Customer {
   chatRoom            ChatRoom[]
   booking             Bookings[]
   satisfactionRecords CustomerSatisfaction[]
-  reservations        ProductReservation[] // ✅ Reservas de productos del cliente
+  reservations        ProductReservation[] // Reservas de productos del cliente
 
   Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
   companyId String? @db.Uuid
@@ -162,7 +162,7 @@ model Bookings {
   purpose         String? // Propósito específico de la cita
   notes           String? // Notas adicionales del cliente
   Customer        Customer?            @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  reservations    ProductReservation[] // ✅ Relación con reservas de productos
+  reservations    ProductReservation[] // Relación con reservas de productos
 }
 
 // ✅ SIMPLIFICADO: Enum para tipos de citas (100% presencial)
@@ -266,7 +266,7 @@ model Product {
   season       Season?              @relation(fields: [seasonId], references: [id], onDelete: SetNull)
   uses         ProductUse[]
   features     ProductFeature[]
-  reservations ProductReservation[] // ✅ Reservas de este producto
+  reservations ProductReservation[] // Reservas de este producto
 
   @@index([companyId])
   @@index([categoryId])
