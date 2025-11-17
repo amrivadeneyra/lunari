@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import Image from 'next/image'
 import { searchCompanies } from '@/action/portal'
 import { toast } from 'sonner'
+import { ClientRouteGuard } from '@/components/guards/client-route-guard'
+import { useClientAuthRedirect } from '@/hooks/portal/use-client-auth-redirect'
 
 interface Company {
   id: string
@@ -21,6 +23,9 @@ const CompanySelectionPage = () => {
   const [isSearching, setIsSearching] = useState(false)
   const [companies, setCompanies] = useState<Company[]>([])
   const [showResults, setShowResults] = useState(false)
+
+  // Verificación directa del token como respaldo
+  useClientAuthRedirect()
 
   // Buscar empresas cuando el usuario escribe (con debounce)
   useEffect(() => {
@@ -78,7 +83,8 @@ const CompanySelectionPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-cream to-orange-100 p-4">
+    <ClientRouteGuard>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-cream to-orange-100 p-4">
       <div className="w-full max-w-2xl">
         {/* Logo */}
         <div className="flex justify-center mb-8">
@@ -206,6 +212,7 @@ const CompanySelectionPage = () => {
         </div>
       </div>
     </div>
+    </ClientRouteGuard>
   )
 }
 

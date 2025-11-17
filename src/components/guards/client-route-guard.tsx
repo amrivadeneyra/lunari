@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { checkClientSession } from '@/hooks/portal/use-client-auth-redirect'
 
 /**
  * Guard que protege rutas no permitidas para clientes autenticados
@@ -18,28 +19,13 @@ export const ClientRouteGuard = ({ children }: { children: React.ReactNode }) =>
       return
     }
 
-    // Verificar solo si existe token válido
-    const clientToken = localStorage.getItem('lunari_session_token')
-    const sessionDataStr = localStorage.getItem('lunari_session_data')
+    // Verificar sesión usando la función centralizada
+    const { hasValidSession, companyId } = checkClientSession()
 
-    if (!clientToken || !sessionDataStr) {
-      setShouldBlock(false)
+    if (hasValidSession && companyId) {
+      setShouldBlock(true)
+      window.location.href = `/portal/${companyId}`
       return
-    }
-
-    try {
-      const sessionData = JSON.parse(sessionDataStr)
-      const expiresAt = new Date(sessionData.expiresAt)
-      const now = new Date()
-
-      // Si el token existe y no ha expirado, bloquear acceso
-      if (expiresAt > now && sessionData.companyId) {
-        setShouldBlock(true)
-        window.location.href = `/portal/${sessionData.companyId}`
-        return
-      }
-    } catch (error) {
-      // Si hay error, permitir acceso
     }
 
     setShouldBlock(false)

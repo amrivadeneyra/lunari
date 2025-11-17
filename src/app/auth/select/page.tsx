@@ -1,33 +1,16 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, User, ArrowRight } from 'lucide-react'
 import { ClientRouteGuard } from '@/components/guards/client-route-guard'
+import { useClientAuthRedirect } from '@/hooks/portal/use-client-auth-redirect'
 
 const UserTypeSelectionPage = () => {
   const router = useRouter()
 
   // Verificación directa del token como respaldo
-  useEffect(() => {
-    const clientToken = localStorage.getItem('lunari_session_token')
-    const sessionDataStr = localStorage.getItem('lunari_session_data')
-
-    if (!clientToken || !sessionDataStr) return
-
-    try {
-      const sessionData = JSON.parse(sessionDataStr)
-      const expiresAt = new Date(sessionData.expiresAt)
-      const now = new Date()
-
-      // Solo validar por token - si es válido, bloquear
-      if (expiresAt > now && sessionData.companyId) {
-        window.location.href = `/portal/${sessionData.companyId}`
-      }
-    } catch (error) {
-      console.log("error: ", error)
-    }
-  }, [])
+  useClientAuthRedirect()
 
   const handleAdminClick = () => {
     router.push('/auth/sign-in')
