@@ -77,8 +77,9 @@ export default function ProfilePage() {
                         customerId: sessionData.customerId,
                         email: sessionData.email,
                         name: result.customer.name || undefined,
+                        companyId: companyId,
                         expiresAt: expiresAt.toISOString()
-                    })
+                    } as any)
 
                     // Actualizar también el teléfono en localStorage directamente
                     const updatedData = {
@@ -86,6 +87,7 @@ export default function ProfilePage() {
                         email: sessionData.email,
                         name: result.customer.name || undefined,
                         phone: result.customer.phone || undefined,
+                        companyId: companyId,
                         expiresAt: expiresAt.toISOString()
                     }
                     localStorage.setItem('lunari_session_data', JSON.stringify(updatedData))

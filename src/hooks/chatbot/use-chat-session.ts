@@ -9,6 +9,7 @@ interface SessionData {
   customerId: string
   email: string
   name?: string
+  companyId?: string
   expiresAt: string
 }
 

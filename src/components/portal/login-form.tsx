@@ -49,6 +49,7 @@ export function LoginForm({ companyId }: LoginFormProps) {
           customerId: result.sessionData.customerId,
           email: result.sessionData.email,
           name: result.sessionData.name,
+          companyId: companyId,
           expiresAt: expiresAt.toISOString()
         })
 
