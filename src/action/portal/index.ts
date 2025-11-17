@@ -581,6 +581,36 @@ export const deleteReservation = async (reservationId: string, customerId: strin
 }
 
 /**
+ * Verifica si un cliente existe por email
+ */
+export const checkCustomerExists = async (companyId: string, email: string) => {
+  try {
+    const customer = await client.customer.findFirst({
+      where: {
+        email,
+        companyId
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true
+      }
+    })
+
+    return {
+      exists: !!customer,
+      customer: customer || null
+    }
+  } catch (error) {
+    console.error('Error checking customer:', error)
+    return {
+      exists: false,
+      customer: null
+    }
+  }
+}
+
+/**
  * Crea o recupera una sesión de cliente
  */
 export const createCustomerSession = async (
