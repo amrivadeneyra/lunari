@@ -56,7 +56,11 @@ export const UserLoginSchema = z.object({
   password: z
     .string()
     .min(8, { message: "Tu contraseña debe tener al menos 8 caracteres" })
-    .max(64, { message: "Tu contraseña no puede ser mayor a 64 caracteres" }),
+    .max(64, { message: "Tu contraseña no puede ser mayor a 64 caracteres" })
+    .refine(
+      (value) => /^[a-zA-Z0-9_.-]*$/.test(value ?? ""),
+      "Tu contraseña debe contener solo letras y números",
+    ),
 });
 
 export const ChangePasswordSchema = z
