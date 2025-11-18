@@ -1,14 +1,14 @@
 /**
- * Tests para el hook useDomain
+ * Tests para el hook useCompany
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useDomain } from './use-domain'
+import { useCompany } from './use-company'
 
 // Mock de dependencias
 vi.mock('@/action/settings', () => ({
-  onIntegrateDomain: vi.fn(),
+  onIntegrateCompany: vi.fn(),
 }))
 
 vi.mock('@/components/ui/use-toast', () => ({
@@ -37,28 +37,28 @@ vi.mock('@uploadcare/upload-client', () => ({
   })),
 }))
 
-describe('useDomain', () => {
+describe('useCompany', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('debe inicializar con valores por defecto', () => {
     mockUsePathname.mockReturnValue('/dashboard')
-    const { result } = renderHook(() => useDomain())
+    const { result } = renderHook(() => useCompany())
 
     expect(result.current.loading).toBe(false)
-    expect(result.current.isDomain).toBe('dashboard')
+    expect(result.current.isCompany).toBe('dashboard')
   })
 
   it('debe agregar un dominio', async () => {
-    const { onIntegrateDomain } = await import('@/action/settings')
-    ;(onIntegrateDomain as any).mockResolvedValue({
+    const { onIntegrateCompany } = await import('@/action/settings')
+    ;(onIntegrateCompany as any).mockResolvedValue({
       status: 200,
       message: 'Empresa agregada exitosamente',
-      domainId: 'domain-123',
+      companyId: 'company-123',
     })
 
-    const { result } = renderHook(() => useDomain())
+    const { result } = renderHook(() => useCompany())
 
     const mockFile = new File(['test'], 'test.png', { type: 'image/png' })
     Object.defineProperty(mockFile, 'size', { value: 1024 })
@@ -68,7 +68,7 @@ describe('useDomain', () => {
       // Necesitamos usar el handleSubmit del hook
       // Por ahora solo verificamos que el hook se inicializa correctamente
       expect(result.current.register).toBeDefined()
-      expect(result.current.onAddDomain).toBeDefined()
+      expect(result.current.onAddCompany).toBeDefined()
     })
   })
 })

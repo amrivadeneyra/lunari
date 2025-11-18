@@ -8,6 +8,11 @@ img {
 
 body {
   background: transparent;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 .chat-window::-webkit-scrollbar {

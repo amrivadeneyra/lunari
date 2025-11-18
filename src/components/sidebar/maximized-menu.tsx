@@ -1,7 +1,7 @@
 import { SIDE_BAR_MENU } from "@/constants/menu";
 import { LogOut, Menu, MonitorSmartphone } from "lucide-react";
 import React from "react";
-import DomainMenu from "./domain-menu";
+import CompanyMenu from "./company-menu";
 import MenuItem from "./menu-item";
 import Image from "next/image";
 
@@ -9,19 +9,19 @@ type Props = {
   onExpand(): void;
   current: string;
   onSignOut(): void;
-  domains:
+  company:
   | {
     id: string;
     name: string;
     icon: string | null;
-  }[]
+  }
   | null
   | undefined;
 };
 
-const MaxMenu = ({ current, domains, onExpand, onSignOut }: Props) => {
+const MaxMenu = ({ current, company, onExpand, onSignOut }: Props) => {
   // Verificar si hay empresa creada
-  const hasCompany = Boolean(domains && domains.length > 0)
+  const hasCompany = Boolean(company)
 
   // Función para renderizar los elementos del menú con estructura jerárquica
   const renderMenuItems = () => {
@@ -101,7 +101,7 @@ const MaxMenu = ({ current, domains, onExpand, onSignOut }: Props) => {
 
         <div className="flex flex-col">
           {renderMenuItems()}
-          {/* <DomainMenu domains={domains} /> */}
+          {/* <CompanyMenu company={company} /> */}
         </div>
         <div className="flex flex-col">
           <p className="text-xs text-gray-500 mb-3">OPTIONS</p>

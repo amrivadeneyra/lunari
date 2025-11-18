@@ -1,4 +1,4 @@
-import { useDomain } from "@/hooks/sidebar/use-domain";
+import { useCompany } from "@/hooks/sidebar/use-company";
 import { cn } from "@/lib/utils";
 import AppDrawer from "../drawer";
 import { Loader } from "../loader";
@@ -12,22 +12,22 @@ import { useState } from "react";
 
 type Props = {
     min?: boolean;
-    domains: {
+    company: {
         id: string;
         name: string;
         icon: string | null;
-    }[] | null | undefined;
+    } | null | undefined;
 };
 
-const DomainMenu = ({ domains, min }: Props) => {
-    const { register, onAddDomain, loading, errors, isDomain, reset } = useDomain()
+const CompanyMenu = ({ company, min }: Props) => {
+    const { register, onAddCompany, loading, errors, isCompany, reset } = useCompany()
     const [drawerOpen, setDrawerOpen] = useState(false)
 
     return (
         <div className={cn('flex flex-col gap-3 w-full', min ? 'mt-6' : 'mt-3')}>
             <div className="flex justify-between w-full items-center">
                 {!min && <p className="text-xs text-gray-500">EMPRESA</p>}
-                {(!domains || domains.length === 0) && (
+                {!company && (
                     <AppDrawer
                         description="Añade tu empresa para integrar tu asistente virtual"
                         title="Añade tu empresa"
@@ -47,14 +47,14 @@ const DomainMenu = ({ domains, min }: Props) => {
                             <form
                                 className="mt-3 w-6/12 flex flex-col gap-3"
                                 onSubmit={async (e) => {
-                                    await onAddDomain(e)
+                                    await onAddCompany(e)
                                     setDrawerOpen(false)
                                 }}>
                                 <FormGenerator
                                     inputType="input"
                                     register={register}
                                     label="Nombre de la empresa"
-                                    name="domain"
+                                    name="company"
                                     errors={errors}
                                     placeholder="Mi Empresa"
                                     type="text"
@@ -74,29 +74,30 @@ const DomainMenu = ({ domains, min }: Props) => {
                     </AppDrawer>
                 )}
             </div>
-            <div className="flex flex-col gap-1 text-ironside font-medium">
-                {domains && domains.map((domain) => (
+            {company && (
+                <div className="flex flex-col gap-1 text-ironside font-medium">
                     <Link
-                        href={`/settings/${domain.id}`}
-                        key={domain.id}
+                        href={`/settings/${company.id}`}
                         className={cn(
                             'flex gap-3 items-center justify-center hover:bg-white rounded-lg transition duration-100 ease-in-out cursor-pointer',
                             !min ? 'p-2' : 'py-2',
-                            domain.name == isDomain && 'bg-white'
+                            company.name == isCompany && 'bg-white'
                         )}>
-                        <Image
-                            src={`https://ucarecdn.com/${domain.icon}/`}
-                            alt="logo"
-                            width={20}
-                            height={20}
-                            style={{ objectFit: 'contain' }}
-                        />
-                        {!min && <p className="text-sm">{domain.name}</p>}
+                        {company.icon && (
+                            <Image
+                                src={`https://ucarecdn.com/${company.icon}/`}
+                                alt="logo"
+                                width={20}
+                                height={20}
+                                style={{ objectFit: 'contain' }}
+                            />
+                        )}
+                        {!min && <p className="text-sm">{company.name}</p>}
                     </Link>
-                ))}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export default DomainMenu;
+export default CompanyMenu;

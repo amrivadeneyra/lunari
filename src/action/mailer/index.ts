@@ -55,14 +55,14 @@ export const sendAppointmentConfirmation = async (
   customerName: string,
   appointmentDate: string,
   appointmentTime: string,
-  domainName: string,
-  domainOwnerEmail?: string
+  companyName: string,
+  companyOwnerEmail?: string
 ) => {
   const htmlContent = `
     <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #FFA947 0%, #FFC989 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
         <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">📅 Cita Confirmada</h1>
-        <p style="color: white; margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">${domainName}</p>
+        <p style="color: white; margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">${companyName}</p>
       </div>
       
       <div style="background: #F5F5F5; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -76,7 +76,7 @@ export const sendAppointmentConfirmation = async (
           <h3 style="color: #3F3F3F; margin-top: 0; font-weight: 600;">📋 Detalles de la Cita</h3>
           <p style="margin: 8px 0; color: #4E4E4E;"><strong>📅 Fecha:</strong> ${appointmentDate}</p>
           <p style="margin: 8px 0; color: #4E4E4E;"><strong>🕐 Hora:</strong> ${appointmentTime}</p>
-          <p style="margin: 8px 0; color: #4E4E4E;"><strong>🏢 Empresa:</strong> ${domainName}</p>
+          <p style="margin: 8px 0; color: #4E4E4E;"><strong>🏢 Empresa:</strong> ${companyName}</p>
         </div>
         
         <div style="background: #FFE0BD; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 3px solid #FFA947;">
@@ -99,7 +99,7 @@ export const sendAppointmentConfirmation = async (
   `
 
   const textContent = `
-    Cita Confirmada - ${domainName}
+    Cita Confirmada - ${companyName}
     
     ¡Hola ${customerName}!
     
@@ -107,7 +107,7 @@ export const sendAppointmentConfirmation = async (
     
     📅 Fecha: ${appointmentDate}
     🕐 Hora: ${appointmentTime}
-    🏢 Empresa: ${domainName}
+    🏢 Empresa: ${companyName}
     
     Te enviaremos un recordatorio 24 horas antes de tu cita.
     
@@ -120,18 +120,18 @@ export const sendAppointmentConfirmation = async (
   // Enviar al cliente
   const clientResult = await sendEmail(
     customerEmail,
-    `📅 Cita Confirmada - ${domainName}`,
+    `📅 Cita Confirmada - ${companyName}`,
     htmlContent,
     textContent
   )
 
   // Si hay email del propietario, enviar notificación también
-  if (domainOwnerEmail) {
+  if (companyOwnerEmail) {
     const ownerHtmlContent = `
       <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #4E4E4E 0%, #636363 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
           <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">🔔 Nueva Cita Agendada</h1>
-          <p style="color: white; margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">${domainName}</p>
+          <p style="color: white; margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">${companyName}</p>
         </div>
         
         <div style="background: #F1F1F1; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -161,7 +161,7 @@ export const sendAppointmentConfirmation = async (
     `
 
     const ownerTextContent = `
-      Nueva Cita Agendada - ${domainName}
+      Nueva Cita Agendada - ${companyName}
       
       Nueva Reserva de Cita:
       
@@ -174,7 +174,7 @@ export const sendAppointmentConfirmation = async (
     `
 
     await sendEmail(
-      domainOwnerEmail,
+      companyOwnerEmail,
       `[IMPORTANTE] Nueva Cita Reservada - ${customerName}`, // Asunto más directo
       ownerHtmlContent,
       ownerTextContent

@@ -15,7 +15,7 @@ export interface SessionData {
   email: string
   name?: string
   phone?: string
-  domainId: string
+  companyId: string
   chatRoomId: string
 }
 
@@ -43,7 +43,7 @@ const TOKEN_EXPIRATION = '30d' // 30 días
 export const generateSessionToken = async (
   customerId: string,
   email: string,
-  domainId: string,
+  companyId: string,
   chatRoomId: string
 ): Promise<SessionToken> => {
   try {
@@ -68,7 +68,7 @@ export const generateSessionToken = async (
       email: customer.email || email,
       name: customer.name || undefined,
       phone: customer.phone || undefined,
-      domainId,
+      companyId,
       chatRoomId,
     }
 
@@ -134,7 +134,7 @@ export const validateSessionToken = async (
       email: customer.email || decoded.email,
       name: customer.name || decoded.name,
       phone: customer.phone || decoded.phone,
-      domainId: decoded.domainId,
+      companyId: decoded.companyId,
       chatRoomId: decoded.chatRoomId,
     }
   } catch (error) {
@@ -155,7 +155,7 @@ export const validateSessionToken = async (
  */
 export const getCustomerFromToken = async (
   token: string,
-  domainId: string
+  companyId: string
 ): Promise<any | null> => {
   try {
     // Validar token
@@ -178,7 +178,7 @@ export const getCustomerFromToken = async (
         chatRoom: {
           where: {
             Customer: {
-              domainId: domainId
+              companyId: companyId
             }
           },
           select: {
@@ -245,7 +245,7 @@ export const refreshTokenIfNeeded = async (
     const newToken = await generateSessionToken(
       sessionData.customerId,
       sessionData.email,
-      sessionData.domainId,
+      sessionData.companyId,
       sessionData.chatRoomId
     )
 

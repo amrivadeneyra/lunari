@@ -23,11 +23,11 @@ const AiChatBot = (props: Props) => {
     onRealTime,
     setOnChats,
     errors,
-    // ✅ Datos de sesión
+    // Datos de sesión
     sessionData,
     isAuthenticated,
     clearSession,
-    // ✅ Props del toggle
+    // Props del toggle
     isHumanMode,
     onToggleHumanMode,
     isToggleDisabled,
@@ -41,7 +41,7 @@ const AiChatBot = (props: Props) => {
           setChat={setOnChats}
           realtimeMode={onRealTime}
           helpdesk={currentBot?.helpdesk!}
-          domainName={currentBot?.name!}
+          companyName={currentBot?.name!}
           ref={messageWindowRef}
           help={currentBot?.chatBot?.helpdesk}
           theme={currentBot?.chatBot?.background}
@@ -50,11 +50,11 @@ const AiChatBot = (props: Props) => {
           register={register}
           onChat={onStartChatting}
           onResponding={onAiTyping}
-          // ✅ Pasar datos de sesión
+          // Pasar datos de sesión
           sessionData={sessionData}
           isAuthenticated={isAuthenticated}
           onClearSession={clearSession}
-          // ✅ Pasar props del toggle
+          // Pasar props del toggle
           isHumanMode={isHumanMode}
           onToggleHumanMode={onToggleHumanMode}
           isToggleDisabled={isToggleDisabled}
@@ -67,7 +67,7 @@ const AiChatBot = (props: Props) => {
         )}
         onClick={onOpenChatBot}
       >
-        {/* ✅ Badge de sesión activa */}
+        {/* Badge de sesión activa */}
         {isAuthenticated && sessionData && (
           <div className="absolute -top-2 -right-2 w-5 h-5 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
             <span className="text-white text-xs">✓</span>

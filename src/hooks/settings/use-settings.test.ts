@@ -43,10 +43,10 @@ vi.mock('@/action/settings', async () => {
     return {
         ...actual,
         onUpdatePassword: vi.fn(),
-        onUpdateDomain: vi.fn(),
+        onUpdateCompany: vi.fn(),
         onChatBotImageUpdate: vi.fn(),
         onUpdateWelcomeMessage: vi.fn(),
-        onDeleteUserDomain: vi.fn(),
+        onDeleteUserCompany: vi.fn(),
         onCreateHelpDeskQuestion: vi.fn(),
         onUpdateHelpDeskQuestion: vi.fn(),
         onDeleteHelpDeskQuestion: vi.fn(),
@@ -55,9 +55,9 @@ vi.mock('@/action/settings', async () => {
         onUpdateFilterQuestion: vi.fn(),
         onDeleteFilterQuestion: vi.fn(),
         onGetAllFilterQuestions: vi.fn(),
-        onCreateNewDomainProduct: vi.fn(),
-        onUpdateDomainProduct: vi.fn(),
-        onDeleteDomainProduct: vi.fn(),
+        onCreateNewCompanyProduct: vi.fn(),
+        onUpdateCompanyProduct: vi.fn(),
+        onDeleteCompanyProduct: vi.fn(),
         onToggleProductStatus: vi.fn(),
         onGetCategories: vi.fn(),
         onCreateCategory: vi.fn(),
@@ -114,17 +114,17 @@ describe('useSettings', () => {
         vi.clearAllMocks()
     })
 
-    it('debe retornar register, onUpdateSettings, errors, loading, onDeleteDomain y deleting', () => {
-        const { result } = renderHook(() => useSettings('domain-123'))
+    it('debe retornar register, onUpdateSettings, errors, loading, onDeleteCompany y deleting', () => {
+        const { result } = renderHook(() => useSettings('company-123'))
 
         expect(result.current).toHaveProperty('register')
         expect(result.current).toHaveProperty('onUpdateSettings')
         expect(result.current).toHaveProperty('errors')
         expect(result.current).toHaveProperty('loading')
-        expect(result.current).toHaveProperty('onDeleteDomain')
+        expect(result.current).toHaveProperty('onDeleteCompany')
         expect(result.current).toHaveProperty('deleting')
         expect(typeof result.current.onUpdateSettings).toBe('function')
-        expect(typeof result.current.onDeleteDomain).toBe('function')
+        expect(typeof result.current.onDeleteCompany).toBe('function')
         expect(typeof result.current.loading).toBe('boolean')
         expect(typeof result.current.deleting).toBe('boolean')
     })
@@ -136,7 +136,7 @@ describe('useHelpDesk', () => {
     })
 
     it('debe retornar propiedades necesarias', () => {
-        const { result } = renderHook(() => useHelpDesk('domain-123'))
+        const { result } = renderHook(() => useHelpDesk('company-123'))
 
         expect(result.current).toHaveProperty('register')
         expect(result.current).toHaveProperty('errors')
@@ -159,7 +159,7 @@ describe('useFilterQuestions', () => {
     })
 
     it('debe retornar propiedades necesarias', () => {
-        const { result } = renderHook(() => useFilterQuestions('domain-123'))
+        const { result } = renderHook(() => useFilterQuestions('company-123'))
 
         expect(result.current).toHaveProperty('register')
         expect(result.current).toHaveProperty('errors')
@@ -182,7 +182,7 @@ describe('useProducts', () => {
     })
 
     it('debe retornar propiedades necesarias', () => {
-        const { result } = renderHook(() => useProducts('domain-123'))
+        const { result } = renderHook(() => useProducts('company-123'))
 
         expect(result.current).toHaveProperty('register')
         expect(result.current).toHaveProperty('errors')
@@ -210,7 +210,7 @@ describe('useCatalog', () => {
     })
 
     it('debe retornar propiedades necesarias para category', () => {
-        const { result } = renderHook(() => useCatalog('domain-123', 'category'))
+        const { result } = renderHook(() => useCatalog('company-123', 'category'))
 
         expect(result.current).toHaveProperty('items')
         expect(result.current).toHaveProperty('loading')

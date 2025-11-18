@@ -55,17 +55,17 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
           select: {
             name: true,
             email: true,
-            domainId: true
+            companyId: true
           }
         }
       },
     });
 
     // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO MANUALMENTE
-    if (state === 'ESCALATED' && chatRoom?.Customer && chatRoom.Customer.domainId) {
+    if (state === 'ESCALATED' && chatRoom?.Customer && chatRoom.Customer.companyId) {
       try {
-        const domainOwner = await client.domain.findFirst({
-          where: { id: chatRoom.Customer.domainId },
+        const companyOwner = await client.company.findFirst({
+          where: { id: chatRoom.Customer.companyId },
           select: {
             User: {
               select: {
@@ -75,8 +75,8 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
           }
         })
 
-        if (domainOwner?.User?.clerkId) {
-          const user = await clerkClient.users.getUser(domainOwner.User.clerkId)
+        if (companyOwner?.User?.clerkId) {
+          const user = await clerkClient.users.getUser(companyOwner.User.clerkId)
           await onMailer(
             user.emailAddresses[0].emailAddress,
             chatRoom.Customer.name || 'Cliente',
@@ -121,10 +121,10 @@ export const onGetConversationMode = async (id: string) => {
   }
 };
 
-export const onGetDomainChatRooms = async (id: string) => {
+export const onGetCompanyChatRooms = async (id: string) => {
   try {
 
-    const domains = await client.domain.findUnique({
+    const company = await client.company.findUnique({
       where: {
         id,
       },
@@ -169,8 +169,8 @@ export const onGetDomainChatRooms = async (id: string) => {
       },
     })
 
-    if (domains) {
-      return domains
+    if (company) {
+      return company
     }
   } catch (error) { }
 }
@@ -351,14 +351,14 @@ export const onToggleFavorite = async (chatRoomId: string, isFavorite: boolean) 
 }
 
 // ✅ NUEVA FUNCIÓN: Obtener todas las conversaciones agrupadas por cliente
-export const onGetAllDomainChatRooms = async (id: string) => {
+export const onGetAllCompanyChatRooms = async (id: string) => {
   try {
 
     // Obtener todas las conversaciones del dominio
     const allChatRooms = await client.chatRoom.findMany({
       where: {
         Customer: {
-          domainId: id
+          companyId: id
         }
       },
       select: {
@@ -428,7 +428,7 @@ export const onGetAllDomainChatRooms = async (id: string) => {
 
     return result
   } catch (error) {
-    console.log('❌ Error en onGetAllDomainChatRooms:', error)
+    console.log('❌ Error en onGetAllCompanyChatRooms:', error)
     return null
   }
 }

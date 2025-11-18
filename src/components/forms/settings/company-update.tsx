@@ -3,19 +3,19 @@ import React from 'react'
 import { FieldErrors, FieldValues, UseFormRegister } from 'react-hook-form'
 import FormGenerator from '../form-generator'
 
-type DomainUpdateProps = {
+type CompanyUpdateProps = {
   name: string
   register: UseFormRegister<FieldValues>
   errors: FieldErrors<FieldValues>
 }
 
-export const DomainUpdate = ({ name, register, errors }: DomainUpdateProps) => {
+export const CompanyUpdate = ({ name, register, errors }: CompanyUpdateProps) => {
   return (
     <div className="flex gap-2 pt-5 items-end w-[400px]">
       <FormGenerator
         label="Nombre de la empresa"
         register={register}
-        name="domain"
+        name="company"
         errors={errors}
         type="text"
         inputType="input"

@@ -4,14 +4,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-    onIntegrateDomain,
-    onGetAllAccountDomains,
+    onIntegrateCompany,
+    onGetAllAccountCompanies,
     onUpdatePassword,
-    onGetCurrentDomainInfo,
-    onUpdateDomain,
+    onGetCurrentCompanyInfo,
+    onUpdateCompany,
     onChatBotImageUpdate,
     onUpdateWelcomeMessage,
-    onDeleteUserDomain,
+    onDeleteUserCompany,
     onCreateHelpDeskQuestion,
     onGetAllHelpDeskQuestions,
     onUpdateHelpDeskQuestion,
@@ -20,9 +20,9 @@ import {
     onGetAllFilterQuestions,
     onUpdateFilterQuestion,
     onDeleteFilterQuestion,
-    onCreateNewDomainProduct,
-    onUpdateDomainProduct,
-    onDeleteDomainProduct,
+    onCreateNewCompanyProduct,
+    onUpdateCompanyProduct,
+    onDeleteCompanyProduct,
     onToggleProductStatus,
     onGetAvailabilitySchedule,
     onUpdateAvailabilitySchedule,
@@ -68,18 +68,18 @@ describe('Settings Actions', () => {
         })
     })
 
-    describe('onIntegrateDomain', () => {
+    describe('onIntegrateCompany', () => {
         it('debe crear un nuevo dominio', async () => {
             mockPrismaClient.user.findFirst.mockResolvedValue(null)
             mockPrismaClient.user.update.mockResolvedValue({
-                domains: [{ id: 'domain-123' }],
+                companies: [{ id: 'company-123' }],
             })
 
-            const result = await onIntegrateDomain('Mi Empresa', 'icon.png')
+            const result = await onIntegrateCompany('Mi Empresa', 'icon.png')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Empresa agregada exitosamente')
-            expect(result?.domainId).toBe('domain-123')
+            expect(result?.companyId).toBe('company-123')
         })
 
         it('debe retornar error si el dominio ya existe', async () => {
@@ -87,7 +87,7 @@ describe('Settings Actions', () => {
                 id: 'user-123',
             })
 
-            const result = await onIntegrateDomain('Mi Empresa', 'icon.png')
+            const result = await onIntegrateCompany('Mi Empresa', 'icon.png')
 
             expect(result?.status).toBe(400)
             expect(result?.message).toBe('Una empresa con este nombre ya existe')
@@ -96,19 +96,19 @@ describe('Settings Actions', () => {
         it('debe retornar undefined si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onIntegrateDomain('Mi Empresa', 'icon.png')
+            const result = await onIntegrateCompany('Mi Empresa', 'icon.png')
 
             expect(result).toBeUndefined()
         })
     })
 
-    describe('onGetAllAccountDomains', () => {
+    describe('onGetAllAccountCompanies', () => {
         it('debe obtener todos los dominios del usuario', async () => {
             const mockUser = {
                 id: 'user-123',
-                domains: [
+                companies: [
                     {
-                        id: 'domain-1',
+                        id: 'company-1',
                         name: 'Empresa 1',
                         icon: 'icon1.png',
                         customer: [],
@@ -118,7 +118,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.user.findUnique.mockResolvedValue(mockUser)
 
-            const result = await onGetAllAccountDomains()
+            const result = await onGetAllAccountCompanies()
 
             expect(result).toEqual(mockUser)
         })
@@ -126,22 +126,22 @@ describe('Settings Actions', () => {
         it('debe retornar estructura vacía si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onGetAllAccountDomains()
+            const result = await onGetAllAccountCompanies()
 
             expect(result).toEqual({
                 id: '',
-                domains: [],
+                companies: [],
             })
         })
 
         it('debe retornar estructura vacía en caso de error', async () => {
             mockPrismaClient.user.findUnique.mockRejectedValue(new Error('Error'))
 
-            const result = await onGetAllAccountDomains()
+            const result = await onGetAllAccountCompanies()
 
             expect(result).toEqual({
                 id: '',
-                domains: [],
+                companies: [],
             })
         })
     })
@@ -171,10 +171,10 @@ describe('Settings Actions', () => {
         })
     })
 
-    describe('onGetCurrentDomainInfo', () => {
+    describe('onGetCurrentCompanyInfo', () => {
         it('debe obtener información del dominio actual', async () => {
-            const mockDomain = {
-                id: 'domain-123',
+            const mockCompany = {
+                id: 'company-123',
                 name: 'Mi Empresa',
                 icon: 'icon.png',
                 chatBot: {
@@ -182,23 +182,23 @@ describe('Settings Actions', () => {
                 },
             }
 
-            const mockUserDomain = {
-                domains: [mockDomain],
+            const mockUserCompany = {
+                companies: [mockCompany],
             }
 
-            mockPrismaClient.user.findUnique.mockResolvedValue(mockUserDomain)
+            mockPrismaClient.user.findUnique.mockResolvedValue(mockUserCompany)
 
-            const result = await onGetCurrentDomainInfo('domain-123')
+            const result = await onGetCurrentCompanyInfo('company-123')
 
-            // La función retorna el objeto completo con domains
-            expect(result).toEqual(mockUserDomain)
+            // La función retorna el objeto completo con companies
+            expect(result).toEqual(mockUserCompany)
             expect(mockPrismaClient.user.findUnique).toHaveBeenCalled()
         })
 
         it('debe retornar null si no encuentra el dominio', async () => {
             mockPrismaClient.user.findUnique.mockResolvedValue(null)
 
-            const result = await onGetCurrentDomainInfo('domain-inexistente')
+            const result = await onGetCurrentCompanyInfo('company-inexistente')
 
             expect(result).toBeNull()
         })
@@ -206,24 +206,24 @@ describe('Settings Actions', () => {
         it('debe retornar null si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onGetCurrentDomainInfo('domain-123')
+            const result = await onGetCurrentCompanyInfo('company-123')
 
             expect(result).toBeNull()
         })
     })
 
-    describe('onUpdateDomain', () => {
+    describe('onUpdateCompany', () => {
         it('debe actualizar el nombre del dominio', async () => {
-            mockPrismaClient.domain.update.mockResolvedValue({
-                id: 'domain-123',
+            mockPrismaClient.company.update.mockResolvedValue({
+                id: 'company-123',
                 name: 'Nuevo Nombre',
             })
 
-            const result = await onUpdateDomain('domain-123', 'Nuevo Nombre')
+            const result = await onUpdateCompany('company-123', 'Nuevo Nombre')
 
             expect(result?.status).toBe(200)
-            expect(mockPrismaClient.domain.update).toHaveBeenCalledWith({
-                where: { id: 'domain-123' },
+            expect(mockPrismaClient.company.update).toHaveBeenCalledWith({
+                where: { id: 'company-123' },
                 data: { name: 'Nuevo Nombre' },
             })
         })
@@ -231,8 +231,8 @@ describe('Settings Actions', () => {
 
     describe('onCreateHelpDeskQuestion', () => {
         it('debe crear una pregunta FAQ', async () => {
-            mockPrismaClient.domain.update.mockResolvedValue({
-                id: 'domain-123',
+            mockPrismaClient.company.update.mockResolvedValue({
+                id: 'company-123',
                 helpdesk: [
                     {
                         id: 'question-123',
@@ -243,13 +243,13 @@ describe('Settings Actions', () => {
             })
 
             const result = await onCreateHelpDeskQuestion(
-                'domain-123',
+                'company-123',
                 '¿Cuál es el horario?',
                 'Lunes a Viernes 9am-6pm'
             )
 
             expect(result?.status).toBe(200)
-            expect(mockPrismaClient.domain.update).toHaveBeenCalled()
+            expect(mockPrismaClient.company.update).toHaveBeenCalled()
         })
     })
 
@@ -265,7 +265,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.helpDesk.findMany.mockResolvedValue(mockQuestions)
 
-            const result = await onGetAllHelpDeskQuestions('domain-123')
+            const result = await onGetAllHelpDeskQuestions('company-123')
 
             expect(result?.status).toBe(200)
             expect(result?.questions).toEqual(mockQuestions)
@@ -295,7 +295,7 @@ describe('Settings Actions', () => {
             })
 
             const result = await onCreateFilterQuestions(
-                'domain-123',
+                'company-123',
                 '¿Qué tipo de producto buscas?'
             )
 
@@ -314,7 +314,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.filterQuestions.findMany.mockResolvedValue(mockQuestions)
 
-            const result = await onGetAllFilterQuestions('domain-123')
+            const result = await onGetAllFilterQuestions('company-123')
 
             expect(result?.status).toBe(200)
             expect(result?.questions).toEqual(mockQuestions)
@@ -333,10 +333,10 @@ describe('Settings Actions', () => {
         })
     })
 
-    describe('onCreateNewDomainProduct', () => {
+    describe('onCreateNewCompanyProduct', () => {
         it('debe crear un nuevo producto', async () => {
-            mockPrismaClient.domain.update.mockResolvedValue({
-                id: 'domain-123',
+            mockPrismaClient.company.update.mockResolvedValue({
+                id: 'company-123',
                 products: [
                     {
                         id: 'product-123',
@@ -346,8 +346,8 @@ describe('Settings Actions', () => {
                 ],
             })
 
-            const result = await onCreateNewDomainProduct(
-                'domain-123',
+            const result = await onCreateNewCompanyProduct(
+                'company-123',
                 'Tela de Algodón',
                 'https://example.com/image.jpg',
                 '50000'
@@ -355,17 +355,17 @@ describe('Settings Actions', () => {
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Producto creado exitosamente')
-            expect(mockPrismaClient.domain.update).toHaveBeenCalled()
+            expect(mockPrismaClient.company.update).toHaveBeenCalled()
         })
     })
 
-    describe('onDeleteDomainProduct', () => {
+    describe('onDeleteCompanyProduct', () => {
         it('debe eliminar un producto', async () => {
             mockPrismaClient.product.delete.mockResolvedValue({
                 id: 'product-123',
             })
 
-            const result = await onDeleteDomainProduct('product-123')
+            const result = await onDeleteCompanyProduct('product-123')
 
             expect(result?.status).toBe(200)
         })
@@ -418,7 +418,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.availabilitySchedule.findMany.mockResolvedValue(mockSchedule)
 
-            const result = await onGetAvailabilitySchedule('domain-123')
+            const result = await onGetAvailabilitySchedule('company-123')
 
             expect(result?.status).toBe(200)
             expect(result?.schedule).toEqual(mockSchedule)
@@ -441,7 +441,7 @@ describe('Settings Actions', () => {
             })
 
             const result = await onUpdateAvailabilitySchedule(
-                'domain-123',
+                'company-123',
                 'MONDAY',
                 ['9:00am', '10:00am'],
                 true
@@ -461,7 +461,7 @@ describe('Settings Actions', () => {
             })
 
             const result = await onUpdateAvailabilitySchedule(
-                'domain-123',
+                'company-123',
                 'MONDAY',
                 ['9:00am', '10:00am'],
                 true
@@ -484,7 +484,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.category.findMany.mockResolvedValue(mockCategories)
 
-            const result = await onGetCategories('domain-123')
+            const result = await onGetCategories('company-123')
 
             expect(result).toEqual(mockCategories)
         })
@@ -497,7 +497,7 @@ describe('Settings Actions', () => {
                 name: 'Telas',
             })
 
-            const result = await onCreateCategory('domain-123', 'Telas')
+            const result = await onCreateCategory('company-123', 'Telas')
 
             expect(result?.status).toBe(200)
         })
@@ -573,14 +573,14 @@ describe('Settings Actions', () => {
 
     describe('onChatBotImageUpdate', () => {
         it('debe actualizar la imagen del chatbot', async () => {
-            mockPrismaClient.domain.update.mockResolvedValue({
-                id: 'domain-123',
+            mockPrismaClient.company.update.mockResolvedValue({
+                id: 'company-123',
                 chatBot: {
                     icon: 'new-icon.png',
                 },
             })
 
-            const result = await onChatBotImageUpdate('domain-123', 'new-icon.png')
+            const result = await onChatBotImageUpdate('company-123', 'new-icon.png')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Empresa actualizada')
@@ -589,7 +589,7 @@ describe('Settings Actions', () => {
         it('debe retornar undefined si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onChatBotImageUpdate('domain-123', 'icon.png')
+            const result = await onChatBotImageUpdate('company-123', 'icon.png')
 
             expect(result).toBeUndefined()
         })
@@ -597,30 +597,30 @@ describe('Settings Actions', () => {
 
     describe('onUpdateWelcomeMessage', () => {
         it('debe actualizar el mensaje de bienvenida', async () => {
-            mockPrismaClient.domain.update.mockResolvedValue({
-                id: 'domain-123',
+            mockPrismaClient.company.update.mockResolvedValue({
+                id: 'company-123',
                 chatBot: {
                     welcomeMessage: 'Nuevo mensaje',
                 },
             })
 
-            const result = await onUpdateWelcomeMessage('Nuevo mensaje', 'domain-123')
+            const result = await onUpdateWelcomeMessage('Nuevo mensaje', 'company-123')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Mensaje de bienvenida actualizado')
         })
     })
 
-    describe('onDeleteUserDomain', () => {
+    describe('onDeleteUserCompany', () => {
         it('debe eliminar un dominio del usuario', async () => {
             mockPrismaClient.user.findUnique.mockResolvedValue({
                 id: 'user-123',
             })
-            mockPrismaClient.domain.delete.mockResolvedValue({
+            mockPrismaClient.company.delete.mockResolvedValue({
                 name: 'Mi Empresa',
             })
 
-            const result = await onDeleteUserDomain('domain-123')
+            const result = await onDeleteUserCompany('company-123')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toContain('fue eliminada exitosamente')
@@ -629,7 +629,7 @@ describe('Settings Actions', () => {
         it('debe retornar undefined si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onDeleteUserDomain('domain-123')
+            const result = await onDeleteUserCompany('company-123')
 
             expect(result).toBeUndefined()
         })
@@ -664,7 +664,7 @@ describe('Settings Actions', () => {
         })
     })
 
-    describe('onUpdateDomainProduct', () => {
+    describe('onUpdateCompanyProduct', () => {
         it('debe actualizar un producto', async () => {
             mockPrismaClient.product.update.mockResolvedValue({
                 id: 'product-123',
@@ -672,7 +672,7 @@ describe('Settings Actions', () => {
                 price: 60000,
             })
 
-            const result = await onUpdateDomainProduct('product-123', 'Producto Actualizado', '60000')
+            const result = await onUpdateCompanyProduct('product-123', 'Producto Actualizado', '60000')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Producto actualizado exitosamente')
@@ -689,7 +689,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.material.findMany.mockResolvedValue(mockMaterials)
 
-            const result = await onGetMaterials('domain-123')
+            const result = await onGetMaterials('company-123')
 
             expect(result).toEqual(mockMaterials)
         })
@@ -702,7 +702,7 @@ describe('Settings Actions', () => {
                 name: 'Algodón',
             })
 
-            const result = await onCreateMaterial('domain-123', 'Algodón')
+            const result = await onCreateMaterial('company-123', 'Algodón')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Material creado exitosamente')
@@ -772,7 +772,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.texture.findMany.mockResolvedValue(mockTextures)
 
-            const result = await onGetTextures('domain-123')
+            const result = await onGetTextures('company-123')
 
             expect(result).toEqual(mockTextures)
         })
@@ -785,7 +785,7 @@ describe('Settings Actions', () => {
                 name: 'Lisa',
             })
 
-            const result = await onCreateTexture('domain-123', 'Lisa')
+            const result = await onCreateTexture('company-123', 'Lisa')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Textura creada exitosamente')
@@ -855,7 +855,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.season.findMany.mockResolvedValue(mockSeasons)
 
-            const result = await onGetSeasons('domain-123')
+            const result = await onGetSeasons('company-123')
 
             expect(result).toEqual(mockSeasons)
         })
@@ -868,7 +868,7 @@ describe('Settings Actions', () => {
                 name: 'Verano',
             })
 
-            const result = await onCreateSeason('domain-123', 'Verano')
+            const result = await onCreateSeason('company-123', 'Verano')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Temporada creada exitosamente')
@@ -938,7 +938,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.use.findMany.mockResolvedValue(mockUses)
 
-            const result = await onGetUses('domain-123')
+            const result = await onGetUses('company-123')
 
             expect(result).toEqual(mockUses)
         })
@@ -951,7 +951,7 @@ describe('Settings Actions', () => {
                 name: 'Interior',
             })
 
-            const result = await onCreateUse('domain-123', 'Interior')
+            const result = await onCreateUse('company-123', 'Interior')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Uso creado exitosamente')
@@ -1021,7 +1021,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.feature.findMany.mockResolvedValue(mockFeatures)
 
-            const result = await onGetFeatures('domain-123')
+            const result = await onGetFeatures('company-123')
 
             expect(result).toEqual(mockFeatures)
         })
@@ -1034,7 +1034,7 @@ describe('Settings Actions', () => {
                 name: 'Resistente al agua',
             })
 
-            const result = await onCreateFeature('domain-123', 'Resistente al agua')
+            const result = await onCreateFeature('company-123', 'Resistente al agua')
 
             expect(result?.status).toBe(200)
             expect(result?.message).toBe('Característica creada exitosamente')

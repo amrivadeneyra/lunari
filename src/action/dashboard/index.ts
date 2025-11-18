@@ -34,29 +34,28 @@ export const onGetDashboardMetrics = async () => {
         if (!user) return null
 
         // Obtener el dominio del usuario
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return null
+        if (!userCompany?.company) return null
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
 
         // Total de clientes
         const totalCustomers = await client.customer.count({
-            where: { domainId }
+            where: { companyId }
         })
 
         // Conversaciones activas (chats con mensajes recientes)
         const activeConversations = await client.chatRoom.count({
             where: {
-                Customer: { domainId },
+                Customer: { companyId },
                 live: false,
                 updatedAt: {
                     gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Últimas 24 horas
@@ -72,7 +71,7 @@ export const onGetDashboardMetrics = async () => {
 
         const todayAppointments = await client.bookings.count({
             where: {
-                domainId,
+                companyId,
                 date: {
                     gte: today,
                     lt: tomorrow
@@ -83,7 +82,7 @@ export const onGetDashboardMetrics = async () => {
         // Chats en tiempo real (urgentes)
         const urgentChats = await client.chatRoom.count({
             where: {
-                Customer: { domainId },
+                Customer: { companyId },
                 live: true
             }
         })
@@ -92,7 +91,7 @@ export const onGetDashboardMetrics = async () => {
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
         const newCustomersThisWeek = await client.customer.count({
             where: {
-                domainId,
+                companyId,
                 createdAt: {
                     gte: oneWeekAgo
                 }
@@ -118,23 +117,22 @@ export const onGetUrgentChats = async () => {
         const user = await currentUser()
         if (!user) return []
 
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return []
+        if (!userCompany?.company) return []
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
 
         const urgentChats = await client.chatRoom.findMany({
             where: {
-                Customer: { domainId },
+                Customer: { companyId },
                 live: true
             },
             select: {
@@ -157,7 +155,6 @@ export const onGetUrgentChats = async () => {
                     orderBy: {
                         createdAt: 'desc'
                     },
-                    take: 1
                 }
             },
             orderBy: {
@@ -179,26 +176,25 @@ export const onGetUpcomingAppointments = async () => {
         const user = await currentUser()
         if (!user) return []
 
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return []
+        if (!userCompany?.company) return []
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
 
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
         const appointments = await client.bookings.findMany({
             where: {
-                domainId,
+                companyId,
                 date: {
                     gte: today
                 }
@@ -236,24 +232,23 @@ export const onGetRecentActivity = async () => {
         const user = await currentUser()
         if (!user) return []
 
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return []
+        if (!userCompany?.company) return []
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
 
         // Obtener últimas conversaciones
         const recentChats = await client.chatRoom.findMany({
             where: {
-                Customer: { domainId }
+                Customer: { companyId }
             },
             select: {
                 id: true,
@@ -274,7 +269,7 @@ export const onGetRecentActivity = async () => {
         // Obtener últimas citas
         const recentBookings = await client.bookings.findMany({
             where: {
-                domainId
+                companyId
             },
             select: {
                 id: true,
@@ -328,19 +323,18 @@ export const onGetConversationStats = async () => {
         const user = await currentUser()
         if (!user) return []
 
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return []
+        if (!userCompany?.company) return []
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
 
         // Últimos 7 días
         const stats: Array<{ date: string; count: number }> = []
@@ -353,7 +347,7 @@ export const onGetConversationStats = async () => {
 
             const count = await client.chatRoom.count({
                 where: {
-                    Customer: { domainId },
+                    Customer: { companyId },
                     createdAt: {
                         gte: date,
                         lt: nextDate
@@ -380,25 +374,24 @@ export const onGetWeeklyStats = async () => {
         const user = await currentUser()
         if (!user) return null
 
-        const userDomain = await client.user.findUnique({
+        const userCompany = await client.user.findUnique({
             where: { clerkId: user.id },
             select: {
-                domains: {
+                company: {
                     select: { id: true },
-                    take: 1
                 }
             }
         })
 
-        if (!userDomain?.domains[0]) return null
+        if (!userCompany?.company) return null
 
-        const domainId = userDomain.domains[0].id
+        const companyId = userCompany.company.id
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
         // Nuevos clientes
         const newCustomers = await client.customer.count({
             where: {
-                domainId,
+                companyId,
                 createdAt: { gte: oneWeekAgo }
             }
         })
@@ -406,7 +399,7 @@ export const onGetWeeklyStats = async () => {
         // Total de conversaciones
         const totalConversations = await client.chatRoom.count({
             where: {
-                Customer: { domainId },
+                Customer: { companyId },
                 createdAt: { gte: oneWeekAgo }
             }
         })
@@ -414,7 +407,7 @@ export const onGetWeeklyStats = async () => {
         // Citas agendadas
         const bookingsScheduled = await client.bookings.count({
             where: {
-                domainId,
+                companyId,
                 createdAt: { gte: oneWeekAgo }
             }
         })
@@ -423,7 +416,7 @@ export const onGetWeeklyStats = async () => {
         const totalMessages = await client.chatMessage.count({
             where: {
                 ChatRoom: {
-                    Customer: { domainId }
+                    Customer: { companyId }
                 },
                 createdAt: { gte: oneWeekAgo }
             }

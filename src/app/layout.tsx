@@ -7,6 +7,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "sonner";
 import { ThemeProvider } from "@/context/theme-provider";
 
 // const inter = Inter({ subsets: ["latin"] });
@@ -34,6 +35,7 @@ export default function RootLayout({
           >
             {children}
             <Toaster />
+            <SonnerToaster position="top-center" richColors />
           </ThemeProvider>
         </body>
       </html>

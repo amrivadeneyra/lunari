@@ -7,13 +7,13 @@ import {
   onToggleRealtime,
   onUpdateConversationState,
   onGetConversationMode,
-  onGetDomainChatRooms,
+  onGetCompanyChatRooms,
   onGetChatMessages,
   onViewUnReadMessages,
   onRealTimeChat,
   onOwnerSendMessage,
   onToggleFavorite,
-  onGetAllDomainChatRooms,
+  onGetAllCompanyChatRooms,
 } from './index'
 import { mockPrismaClient } from '@/test/mocks/prisma'
 import { mockClerkClient } from '@/test/mocks/clerk'
@@ -85,12 +85,12 @@ describe('Conversation Actions', () => {
         Customer: {
           name: 'Juan Pérez',
           email: 'juan@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
         },
       }
 
       mockPrismaClient.chatRoom.update.mockResolvedValue(mockChatRoom)
-      mockPrismaClient.domain.findFirst.mockResolvedValue({
+      mockPrismaClient.company.findFirst.mockResolvedValue({
         User: {
           clerkId: 'clerk-123',
         },
@@ -118,7 +118,7 @@ describe('Conversation Actions', () => {
         Customer: {
           name: 'Juan Pérez',
           email: 'juan@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
         },
       }
 
@@ -154,12 +154,12 @@ describe('Conversation Actions', () => {
         Customer: {
           name: 'Juan Pérez',
           email: 'juan@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
         },
       }
 
       mockPrismaClient.chatRoom.update.mockResolvedValue(mockChatRoom)
-      mockPrismaClient.domain.findFirst.mockResolvedValue({
+      mockPrismaClient.company.findFirst.mockResolvedValue({
         User: {
           clerkId: 'clerk-123',
         },
@@ -216,9 +216,9 @@ describe('Conversation Actions', () => {
     })
   })
 
-  describe('onGetDomainChatRooms', () => {
+  describe('onGetCompanyChatRooms', () => {
     it('debe obtener todas las conversaciones de un dominio', async () => {
-      const mockDomain = {
+      const mockCompany = {
         customer: [
           {
             id: 'customer-1',
@@ -247,19 +247,19 @@ describe('Conversation Actions', () => {
         ],
       }
 
-      mockPrismaClient.domain.findUnique.mockResolvedValue(mockDomain)
+      mockPrismaClient.company.findUnique.mockResolvedValue(mockCompany)
 
-      const result = await onGetDomainChatRooms('domain-123')
+      const result = await onGetCompanyChatRooms('company-123')
 
-      expect(result).toEqual(mockDomain)
+      expect(result).toEqual(mockCompany)
     })
 
     it('debe retornar undefined si hay error', async () => {
-      mockPrismaClient.domain.findUnique.mockRejectedValue(
+      mockPrismaClient.company.findUnique.mockRejectedValue(
         new Error('Error de BD')
       )
 
-      const result = await onGetDomainChatRooms('domain-123')
+      const result = await onGetCompanyChatRooms('company-123')
 
       expect(result).toBeUndefined()
     })
@@ -497,7 +497,7 @@ describe('Conversation Actions', () => {
     })
   })
 
-  describe('onGetAllDomainChatRooms', () => {
+  describe('onGetAllCompanyChatRooms', () => {
     it('debe obtener todas las conversaciones agrupadas por cliente', async () => {
       const mockChatRooms = [
         {
@@ -526,7 +526,7 @@ describe('Conversation Actions', () => {
 
       mockPrismaClient.chatRoom.findMany.mockResolvedValue(mockChatRooms)
 
-      const result = await onGetAllDomainChatRooms('domain-123')
+      const result = await onGetAllCompanyChatRooms('company-123')
 
       expect(result).toBeDefined()
       expect(result?.customer).toBeDefined()
@@ -539,7 +539,7 @@ describe('Conversation Actions', () => {
         new Error('Error de BD')
       )
 
-      const result = await onGetAllDomainChatRooms('domain-123')
+      const result = await onGetAllCompanyChatRooms('company-123')
 
       expect(result).toBeNull()
       consoleSpy.mockRestore()
@@ -548,7 +548,7 @@ describe('Conversation Actions', () => {
     it('debe retornar array vacío si no hay conversaciones', async () => {
       mockPrismaClient.chatRoom.findMany.mockResolvedValue([])
 
-      const result = await onGetAllDomainChatRooms('domain-123')
+      const result = await onGetAllCompanyChatRooms('company-123')
 
       expect(result).toBeDefined()
       expect(result?.customer).toEqual([])

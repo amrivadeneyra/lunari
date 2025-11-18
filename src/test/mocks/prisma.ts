@@ -149,7 +149,7 @@ export const createMockPrismaClient = () => {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    domain: {
+    company: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),

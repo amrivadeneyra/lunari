@@ -22,7 +22,7 @@ type Props = {
   chats: { role: 'user' | 'assistant'; content: string; link?: string }[]
   onChat(): void
   onResponding: boolean
-  domainName: string
+  companyName: string
   theme?: string | null
   textColor?: string | null
   help?: boolean
@@ -36,7 +36,7 @@ type Props = {
     id: string
     question: string
     answer: string
-    domainId: string | null
+    companyId: string | null
   }[]
   setChat: React.Dispatch<
     React.SetStateAction<
@@ -69,7 +69,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       chats,
       onChat,
       onResponding,
-      domainName,
+      companyName,
       helpdesk,
       realtimeMode,
       setChat,
@@ -111,7 +111,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               <h3 className="text-xs font-semibold leading-none">
                 {isHumanMode ? 'Agente Humano' : 'Asistente Virtual'}
               </h3>
-              <p className="text-xs text-gray-500">{domainName}</p>
+              <p className="text-xs text-gray-500">{companyName}</p>
 
 
             </div>

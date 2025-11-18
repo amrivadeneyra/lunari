@@ -4,7 +4,7 @@ import { useSettings } from '@/hooks/settings/use-settings'
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/loader'
-import { DomainUpdate } from './domain-update'
+import { CompanyUpdate } from './company-update'
 import { Building2, Save } from 'lucide-react'
 
 type Props = {
@@ -61,7 +61,7 @@ const CompanySettings = ({ id, name }: Props) => {
             </div>
 
             <div className="space-y-4">
-              <DomainUpdate
+              <CompanyUpdate
                 name={name}
                 register={register}
                 errors={errors}
