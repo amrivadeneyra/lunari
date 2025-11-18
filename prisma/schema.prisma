@@ -20,14 +20,14 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   campaign  Campaign[]
-  domains   Domain[]
+  company   Company?   // Una sola empresa por usuario
 }
 
-model Domain {
+model Company {
   id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name            String
   icon            String
-  userId          String?                @db.Uuid
+  userId          String?                @unique @db.Uuid // @unique para relación one-to-one
   campaignId      String?                @db.Uuid
   chatBot         ChatBot?
   customer        Customer[]
@@ -54,24 +54,24 @@ model ChatBot {
   background     String?
   textColor      String?
   helpdesk       Boolean @default(false)
-  domainId       String? @unique @db.Uuid
-  Domain         Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  companyId      String? @unique @db.Uuid
+  Company        Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model HelpDesk {
   id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   question String
   answer   String
-  domainId String? @db.Uuid
-  Domain   Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  companyId String? @db.Uuid
+  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model FilterQuestions {
   id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   question String
   answered String?
-  domainId String? @db.Uuid
-  Domain   Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  companyId String? @db.Uuid
+  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model CustomerResponses {
@@ -97,10 +97,10 @@ model Customer {
   chatRoom            ChatRoom[]
   booking             Bookings[]
   satisfactionRecords CustomerSatisfaction[]
-  reservations        ProductReservation[] // ✅ Reservas de productos del cliente
+  reservations        ProductReservation[] // Reservas de productos del cliente
 
-  Domain   Domain? @relation(fields: [domainId], references: [id], onDelete: Cascade)
-  domainId String? @db.Uuid
+  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String? @db.Uuid
 }
 
 model ChatRoom {
@@ -155,14 +155,14 @@ model Bookings {
   slot            String
   email           String
   customerId      String?              @db.Uuid
-  domainId        String?              @db.Uuid
+  companyId       String?              @db.Uuid
   createdAt       DateTime             @default(now())
   // ✅ NUEVO: Tipo de cita y propósito
   appointmentType AppointmentType      @default(STORE_VISIT)
   purpose         String? // Propósito específico de la cita
   notes           String? // Notas adicionales del cliente
   Customer        Customer?            @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  reservations    ProductReservation[] // ✅ Relación con reservas de productos
+  reservations    ProductReservation[] // Relación con reservas de productos
 }
 
 // ✅ SIMPLIFICADO: Enum para tipos de citas (100% presencial)
@@ -221,7 +221,7 @@ model Campaign {
   userId    String?  @db.Uuid
   createdAt DateTime @default(now())
   User      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  domain    Domain[]
+  company   Company[]
 }
 
 model Product {
@@ -230,7 +230,7 @@ model Product {
   price     Int
   image     String
   createdAt DateTime @default(now())
-  domainId  String?  @db.Uuid
+  companyId String?  @db.Uuid
   active    Boolean  @default(true)
 
   // Información técnica de la tela (Referencias)
@@ -259,16 +259,16 @@ model Product {
   care     String? @db.Text // Instrucciones de cuidado
 
   // Relaciones
-  Domain       Domain?              @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company      Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   material     Material?            @relation(fields: [materialId], references: [id], onDelete: SetNull)
   texture      Texture?             @relation(fields: [textureId], references: [id], onDelete: SetNull)
   category     Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   season       Season?              @relation(fields: [seasonId], references: [id], onDelete: SetNull)
   uses         ProductUse[]
   features     ProductFeature[]
-  reservations ProductReservation[] // ✅ Reservas de este producto
+  reservations ProductReservation[] // Reservas de este producto
 
-  @@index([domainId])
+  @@index([companyId])
   @@index([categoryId])
   @@index([materialId])
   @@index([featured])
@@ -280,79 +280,79 @@ model Product {
 model Category {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String
-  domainId  String    @db.Uuid
+  companyId String    @db.Uuid
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   products  Product[]
-  Domain    Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 model Material {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String // Algodón, Lino, Seda, etc.
-  domainId  String    @db.Uuid
+  companyId String    @db.Uuid
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   products  Product[]
-  Domain    Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 model Texture {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String // Lisa, Texturizada, Satinada, etc.
-  domainId  String    @db.Uuid
+  companyId String    @db.Uuid
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   products  Product[]
-  Domain    Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 model Season {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String // Verano, Invierno, Todo el año
-  domainId  String    @db.Uuid
+  companyId String    @db.Uuid
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   products  Product[]
-  Domain    Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 model Use {
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String // Vestidos, Camisas, Blusas, etc.
-  domainId  String       @db.Uuid
+  companyId String       @db.Uuid
   active    Boolean      @default(true)
   createdAt DateTime     @default(now())
   products  ProductUse[]
-  Domain    Domain       @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 model Feature {
   id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String // Impermeable, Elástico, Antibacterial, etc.
-  domainId  String           @db.Uuid
+  companyId String           @db.Uuid
   active    Boolean          @default(true)
   createdAt DateTime         @default(now())
   products  ProductFeature[]
-  Domain    Domain           @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([name, domainId])
-  @@index([domainId])
+  @@unique([name, companyId])
+  @@index([companyId])
 }
 
 // Tablas intermedias para relaciones many-to-many
@@ -385,19 +385,19 @@ model AvailabilitySchedule {
   dayOfWeek DayOfWeek
   timeSlots String[] // Array de strings como ["9:00am", "9:30am", "10:00am"]
   isActive  Boolean   @default(true)
-  domainId  String    @db.Uuid
+  companyId String    @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  Domain    Domain    @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  Company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@unique([domainId, dayOfWeek])
+  @@unique([companyId, dayOfWeek])
 }
 
 // Nuevos modelos para métricas de tesis
 model ConversationMetrics {
   id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chatRoomId String @db.Uuid
-  domainId   String @db.Uuid
+  companyId  String @db.Uuid
 
   // FR1: Tiempo promedio de respuesta
   averageResponseTime Int // En segundos
@@ -422,13 +422,13 @@ model CustomerSatisfaction {
   comment    String? // Comentario opcional del cliente
   chatRoomId String   @db.Uuid
   customerId String   @db.Uuid
-  domainId   String   @db.Uuid
+  companyId  String   @db.Uuid
   createdAt  DateTime @default(now())
 
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@index([domainId])
+  @@index([companyId])
   @@index([createdAt])
 }
 

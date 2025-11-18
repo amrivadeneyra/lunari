@@ -19,10 +19,10 @@ const Page = async (props: Props) => {
   const user = await currentUser()
 
   if (!user) return null
-  const domainBookings = await onGetAllBookingsForCurrentUser(user.id)
+  const companyBookings = await onGetAllBookingsForCurrentUser(user.id)
   const today = new Date()
 
-  if (!domainBookings)
+  if (!companyBookings)
     return (
       <div className="w-full h-full overflow-y-auto">
         <div className="w-full p-4 md:p-6">
@@ -55,7 +55,7 @@ const Page = async (props: Props) => {
       </div>
     )
 
-  const bookingsExistToday = domainBookings.bookings.filter(
+  const bookingsExistToday = companyBookings.bookings.filter(
     (booking) => booking.date.getDate() === today.getDate()
   )
 
@@ -91,7 +91,7 @@ const Page = async (props: Props) => {
                 </div>
               </div>
               <div className="pt-4 border-t border-gray-100">
-                <AllAppointments bookings={domainBookings?.bookings} />
+                <AllAppointments bookings={companyBookings?.bookings} />
               </div>
             </div>
           </div>
@@ -138,7 +138,7 @@ const Page = async (props: Props) => {
                                 </p>
                               </div>
                               <Badge variant="secondary" className="text-xs bg-peach text-gravel border-orange">
-                                <Building2 className="w-3 h-3 mr-1" />{booking.Customer?.Domain?.name}
+                                <Building2 className="w-3 h-3 mr-1" />{booking.Customer?.Company?.name}
                               </Badge>
                             </div>
 

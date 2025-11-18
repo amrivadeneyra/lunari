@@ -26,7 +26,7 @@ describe('usePortal', () => {
 
   it('debe inicializar con valores por defecto', () => {
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     expect(result.current.step).toBe(1)
@@ -36,7 +36,7 @@ describe('usePortal', () => {
 
   it('debe avanzar al siguiente paso', () => {
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     act(() => {
@@ -48,7 +48,7 @@ describe('usePortal', () => {
 
   it('debe retroceder al paso anterior', () => {
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     act(() => {
@@ -67,7 +67,7 @@ describe('usePortal', () => {
       })
 
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     const newDate = new Date('2024-12-31')
@@ -82,7 +82,7 @@ describe('usePortal', () => {
 
   it('debe seleccionar un slot de tiempo', () => {
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     act(() => {
@@ -103,7 +103,7 @@ describe('usePortal', () => {
       })
 
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     // Establecer fecha y slot
@@ -131,7 +131,7 @@ describe('usePortal', () => {
       ; (saveAnswers as any).mockRejectedValue(new Error('Error de red'))
 
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     const mockEvent = {
@@ -157,7 +157,7 @@ describe('usePortal', () => {
       })
 
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     const mockEvent = {
@@ -180,7 +180,7 @@ describe('usePortal', () => {
       })
 
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     act(() => {
@@ -193,7 +193,7 @@ describe('usePortal', () => {
 
   it('debe retornar loadingSlots como false inicialmente', () => {
     const { result } = renderHook(() =>
-      usePortal('customer-123', 'domain-123', 'test@example.com')
+      usePortal('customer-123', 'company-123', 'test@example.com')
     )
 
     expect(typeof result.current.loadingSlots).toBe('boolean')

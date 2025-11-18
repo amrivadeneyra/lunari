@@ -3,7 +3,7 @@ import { ACCEPTED_FILE_TYPES, MAX_UPLOAD_SIZE } from './settings.schema'
 
 export type ConversationSearchProps = {
   query: string
-  domain: string
+  company: string
 }
 
 export type ChatBotMessageProps = {
@@ -13,7 +13,7 @@ export type ChatBotMessageProps = {
 
 export const ConversationSearchSchema = z.object({
   query: z.string().min(1, { message: 'Debes ingresar una consulta' }),
-  domain: z.string().min(1, { message: 'Debes seleccionar una empresa' }),
+  company: z.string().min(1, { message: 'Debes seleccionar una empresa' }),
 });
 
 export const ChatBotMessageSchema: ZodType<ChatBotMessageProps> = z

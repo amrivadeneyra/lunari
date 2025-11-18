@@ -9,8 +9,8 @@ import { useConversation } from './use-conversation'
 // Mock de dependencias
 vi.mock('@/action/conversation', () => ({
   onGetChatMessages: vi.fn(),
-  onGetDomainChatRooms: vi.fn(),
-  onGetAllDomainChatRooms: vi.fn(),
+  onGetCompanyChatRooms: vi.fn(),
+  onGetAllCompanyChatRooms: vi.fn(),
   onOwnerSendMessage: vi.fn(),
   onViewUnReadMessages: vi.fn(),
   onToggleFavorite: vi.fn(),

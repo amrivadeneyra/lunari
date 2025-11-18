@@ -1,4 +1,4 @@
-import { onGetChatMessages, onGetAllDomainChatRooms, onOwnerSendMessage, onViewUnReadMessages, onToggleFavorite } from '@/action/conversation'
+import { onGetChatMessages, onGetAllCompanyChatRooms, onOwnerSendMessage, onViewUnReadMessages, onToggleFavorite } from '@/action/conversation'
 import { useChatContext } from '@/context/user-chat-context'
 import { getMonthName, socketClientUtils } from '@/lib/utils'
 import { ChatBotMessageSchema, ConversationSearchSchema } from '@/schemas/conversation.schema'
@@ -32,20 +32,41 @@ export const useConversation = () => {
   const [loading, setLoading] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<string>('no leidos')
 
+  // Función para cargar las conversaciones
+  const loadChatRooms = async (companyId: string) => {
+    if (!companyId) return
+    setLoading(true)
+    try {
+      const rooms = await onGetAllCompanyChatRooms(companyId)
+      if (rooms) {
+        setLoading(false)
+        setChatRooms((rooms as any).customer || [])
+      } else {
+        setLoading(false)
+        setChatRooms([])
+      }
+    } catch (error) {
+      console.log('Error fetching chat rooms:', error)
+      setLoading(false)
+      setChatRooms([])
+    }
+  }
+
+  // Escuchar cambios en el campo company y cargar conversaciones
   useEffect(() => {
-    const search = watch(async (value) => {
-      setLoading(true)
-      try {
-        const rooms = await onGetAllDomainChatRooms(value.domain)
-        if (rooms) {
-          setLoading(false)
-          setChatRooms((rooms as any).customer)
-        }
-      } catch (error) {
-        console.log(error)
+    const subscription = watch(async (value) => {
+      if (value.company) {
+        await loadChatRooms(value.company)
       }
     })
-    return () => search.unsubscribe()
+
+    // Cargar conversaciones si ya hay un valor inicial
+    const currentValue = watch('company')
+    if (currentValue) {
+      loadChatRooms(currentValue)
+    }
+
+    return () => subscription.unsubscribe()
   }, [watch])
 
   const onGetActiveChatMessages = async (id: string) => {

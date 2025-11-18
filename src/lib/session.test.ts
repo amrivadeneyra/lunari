@@ -34,7 +34,7 @@ describe('session', () => {
       const result = await generateSessionToken(
         'customer-123',
         'test@example.com',
-        'domain-123',
+        'company-123',
         'chatroom-123'
       )
 
@@ -43,7 +43,7 @@ describe('session', () => {
       expect(result).toHaveProperty('sessionData')
       expect(result.sessionData.customerId).toBe('customer-123')
       expect(result.sessionData.email).toBe('test@example.com')
-      expect(result.sessionData.domainId).toBe('domain-123')
+      expect(result.sessionData.companyId).toBe('company-123')
       expect(result.sessionData.chatRoomId).toBe('chatroom-123')
     })
 
@@ -51,7 +51,7 @@ describe('session', () => {
       mockPrismaClient.customer.findUnique.mockResolvedValue(null)
 
       await expect(
-        generateSessionToken('customer-123', 'test@example.com', 'domain-123', 'chatroom-123')
+        generateSessionToken('customer-123', 'test@example.com', 'company-123', 'chatroom-123')
       ).rejects.toThrow('Customer not found')
     })
   })
@@ -70,7 +70,7 @@ describe('session', () => {
         {
           customerId: 'customer-123',
           email: 'test@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
           chatRoomId: 'chatroom-123',
         },
         'test-secret-key',
@@ -103,7 +103,7 @@ describe('session', () => {
         {
           customerId: 'customer-123',
           email: 'test@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
           chatRoomId: 'chatroom-123',
         },
         'test-secret-key',
@@ -134,7 +134,7 @@ describe('session', () => {
         {
           customerId: 'customer-123',
           email: 'test@example.com',
-          domainId: 'domain-123',
+          companyId: 'company-123',
           chatRoomId: 'chatroom-123',
         },
         'test-secret-key',

@@ -3,87 +3,85 @@
 import { clerkClient, currentUser } from "@clerk/nextjs";
 import { client } from "@/lib/prisma";
 
-export const onIntegrateDomain = async (domain: string, icon: string) => {
+export const onIntegrateCompany = async (company: string, icon: string) => {
   const user = await currentUser();
   if (!user) return;
   try {
-    const domainExists = await client.user.findFirst({
+    const userData = await client.user.findUnique({
       where: {
         clerkId: user.id,
-        domains: {
-          some: {
-            name: domain,
-          },
-        },
+      },
+      select: {
+        company: true,
       },
     });
 
-    if (!domainExists) {
-      const newDomain = await client.user.update({
-        where: {
-          clerkId: user.id,
-        },
+    if (!userData?.company) {
+      // Primero obtener el userId
+      const userRecord = await client.user.findUnique({
+        where: { clerkId: user.id },
+        select: { id: true }
+      })
+
+      if (!userRecord) {
+        return {
+          status: 400,
+          message: "Usuario no encontrado"
+        }
+      }
+
+      const newCompany = await client.company.create({
         data: {
-          domains: {
+          name: company,
+          icon,
+          userId: userRecord.id,
+          chatBot: {
             create: {
-              name: domain,
-              icon,
-              chatBot: {
-                create: {
-                  welcomeMessage: "Hola, ¿tienes alguna pregunta? Envíanos un mensaje aquí",
-                }
-              }
+              welcomeMessage: "Hola, ¿tienes alguna pregunta? Envíanos un mensaje aquí",
             }
           }
         },
-        include: {
-          domains: {
-            where: {
-              name: domain,
-            },
-            select: {
-              id: true,
-            },
-          },
+        select: {
+          id: true,
         },
       });
 
-      if (newDomain && newDomain.domains.length > 0) {
+      if (newCompany) {
         return {
           status: 200,
           message: "Empresa agregada exitosamente",
-          domainId: newDomain.domains[0].id
+          companyId: newCompany.id
         };
       }
     }
 
     return {
       status: 400,
-      message: "Una empresa con este nombre ya existe"
+      message: "Ya tienes una empresa asociada"
     };
 
   } catch (error) {
-    console.log("Error in onIntegrateDomain: " + error)
+    console.log("Error in onIntegrateCompany: " + error)
   }
 }
 
-export const onGetAllAccountDomains = async () => {
+export const onGetAccountCompany = async () => {
   const user = await currentUser();
   if (!user) {
     return {
       id: '',
-      domains: [],
+      company: null,
     };
   }
 
   try {
-    const domains = await client.user.findUnique({
+    const userData = await client.user.findUnique({
       where: {
         clerkId: user.id,
       },
       select: {
         id: true,
-        domains: {
+        company: {
           select: {
             id: true,
             name: true,
@@ -103,19 +101,19 @@ export const onGetAllAccountDomains = async () => {
       },
     });
 
-    if (domains) {
-      return { ...domains }
+    if (userData) {
+      return { ...userData }
     }
 
     return {
       id: '',
-      domains: [],
+      company: null,
     };
   } catch (error: any) {
-    console.error("onGetAllAccountDomains - Error fetching account domains:", error);
+    console.error("onGetAccountCompany - Error fetching account company:", error);
     return {
       id: '',
-      domains: [],
+      company: null,
     };
   }
 }
@@ -134,18 +132,18 @@ export const onUpdatePassword = async (password: string) => {
   }
 }
 
-export const onGetCurrentDomainInfo = async (domain: string) => {
+export const onGetCurrentCompanyInfo = async (companyId: string) => {
   const user = await currentUser()
   if (!user) return null
   try {
-    const userDomain = await client.user.findUnique({
+    const userData = await client.user.findUnique({
       where: {
         clerkId: user.id,
       },
       select: {
-        domains: {
+        company: {
           where: {
-            id: domain,
+            id: companyId,
           },
           select: {
             id: true,
@@ -180,20 +178,20 @@ export const onGetCurrentDomainInfo = async (domain: string) => {
       },
     })
 
-    if (userDomain) {
-      return userDomain
+    if (userData?.company) {
+      return { company: userData.company }
     }
 
     return null
   } catch (error) {
-    console.log("Error en onGetCurrentDomainInfo:", error)
+    console.log("Error en onGetCurrentCompanyInfo:", error)
     return null
   }
 }
 
-export const onUpdateDomain = async (id: string, name: string) => {
+export const onUpdateCompany = async (id: string, name: string) => {
   try {
-    const domainExists = await client.domain.findFirst({
+    const companyExists = await client.company.findFirst({
       where: {
         name: {
           equals: name,
@@ -204,8 +202,8 @@ export const onUpdateDomain = async (id: string, name: string) => {
       },
     })
 
-    if (!domainExists) {
-      const domain = await client.domain.update({
+    if (!companyExists) {
+      const company = await client.company.update({
         where: {
           id,
         },
@@ -214,7 +212,7 @@ export const onUpdateDomain = async (id: string, name: string) => {
         },
       })
 
-      if (domain) {
+      if (company) {
         return {
           status: 200,
           message: 'Empresa actualizada',
@@ -242,7 +240,7 @@ export const onChatBotImageUpdate = async (id: string, icon: string) => {
   if (!user) return
 
   try {
-    const domain = await client.domain.update({
+    const company = await client.company.update({
       where: {
         id,
       },
@@ -257,7 +255,7 @@ export const onChatBotImageUpdate = async (id: string, icon: string) => {
       },
     })
 
-    if (domain) {
+    if (company) {
       return {
         status: 200,
         message: 'Empresa actualizada',
@@ -275,12 +273,12 @@ export const onChatBotImageUpdate = async (id: string, icon: string) => {
 
 export const onUpdateWelcomeMessage = async (
   message: string,
-  domainId: string
+  companyId: string
 ) => {
   try {
-    const update = await client.domain.update({
+    const update = await client.company.update({
       where: {
-        id: domainId,
+        id: companyId,
       },
       data: {
         chatBot: {
@@ -301,7 +299,7 @@ export const onUpdateWelcomeMessage = async (
   }
 }
 
-export const onDeleteUserDomain = async (id: string) => {
+export const onDeleteUserCompany = async (id: string) => {
   const user = await currentUser()
 
   if (!user) return
@@ -317,7 +315,7 @@ export const onDeleteUserDomain = async (id: string) => {
     })
 
     if (validUser) {
-      const deletedDomain = await client.domain.delete({
+      const deletedCompany = await client.company.delete({
         where: {
           userId: validUser.id,
           id,
@@ -327,10 +325,10 @@ export const onDeleteUserDomain = async (id: string) => {
         },
       })
 
-      if (deletedDomain) {
+      if (deletedCompany) {
         return {
           status: 200,
-          message: `${deletedDomain.name} fue eliminada exitosamente`,
+          message: `${deletedCompany.name} fue eliminada exitosamente`,
         }
       }
     }
@@ -345,7 +343,7 @@ export const onCreateHelpDeskQuestion = async (
   answer: string
 ) => {
   try {
-    const helpDeskQuestion = await client.domain.update({
+    const helpDeskQuestion = await client.company.update({
       where: {
         id,
       },
@@ -389,7 +387,7 @@ export const onGetAllHelpDeskQuestions = async (id: string) => {
   try {
     const questions = await client.helpDesk.findMany({
       where: {
-        domainId: id,
+        companyId: id,
       },
       select: {
         question: true,
@@ -474,7 +472,7 @@ export const onDeleteHelpDeskQuestion = async (questionId: string) => {
 
 export const onCreateFilterQuestions = async (id: string, question: string) => {
   try {
-    const filterQuestion = await client.domain.update({
+    const filterQuestion = await client.company.update({
       where: {
         id,
       },
@@ -515,7 +513,7 @@ export const onGetAllFilterQuestions = async (id: string) => {
   try {
     const questions = await client.filterQuestions.findMany({
       where: {
-        domainId: id,
+        companyId: id,
       },
       select: {
         question: true,
@@ -595,7 +593,7 @@ export const onDeleteFilterQuestion = async (questionId: string) => {
   }
 }
 
-export const onCreateNewDomainProduct = async (
+export const onCreateNewCompanyProduct = async (
   id: string,
   name: string,
   image: string,
@@ -621,7 +619,7 @@ export const onCreateNewDomainProduct = async (
   }
 ) => {
   try {
-    const product = await client.domain.update({
+    const product = await client.company.update({
       where: {
         id,
       },
@@ -648,7 +646,7 @@ export const onCreateNewDomainProduct = async (
   }
 }
 
-export const onDeleteDomainProduct = async (productId: string) => {
+export const onDeleteCompanyProduct = async (productId: string) => {
   try {
     const product = await client.product.delete({
       where: {
@@ -671,7 +669,7 @@ export const onDeleteDomainProduct = async (productId: string) => {
   }
 }
 
-export const onUpdateDomainProduct = async (
+export const onUpdateCompanyProduct = async (
   productId: string,
   name: string,
   price: string,
@@ -772,11 +770,11 @@ export const onToggleProductStatus = async (productId: string) => {
 
 // ===== GESTIÓN DE HORARIOS DISPONIBLES =====
 
-export const onGetAvailabilitySchedule = async (domainId: string) => {
+export const onGetAvailabilitySchedule = async (companyId: string) => {
   try {
     const schedule = await client.availabilitySchedule.findMany({
       where: {
-        domainId,
+        companyId,
       },
       select: {
         id: true,
@@ -804,7 +802,7 @@ export const onGetAvailabilitySchedule = async (domainId: string) => {
 }
 
 export const onUpdateAvailabilitySchedule = async (
-  domainId: string,
+  companyId: string,
   dayOfWeek: string,
   timeSlots: string[],
   isActive: boolean
@@ -813,8 +811,8 @@ export const onUpdateAvailabilitySchedule = async (
     // Buscar si ya existe un registro para este día
     const existing = await client.availabilitySchedule.findUnique({
       where: {
-        domainId_dayOfWeek: {
-          domainId,
+        companyId_dayOfWeek: {
+          companyId,
           dayOfWeek: dayOfWeek as any,
         },
       },
@@ -842,7 +840,7 @@ export const onUpdateAvailabilitySchedule = async (
       // Crear
       const created = await client.availabilitySchedule.create({
         data: {
-          domainId,
+          companyId,
           dayOfWeek: dayOfWeek as any,
           timeSlots,
           isActive,
@@ -875,10 +873,10 @@ export const onUpdateAvailabilitySchedule = async (
 // ============================================
 
 // ===== CATEGORÍAS =====
-export const onGetCategories = async (domainId: string) => {
+export const onGetCategories = async (companyId: string) => {
   try {
     const categories = await client.category.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return categories
@@ -888,10 +886,10 @@ export const onGetCategories = async (domainId: string) => {
   }
 }
 
-export const onCreateCategory = async (domainId: string, name: string) => {
+export const onCreateCategory = async (companyId: string, name: string) => {
   try {
     const category = await client.category.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Categoría creada exitosamente', data: category }
   } catch (error) {
@@ -940,10 +938,10 @@ export const onToggleCategory = async (id: string) => {
 }
 
 // ===== MATERIALES =====
-export const onGetMaterials = async (domainId: string) => {
+export const onGetMaterials = async (companyId: string) => {
   try {
     const materials = await client.material.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return materials
@@ -953,10 +951,10 @@ export const onGetMaterials = async (domainId: string) => {
   }
 }
 
-export const onCreateMaterial = async (domainId: string, name: string) => {
+export const onCreateMaterial = async (companyId: string, name: string) => {
   try {
     const material = await client.material.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Material creado exitosamente', data: material }
   } catch (error) {
@@ -1005,10 +1003,10 @@ export const onToggleMaterial = async (id: string) => {
 }
 
 // ===== TEXTURAS =====
-export const onGetTextures = async (domainId: string) => {
+export const onGetTextures = async (companyId: string) => {
   try {
     const textures = await client.texture.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return textures
@@ -1018,10 +1016,10 @@ export const onGetTextures = async (domainId: string) => {
   }
 }
 
-export const onCreateTexture = async (domainId: string, name: string) => {
+export const onCreateTexture = async (companyId: string, name: string) => {
   try {
     const texture = await client.texture.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Textura creada exitosamente', data: texture }
   } catch (error) {
@@ -1070,10 +1068,10 @@ export const onToggleTexture = async (id: string) => {
 }
 
 // ===== TEMPORADAS =====
-export const onGetSeasons = async (domainId: string) => {
+export const onGetSeasons = async (companyId: string) => {
   try {
     const seasons = await client.season.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return seasons
@@ -1083,10 +1081,10 @@ export const onGetSeasons = async (domainId: string) => {
   }
 }
 
-export const onCreateSeason = async (domainId: string, name: string) => {
+export const onCreateSeason = async (companyId: string, name: string) => {
   try {
     const season = await client.season.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Temporada creada exitosamente', data: season }
   } catch (error) {
@@ -1135,10 +1133,10 @@ export const onToggleSeason = async (id: string) => {
 }
 
 // ===== USOS =====
-export const onGetUses = async (domainId: string) => {
+export const onGetUses = async (companyId: string) => {
   try {
     const uses = await client.use.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return uses
@@ -1148,10 +1146,10 @@ export const onGetUses = async (domainId: string) => {
   }
 }
 
-export const onCreateUse = async (domainId: string, name: string) => {
+export const onCreateUse = async (companyId: string, name: string) => {
   try {
     const use = await client.use.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Uso creado exitosamente', data: use }
   } catch (error) {
@@ -1200,10 +1198,10 @@ export const onToggleUse = async (id: string) => {
 }
 
 // ===== CARACTERÍSTICAS =====
-export const onGetFeatures = async (domainId: string) => {
+export const onGetFeatures = async (companyId: string) => {
   try {
     const features = await client.feature.findMany({
-      where: { domainId },
+      where: { companyId },
       orderBy: { name: 'asc' },
     })
     return features
@@ -1213,10 +1211,10 @@ export const onGetFeatures = async (domainId: string) => {
   }
 }
 
-export const onCreateFeature = async (domainId: string, name: string) => {
+export const onCreateFeature = async (companyId: string, name: string) => {
   try {
     const feature = await client.feature.create({
-      data: { domainId, name },
+      data: { companyId, name },
     })
     return { status: 200, message: 'Característica creada exitosamente', data: feature }
   } catch (error) {

@@ -4,26 +4,26 @@ import React from "react";
 
 import { LogOut, MonitorSmartphone } from "lucide-react";
 import MenuItem from "./menu-item";
-import DomainMenu from "./domain-menu";
+import CompanyMenu from "./company-menu";
 import { MenuLogo } from "@/icons/menu-logo";
 
 type MinMenuProps = {
     onShrink(): void;
     current: string;
     onSignOut(): void;
-    domains:
+    company:
     | {
         id: string;
         name: string;
         icon: string | null;
-    }[]
+    }
     | null
     | undefined;
 };
 
-const MinMenu = ({ current, domains, onShrink, onSignOut }: MinMenuProps) => {
+const MinMenu = ({ current, company, onShrink, onSignOut }: MinMenuProps) => {
     // Verificar si hay empresa creada
-    const hasCompany = Boolean(domains && domains.length > 0)
+    const hasCompany = Boolean(company)
 
     return (
         <div className="p-3 flex flex-col items-center h-full">
@@ -52,9 +52,9 @@ const MinMenu = ({ current, domains, onShrink, onSignOut }: MinMenuProps) => {
                                 current={current}
                             />
                         ))}
-                    {/* <DomainMenu
+                    {/* <CompanyMenu
                         min
-                        domains={domains}
+                        company={company}
                     /> */}
                 </div>
                 <div className="flex flex-col">

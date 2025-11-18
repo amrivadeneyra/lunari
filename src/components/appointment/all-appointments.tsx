@@ -11,13 +11,13 @@ type Props = {
     Customer: {
       name: string | null
       email: string | null
-      Domain: {
+      Company: {
         name: string
       } | null
     } | null
     id: string
     email: string
-    domainId: string | null
+    companyId: string | null
     date: Date
     slot: string
     createdAt: Date
@@ -53,7 +53,7 @@ const AllAppointments = ({ bookings }: Props) => {
               </div>
             </TableCell>
             <TableCell className="text-right text-xs">
-              {booking.Customer?.Domain?.name}
+              {booking.Customer?.Company?.name}
             </TableCell>
           </TableRow>
         ))

@@ -115,7 +115,7 @@ export const onGetCurrentChatBot = async (idOrName: string) => {
     // Verificar si es un UUID (ID) o un nombre
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrName)
 
-    const chatbot = await client.domain.findFirst({
+    const chatbot = await client.company.findFirst({
       where: isUUID ? {
         id: idOrName,
       } : {
@@ -169,7 +169,7 @@ interface CustomerData {
   phone?: string
 }
 
-interface ChatBotDomain {
+interface ChatBotCompany {
   name: string
   helpdesk: Array<{ question: string; answer: string }>
   products: Array<{
@@ -237,7 +237,7 @@ const detectHumanTransferRequest = (message: string): boolean => {
 const getQuickResponse = (
   message: string,
   customerInfo: any,
-  domainId: string
+  companyId: string
 ): { content: string; link?: string } | null => {
   const lowerMsg = message.toLowerCase().trim()
 
@@ -245,7 +245,7 @@ const getQuickResponse = (
   if (/\b(agendar|cita|reservar|reserva|appointment)\b/.test(lowerMsg)) {
     return {
       content: '¡Perfecto! Aquí tienes el enlace para agendar tu cita:',
-      link: `http://localhost:3000/portal/${domainId}/appointment/${customerInfo.id}`
+      link: `http://localhost:3000/portal/${companyId}/appointment/${customerInfo.id}`
     }
   }
 
@@ -287,8 +287,8 @@ const handleAuthenticatedUser = async (
   message: string,
   author: 'user',
   chat: { role: 'user' | 'assistant'; content: string }[],
-  domainId: string,
-  chatBotDomain: any,
+  companyId: string,
+  chatBotCompany: any,
   sessionToken: string
 ) => {
 
@@ -340,7 +340,7 @@ Tu opinión nos ayuda a mejorar.`
   const conversationState = await handleConversationState(
     customerInfo.chatRoom[0].id,
     customerInfo.id,
-    chatBotDomain.chatBot?.welcomeMessage || '¡Hola! ¿En qué puedo ayudarte?'
+    chatBotCompany.chatBot?.welcomeMessage || '¡Hola! ¿En qué puedo ayudarte?'
   )
 
   // ✅ NUEVA LÓGICA: NO crear nuevas conversaciones, mantener la misma
@@ -387,7 +387,7 @@ Tu opinión nos ayuda a mejorar.`
     await saveSatisfactionRating(
       customerInfo.chatRoom[0].id,
       customerInfo.id,
-      domainId,
+      companyId,
       satisfactionRating,
       message
     )
@@ -410,8 +410,8 @@ Tu opinión nos ayuda a mejorar.`
 
       // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO
       try {
-        const domainOwner = await client.domain.findFirst({
-          where: { id: domainId }, // ✅ Usar el domainId del parámetro
+        const companyOwner = await client.company.findFirst({
+          where: { id: companyId }, // ✅ Usar el companyId del parámetro
           select: {
             User: {
               select: {
@@ -421,8 +421,8 @@ Tu opinión nos ayuda a mejorar.`
           }
         })
 
-        if (domainOwner?.User?.clerkId) {
-          const user = await clerkClient.users.getUser(domainOwner.User.clerkId)
+        if (companyOwner?.User?.clerkId) {
+          const user = await clerkClient.users.getUser(companyOwner.User.clerkId)
           await onMailer(
             user.emailAddresses[0].emailAddress,
             customerInfo.name || 'Cliente',
@@ -534,8 +534,8 @@ Tu opinión me ayuda a mejorar.`
 
     // ✅ ENVIAR EMAIL AL DUEÑO INMEDIATAMENTE CUANDO CLIENTE PIDE HUMANO
     try {
-      const domainOwner = await client.domain.findFirst({
-        where: { id: domainId }, // ✅ Usar el domainId del parámetro
+      const companyOwner = await client.company.findFirst({
+        where: { id: companyId }, // ✅ Usar el companyId del parámetro
         select: {
           User: {
             select: {
@@ -544,10 +544,10 @@ Tu opinión me ayuda a mejorar.`
           }
         }
       })
-      console.log("🚀 ~ domainOwner:", domainOwner)
+      console.log("🚀 ~ companyOwner:", companyOwner)
 
-      if (domainOwner?.User?.clerkId) {
-        const user = await clerkClient.users.getUser(domainOwner.User.clerkId)
+      if (companyOwner?.User?.clerkId) {
+        const user = await clerkClient.users.getUser(companyOwner.User.clerkId)
         console.log("🚀 ~ user:", user)
         await onMailer(
           user.emailAddresses[0].emailAddress,
@@ -579,7 +579,7 @@ Tu opinión me ayuda a mejorar.`
   }
 
   // 5. OPTIMIZACIÓN: Intentar respuesta rápida primero (sin OpenAI)
-  const quickResponse = getQuickResponse(message, customerInfo, domainId)
+  const quickResponse = getQuickResponse(message, customerInfo, companyId)
 
   if (quickResponse) {
     console.log('✅ Respuesta rápida utilizada (sin OpenAI)')
@@ -600,7 +600,7 @@ Tu opinión me ayuda a mejorar.`
     await saveCompleteChatSession(
       customerInfo.id,
       customerInfo.chatRoom[0].id,
-      domainId,
+      companyId,
       messagesToSave
     )
 
@@ -617,7 +617,7 @@ Tu opinión me ayuda a mejorar.`
   }
 
   // 5. Generar contexto para OpenAI
-  const contextSpecificPrompt = getContextSpecificPrompt(message, domainId, customerInfo.id)
+  const contextSpecificPrompt = getContextSpecificPrompt(message, companyId, customerInfo.id)
 
   const customerDataForContext = {
     email: customerInfo.email,
@@ -626,10 +626,10 @@ Tu opinión me ayuda a mejorar.`
   }
 
   const systemPromptData = await generateOpenAIContext(
-    chatBotDomain,
+    chatBotCompany,
     customerDataForContext,
     contextSpecificPrompt,
-    domainId,
+    companyId,
     customerInfo,
     message
   )
@@ -677,7 +677,7 @@ Tu opinión me ayuda a mejorar.`
   await saveCompleteChatSession(
     customerInfo.id,
     customerInfo.chatRoom[0].id,
-    domainId,
+    companyId,
     messagesToSave
   )
 
@@ -776,7 +776,7 @@ const markConversationAsEnded = async (chatRoomId: string): Promise<void> => {
  */
 const startNewConversation = async (
   customerId: string,
-  domainId: string,
+  companyId: string,
   welcomeMessage: string
 ): Promise<{ chatRoomId: string; welcomeMessage: string }> => {
   try {
@@ -879,7 +879,7 @@ const handleConversationState = async (
 const saveCompleteChatSession = async (
   customerId: string,
   chatRoomId: string,
-  domainId: string,
+  companyId: string,
   newMessages: {
     role: 'user' | 'assistant';
     content: string;
@@ -980,19 +980,19 @@ const updateConversationMetrics = async (
   respondedWithin2Hours: boolean
 ) => {
   try {
-    // Obtener el domainId del chatRoom
+    // Obtener el companyId del chatRoom
     const chatRoom = await client.chatRoom.findUnique({
       where: { id: chatRoomId },
       select: {
         Customer: {
-          select: { domainId: true }
+          select: { companyId: true }
         }
       }
     })
 
-    if (!chatRoom?.Customer?.domainId) return
+    if (!chatRoom?.Customer?.companyId) return
 
-    const domainId = chatRoom.Customer.domainId
+    const companyId = chatRoom.Customer.companyId
 
     // Buscar si ya existe un registro de métricas para este chatRoom
     const existingMetrics = await client.conversationMetrics.findFirst({
@@ -1028,7 +1028,7 @@ const updateConversationMetrics = async (
       await client.conversationMetrics.create({
         data: {
           chatRoomId,
-          domainId,
+          companyId,
           averageResponseTime: responseTime,
           totalResponseTime: responseTime,
           messagesCount: 1,
@@ -1262,7 +1262,7 @@ const detectSatisfactionRating = (message: string): number | null => {
 const saveSatisfactionRating = async (
   chatRoomId: string,
   customerId: string,
-  domainId: string,
+  companyId: string,
   rating: number,
   comment?: string
 ) => {
@@ -1272,7 +1272,7 @@ const saveSatisfactionRating = async (
       data: {
         chatRoomId,
         customerId,
-        domainId,
+        companyId,
         rating,
         comment,
       }
@@ -1368,9 +1368,9 @@ const extractCustomerData = (message: string): CustomerData => {
  * Busca o crea un cliente en la base de datos
  * CORREGIDO: Retorna estructura correcta
  */
-const findOrCreateCustomer = async (domainId: string, customerData: CustomerData, filterQuestions: any[]) => {
-  const existingCustomer = await client.domain.findUnique({
-    where: { id: domainId },
+const findOrCreateCustomer = async (companyId: string, customerData: CustomerData, filterQuestions: any[]) => {
+  const existingCustomer = await client.company.findUnique({
+    where: { id: companyId },
     select: {
       User: { select: { clerkId: true } },
       name: true,
@@ -1400,8 +1400,8 @@ const findOrCreateCustomer = async (domainId: string, customerData: CustomerData
 
   if (!existingCustomer?.customer.length) {
     // Crear nuevo cliente
-    await client.domain.update({
-      where: { id: domainId },
+    await client.company.update({
+      where: { id: companyId },
       data: {
         customer: {
           create: {
@@ -1419,8 +1419,8 @@ const findOrCreateCustomer = async (domainId: string, customerData: CustomerData
     })
 
     // ✅ CORREGIDO: Buscar el cliente recién creado con la estructura correcta
-    const createdCustomer = await client.domain.findUnique({
-      where: { id: domainId },
+    const createdCustomer = await client.company.findUnique({
+      where: { id: companyId },
       select: {
         User: { select: { clerkId: true } },
         name: true,
@@ -1483,7 +1483,7 @@ const updateCustomerData = async (customerId: string, customerData: CustomerData
  */
 const detectProductPreferences = (
   message: string,
-  chatBotDomain: ChatBotDomain
+  chatBotCompany: ChatBotCompany
 ): {
   materials: string[]
   categories: string[]
@@ -1508,7 +1508,7 @@ const detectProductPreferences = (
   }
 
   // Detectar materiales mencionados
-  chatBotDomain.materials.forEach(mat => {
+  chatBotCompany.materials.forEach(mat => {
     if (lowerMsg.includes(mat.name.toLowerCase())) {
       preferences.materials.push(mat.name)
       preferences.hasPreferences = true
@@ -1516,7 +1516,7 @@ const detectProductPreferences = (
   })
 
   // Detectar categorías mencionadas
-  chatBotDomain.categories.forEach(cat => {
+  chatBotCompany.categories.forEach(cat => {
     if (lowerMsg.includes(cat.name.toLowerCase())) {
       preferences.categories.push(cat.name)
       preferences.hasPreferences = true
@@ -1524,7 +1524,7 @@ const detectProductPreferences = (
   })
 
   // Detectar texturas mencionadas
-  chatBotDomain.textures.forEach(tex => {
+  chatBotCompany.textures.forEach(tex => {
     if (lowerMsg.includes(tex.name.toLowerCase())) {
       preferences.textures.push(tex.name)
       preferences.hasPreferences = true
@@ -1532,7 +1532,7 @@ const detectProductPreferences = (
   })
 
   // Detectar temporadas mencionadas
-  chatBotDomain.seasons.forEach(season => {
+  chatBotCompany.seasons.forEach(season => {
     if (lowerMsg.includes(season.name.toLowerCase())) {
       preferences.seasons.push(season.name)
       preferences.hasPreferences = true
@@ -1540,7 +1540,7 @@ const detectProductPreferences = (
   })
 
   // Detectar usos mencionados
-  chatBotDomain.uses.forEach(use => {
+  chatBotCompany.uses.forEach(use => {
     if (lowerMsg.includes(use.name.toLowerCase())) {
       preferences.uses.push(use.name)
       preferences.hasPreferences = true
@@ -1548,7 +1548,7 @@ const detectProductPreferences = (
   })
 
   // Detectar características mencionadas
-  chatBotDomain.features.forEach(feat => {
+  chatBotCompany.features.forEach(feat => {
     if (lowerMsg.includes(feat.name.toLowerCase())) {
       preferences.features.push(feat.name)
       preferences.hasPreferences = true
@@ -1575,9 +1575,9 @@ const detectProductPreferences = (
  * Filtra productos según las preferencias detectadas
  */
 const filterProductsByPreferences = (
-  products: ChatBotDomain['products'],
+  products: ChatBotCompany['products'],
   preferences: ReturnType<typeof detectProductPreferences>
-): ChatBotDomain['products'] => {
+): ChatBotCompany['products'] => {
   if (!preferences.hasPreferences) {
     return products // Si no hay preferencias, devolver todos
   }
@@ -1662,10 +1662,10 @@ const filterProductsByPreferences = (
  * - Si no hay preferencias, sugiere hacer preguntas antes de mostrar todos los productos
  */
 const generateProductsContext = async (
-  chatBotDomain: ChatBotDomain,
+  chatBotCompany: ChatBotCompany,
   message: string
 ): Promise<{ content: string; imageUrl?: string }> => {
-  if (chatBotDomain.products.length === 0) {
+  if (chatBotCompany.products.length === 0) {
     return { content: '\n⚠️ NO hay productos disponibles en este momento.' }
   }
 
@@ -1674,18 +1674,18 @@ const generateProductsContext = async (
   const asksForProducts = /\b(productos?|telas?|textiles?|catálogo|que\s+tienen|que\s+venden|muestrame|muéstrame|ver\s+productos)\b/i.test(lowerMsg)
 
   // Detectar preferencias en el mensaje
-  const preferences = detectProductPreferences(message, chatBotDomain)
+  const preferences = detectProductPreferences(message, chatBotCompany)
 
   // Si hay preferencias detectadas, filtrar productos
   if (preferences.hasPreferences) {
-    const filteredProducts = filterProductsByPreferences(chatBotDomain.products, preferences)
+    const filteredProducts = filterProductsByPreferences(chatBotCompany.products, preferences)
 
     if (filteredProducts.length === 0) {
       return {
         content: `\n❌ No encontramos productos que coincidan exactamente con: ${[...preferences.materials, ...preferences.categories, ...preferences.textures,
         ...preferences.seasons, ...preferences.uses, ...preferences.features,
         ...preferences.colors].join(', ')
-          }. Tenemos ${chatBotDomain.products.length} productos disponibles en total.`
+          }. Tenemos ${chatBotCompany.products.length} productos disponibles en total.`
       }
     }
 
@@ -1750,21 +1750,21 @@ const generateProductsContext = async (
   if (asksForProducts) {
     const suggestions: string[] = []
 
-    if (chatBotDomain.materials.length > 0) {
-      suggestions.push(`Materiales disponibles: ${chatBotDomain.materials.map(m => m.name).join(', ')}`)
+    if (chatBotCompany.materials.length > 0) {
+      suggestions.push(`Materiales disponibles: ${chatBotCompany.materials.map(m => m.name).join(', ')}`)
     }
-    if (chatBotDomain.categories.length > 0) {
-      suggestions.push(`Categorías: ${chatBotDomain.categories.map(c => c.name).join(', ')}`)
+    if (chatBotCompany.categories.length > 0) {
+      suggestions.push(`Categorías: ${chatBotCompany.categories.map(c => c.name).join(', ')}`)
     }
-    if (chatBotDomain.textures.length > 0) {
-      suggestions.push(`Texturas: ${chatBotDomain.textures.map(t => t.name).join(', ')}`)
+    if (chatBotCompany.textures.length > 0) {
+      suggestions.push(`Texturas: ${chatBotCompany.textures.map(t => t.name).join(', ')}`)
     }
-    if (chatBotDomain.uses.length > 0) {
-      suggestions.push(`Usos: ${chatBotDomain.uses.map(u => u.name).join(', ')}`)
+    if (chatBotCompany.uses.length > 0) {
+      suggestions.push(`Usos: ${chatBotCompany.uses.map(u => u.name).join(', ')}`)
     }
 
     return {
-      content: `\n📋 Tenemos ${chatBotDomain.products.length} productos textiles disponibles.
+      content: `\n📋 Tenemos ${chatBotCompany.products.length} productos textiles disponibles.
 
 IMPORTANTE: Para ayudarte mejor, pregunta al cliente sobre sus preferencias:
 ${suggestions.length > 0 ? suggestions.join('\n') : ''}
@@ -1775,7 +1775,7 @@ Ejemplo: "¿Qué tipo de material/tela estás buscando?" o "¿Para qué uso nece
 
   // Si no pregunta por productos, solo dar contexto básico
   return {
-    content: `\n📦 Tenemos ${chatBotDomain.products.length} productos textiles. Pregunta al cliente qué busca antes de listarlos todos.`
+    content: `\n📦 Tenemos ${chatBotCompany.products.length} productos textiles. Pregunta al cliente qué busca antes de listarlos todos.`
   }
 }
 
@@ -1784,23 +1784,23 @@ Ejemplo: "¿Qué tipo de material/tela estás buscando?" o "¿Para qué uso nece
  * Reducción de ~800 tokens a ~300 tokens (62% ahorro)
  */
 const generateOpenAIContext = async (
-  chatBotDomain: ChatBotDomain,
+  chatBotCompany: ChatBotCompany,
   customerData: CustomerData,
   contextSpecificPrompt: string,
-  domainId: string,
+  companyId: string,
   customerInfo: any,
   message: string
 ): Promise<{ content: string; imageUrl?: string }> => {
   // Contextos compactos
-  const helpdeskContext = chatBotDomain.helpdesk.length > 0
-    ? `\nFAQs: ${chatBotDomain.helpdesk.map(h => h.question).join(', ')}`
+  const helpdeskContext = chatBotCompany.helpdesk.length > 0
+    ? `\nFAQs: ${chatBotCompany.helpdesk.map(h => h.question).join(', ')}`
     : ''
 
   // ✅ NUEVO: Usar sistema inteligente de productos
-  const productsContext = await generateProductsContext(chatBotDomain, message)
+  const productsContext = await generateProductsContext(chatBotCompany, message)
 
   return {
-    content: `Eres Lunari AI, asistente virtual especializado en textiles para ${chatBotDomain.name}.
+    content: `Eres Lunari AI, asistente virtual especializado en textiles para ${chatBotCompany.name}.
 
 CLIENTE: ${customerData.name || 'Usuario'} | ${customerData.email} | ${customerData.phone || 'Sin teléfono'}
 
@@ -1809,7 +1809,7 @@ CLIENTE: ${customerData.name || 'Usuario'} | ${customerData.email} | ${customerD
 2. NUNCA inventes productos, materiales, características o servicios que no están en el contexto
 3. Si no tienes la información exacta, di "No tengo esa información específica"
 4. NO pidas datos del cliente que ya aparecen arriba (nombre, email, teléfono)
-5. Si dice "agendar/reservar/cita" → Da SOLO este enlace: http://localhost:3000/portal/${domainId}/appointment/${customerInfo?.id}
+5. Si dice "agendar/reservar/cita" → Da SOLO este enlace: http://localhost:3000/portal/${companyId}/appointment/${customerInfo?.id}
 6. NO preguntes fecha/hora para citas, solo da el enlace
 7. PROHIBIDO crear enlaces de compra, tiendas online, o cualquier enlace que no sea el de agendar citas
 8. PROHIBIDO mencionar pagos online, transferencias bancarias, o cualquier forma de pago digital
@@ -1855,14 +1855,14 @@ const isAppointmentRequest = (message: string): boolean => {
 /**
  * Determina el contexto específico basado en el tipo de solicitud
  */
-const getContextSpecificPrompt = (message: string, domainId: string, customerId: string): string => {
+const getContextSpecificPrompt = (message: string, companyId: string, customerId: string): string => {
   const isAppointmentRequest = /cita|agendar|consulta|reunión|visita/i.test(message)
   const isGeneralQuery = /ayuda|información|consulta|pregunta/i.test(message)
 
   if (isAppointmentRequest) {
     return `
 CONTEXTO ACTUAL: El cliente está solicitando agendar una cita o consulta.
-RESPUESTA ESPERADA: Debes ayudarlo con el proceso de agendamiento y proporcionar el enlace de citas: http://localhost:3000/portal/${domainId}/appointment/${customerId}
+RESPUESTA ESPERADA: Debes ayudarlo con el proceso de agendamiento y proporcionar el enlace de citas: http://localhost:3000/portal/${companyId}/appointment/${customerId}
 NO pidas email nuevamente, ya lo tienes.`
   } else if (isGeneralQuery) {
     return `
@@ -1892,22 +1892,22 @@ const handleOpenAIResponse = async (
         where: { id: customerInfo.chatRoom[0].id },
         select: {
           Customer: {
-            select: { domainId: true }
+            select: { companyId: true }
           }
         }
       })
-      const domainId = chatRoom?.Customer?.domainId || ''
+      const companyId = chatRoom?.Customer?.companyId || ''
 
       let products: any[] = []
 
       if (initialPurchase.productName) {
         // Buscar productos por material mencionado
-        products = await findProductByName(initialPurchase.productName, domainId)
+        products = await findProductByName(initialPurchase.productName, companyId)
       }
 
       // Si no se encontraron productos específicos, buscar productos de lino por defecto
       if (products.length === 0) {
-        products = await findProductByName('lino', domainId)
+        products = await findProductByName('lino', companyId)
       }
 
       if (products.length > 0) {
@@ -1965,12 +1965,12 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
         where: { id: customerInfo.chatRoom[0].id },
         select: {
           Customer: {
-            select: { domainId: true }
+            select: { companyId: true }
           }
         }
       })
-      const domainId = chatRoom?.Customer?.domainId || ''
-      const products = await findProductByName(purchaseResponse.productName, domainId)
+      const companyId = chatRoom?.Customer?.companyId || ''
+      const products = await findProductByName(purchaseResponse.productName, companyId)
 
       if (products.length > 0) {
         const product = products[0]
@@ -2033,7 +2033,7 @@ ${purchaseDetails.color ? `- Color: ${purchaseDetails.color}` : ''}
 💳 **IMPORTANTE:** El pago se realiza presencialmente en nuestra tienda durante la cita. NO aceptamos pagos online.
 
 Para completar tu compra y recoger el producto, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría agendar una cita ahora?`,
-              link: `http://localhost:3000/portal/${domainId}/appointment/${customerInfo.id}`
+              link: `http://localhost:3000/portal/${companyId}/appointment/${customerInfo.id}`
             }
           }
         } else {
@@ -2093,17 +2093,17 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
       const productName = reservationMatch[1].trim()
 
       try {
-        // Buscar el producto por nombre - obtener domainId del chatRoom
+        // Buscar el producto por nombre - obtener companyId del chatRoom
         const chatRoom = await client.chatRoom.findUnique({
           where: { id: customerInfo.chatRoom[0].id },
           select: {
             Customer: {
-              select: { domainId: true }
+              select: { companyId: true }
             }
           }
         })
-        const domainId = chatRoom?.Customer?.domainId || ''
-        const products = await findProductByName(productName, domainId)
+        const companyId = chatRoom?.Customer?.companyId || ''
+        const products = await findProductByName(productName, companyId)
 
         if (products.length > 0) {
           const product = products[0] // Tomar el primer producto encontrado
@@ -2246,12 +2246,12 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
           where: { id: customerInfo.chatRoom[0].id },
           select: {
             Customer: {
-              select: { domainId: true }
+              select: { companyId: true }
             }
           }
         })
-        const domainId = chatRoom?.Customer?.domainId || ''
-        const products = await findProductByName(productName, domainId)
+        const companyId = chatRoom?.Customer?.companyId || ''
+        const products = await findProductByName(productName, companyId)
 
         if (products.length > 0) {
           const product = products[0]
@@ -2808,11 +2808,11 @@ const updateProductStock = async (productId: string, quantity: number): Promise<
     return false
   }
 }
-const findProductByName = async (productName: string, domainId: string) => {
+const findProductByName = async (productName: string, companyId: string) => {
   try {
     const products = await client.product.findMany({
       where: {
-        domainId,
+        companyId,
         active: true,
         name: {
           contains: productName,
@@ -2848,7 +2848,7 @@ const findProductByName = async (productName: string, domainId: string) => {
  */
 const createAppointmentWithType = async (
   customerId: string,
-  domainId: string,
+  companyId: string,
   appointmentType: 'STORE_VISIT' | 'PURCHASE',
   purpose?: string,
   notes?: string,
@@ -2858,7 +2858,7 @@ const createAppointmentWithType = async (
     const appointment = await client.bookings.create({
       data: {
         customerId,
-        domainId,
+        companyId,
         appointmentType: appointmentType as any,
         purpose,
         notes,
@@ -2931,7 +2931,7 @@ export const onAiChatBotAssistant = async (
   sessionToken?: string
 ) => {
   try {
-    const chatBotDomain = await client.domain.findUnique({
+    const chatBotCompany = await client.company.findUnique({
       where: { id },
       select: {
         name: true,
@@ -2996,8 +2996,8 @@ export const onAiChatBotAssistant = async (
       }
     })
 
-    if (!chatBotDomain) {
-      throw new Error('Chatbot domain not found')
+    if (!chatBotCompany) {
+      throw new Error('Chatbot company not found')
     }
 
     // ✅ NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
@@ -3017,8 +3017,8 @@ export const onAiChatBotAssistant = async (
           message,
           author,
           chat,
-          id, // ✅ Pasar el domainId
-          chatBotDomain,
+          id, // ✅ Pasar el companyId
+          chatBotCompany,
           sessionToken
         )
       }
@@ -3038,7 +3038,7 @@ export const onAiChatBotAssistant = async (
     const finalEmail = emailFromCurrentMessage || existingEmail
 
     if (finalEmail) {
-      const existingCustomer = await client.domain.findUnique({
+      const existingCustomer = await client.company.findUnique({
         where: { id },
         select: {
           name: true,
@@ -3131,7 +3131,7 @@ export const onAiChatBotAssistant = async (
         const newCustomerResult = await findOrCreateCustomer(
           id,
           fullCustomerData,
-          chatBotDomain.filterQuestions
+          chatBotCompany.filterQuestions
         )
 
         const customerResultData = newCustomerResult.customer as any
@@ -3255,7 +3255,7 @@ export const onAiChatBotAssistant = async (
         )
 
         if (!customerInfo.chatRoom[0].mailed) {
-          const domainOwner = await client.domain.findUnique({
+          const companyOwner = await client.company.findUnique({
             where: { id },
             select: {
               User: {
@@ -3266,8 +3266,8 @@ export const onAiChatBotAssistant = async (
             }
           })
 
-          if (domainOwner?.User?.clerkId) {
-            const user = await clerkClient.users.getUser(domainOwner.User.clerkId)
+          if (companyOwner?.User?.clerkId) {
+            const user = await clerkClient.users.getUser(companyOwner.User.clerkId)
             await onMailer(
               user.emailAddresses[0].emailAddress,
               customerInfo.name || 'Cliente',
@@ -3319,7 +3319,7 @@ export const onAiChatBotAssistant = async (
       }
 
       const systemPromptData = await generateOpenAIContext(
-        chatBotDomain,
+        chatBotCompany,
         customerDataForContext,
         contextSpecificPrompt,
         id,

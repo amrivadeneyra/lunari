@@ -19,9 +19,9 @@ vi.mock('@clerk/nextjs', async () => {
   }
 })
 
-// Mock de onGetAllAccountDomains
+// Mock de onGetAllAccountCompanies
 vi.mock('../settings', () => ({
-  onGetAllAccountDomains: vi.fn(),
+  onGetAllAccountCompanies: vi.fn(),
 }))
 
 describe('Auth Actions', () => {
@@ -76,16 +76,16 @@ describe('Auth Actions', () => {
 
   describe('onLoginUser', () => {
     it('debe hacer login correctamente cuando el usuario existe', async () => {
-      const { onGetAllAccountDomains } = await import('../settings')
+      const { onGetAllAccountCompanies } = await import('../settings')
       const mockUser = {
         id: 'user-123',
         fullname: 'Juan Pérez',
         type: 'business',
       }
-      const mockDomains = {
-        domains: [
-          { id: 'domain-1', name: 'Empresa 1' },
-          { id: 'domain-2', name: 'Empresa 2' },
+      const mockCompanies = {
+        companies: [
+          { id: 'company-1', name: 'Empresa 1' },
+          { id: 'company-2', name: 'Empresa 2' },
         ],
       }
 
@@ -96,13 +96,13 @@ describe('Auth Actions', () => {
         })
 
       mockPrismaClient.user.findUnique.mockResolvedValue(mockUser)
-        ; (onGetAllAccountDomains as any).mockResolvedValue(mockDomains)
+        ; (onGetAllAccountCompanies as any).mockResolvedValue(mockCompanies)
 
       const result = await onLoginUser()
 
       expect(result?.status).toBe(200)
       expect(result?.user).toEqual(mockUser)
-      expect(result?.domains).toEqual(mockDomains.domains)
+      expect(result?.companies).toEqual(mockCompanies.companies)
     })
 
     it('debe retornar null si no hay usuario de Clerk', async () => {

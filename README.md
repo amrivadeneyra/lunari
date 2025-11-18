@@ -175,7 +175,7 @@ npm run lint
 El proyecto utiliza PostgreSQL con Prisma como ORM. Los modelos principales incluyen:
 
 - **User**: Usuarios del sistema
-- **Domain**: Empresas/dominios
+- **Company**: Empresas/dominios
 - **ChatBot**: Configuración de asistentes virtuales
 - **Customer**: Clientes de las empresas
 - **ChatRoom**: Salas de chat

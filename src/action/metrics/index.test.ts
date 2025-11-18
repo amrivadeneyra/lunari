@@ -21,7 +21,7 @@ describe('Metrics Actions', () => {
       id: 'clerk-123',
     })
     mockPrismaClient.user.findUnique.mockResolvedValue({
-      domains: [{ id: 'domain-123' }],
+      companies: [{ id: 'company-123' }],
     })
   })
 

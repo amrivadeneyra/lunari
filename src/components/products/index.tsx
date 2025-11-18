@@ -23,7 +23,7 @@ type Props = {
     image: string
     active: boolean
     createdAt: Date
-    domainId: string | null
+    companyId: string | null
     category?: { id: string; name: string } | null
     material?: { id: string; name: string } | null
     texture?: { id: string; name: string } | null

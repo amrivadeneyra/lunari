@@ -4,8 +4,8 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  AddDomainSchema,
-  DomainSettingsSchema,
+  AddCompanySchema,
+  CompanySettingsSchema,
   HelpDeskQuestionsSchema,
   FilterQuestionsSchema,
   AddProductSchema,
@@ -14,10 +14,10 @@ import {
 } from './settings.schema'
 
 describe('Settings Schemas', () => {
-  describe('AddDomainSchema', () => {
+  describe('AddCompanySchema', () => {
     it('debe validar dominio correcto', () => {
       const validData = {
-        domain: 'Mi Empresa',
+        company: 'Mi Empresa',
         image: [
           {
             type: 'image/png',
@@ -26,13 +26,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(validData)
+      const result = AddCompanySchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
 
     it('debe rechazar nombre muy corto', () => {
       const invalidData = {
-        domain: 'A',
+        company: 'A',
         image: [
           {
             type: 'image/png',
@@ -41,13 +41,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(invalidData)
+      const result = AddCompanySchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
 
     it('debe rechazar nombre muy largo', () => {
       const invalidData = {
-        domain: 'A'.repeat(51),
+        company: 'A'.repeat(51),
         image: [
           {
             type: 'image/png',
@@ -56,13 +56,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(invalidData)
+      const result = AddCompanySchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
 
     it('debe rechazar caracteres especiales no permitidos', () => {
       const invalidData = {
-        domain: 'Mi Empresa @#$',
+        company: 'Mi Empresa @#$',
         image: [
           {
             type: 'image/png',
@@ -71,13 +71,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(invalidData)
+      const result = AddCompanySchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
 
     it('debe aceptar guiones y guiones bajos', () => {
       const validData = {
-        domain: 'Mi_Empresa-123',
+        company: 'Mi_Empresa-123',
         image: [
           {
             type: 'image/png',
@@ -86,13 +86,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(validData)
+      const result = AddCompanySchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
 
     it('debe rechazar imagen muy grande', () => {
       const invalidData = {
-        domain: 'Mi Empresa',
+        company: 'Mi Empresa',
         image: [
           {
             type: 'image/png',
@@ -101,13 +101,13 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(invalidData)
+      const result = AddCompanySchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
 
     it('debe rechazar tipo de archivo no permitido', () => {
       const invalidData = {
-        domain: 'Mi Empresa',
+        company: 'Mi Empresa',
         image: [
           {
             type: 'image/gif',
@@ -116,15 +116,15 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = AddDomainSchema.safeParse(invalidData)
+      const result = AddCompanySchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
   })
 
-  describe('DomainSettingsSchema', () => {
+  describe('CompanySettingsSchema', () => {
     it('debe validar configuración completa', () => {
       const validData = {
-        domain: 'Mi Empresa',
+        company: 'Mi Empresa',
         welcomeMessage: 'Bienvenido a nuestra tienda',
         image: [
           {
@@ -134,7 +134,7 @@ describe('Settings Schemas', () => {
         ],
       }
 
-      const result = DomainSettingsSchema.safeParse(validData)
+      const result = CompanySettingsSchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
 
@@ -143,7 +143,7 @@ describe('Settings Schemas', () => {
         welcomeMessage: 'Bienvenido',
       }
 
-      const result = DomainSettingsSchema.safeParse(validData)
+      const result = CompanySettingsSchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
 
@@ -152,7 +152,7 @@ describe('Settings Schemas', () => {
         welcomeMessage: 'Hola',
       }
 
-      const result = DomainSettingsSchema.safeParse(invalidData)
+      const result = CompanySettingsSchema.safeParse(invalidData)
       expect(result.success).toBe(false)
     })
   })

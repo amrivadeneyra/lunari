@@ -3,8 +3,8 @@ import { z } from 'zod'
 export const MAX_UPLOAD_SIZE = 1024 * 1024 * 2 // 2MB
 export const ACCEPTED_FILE_TYPES = ['image/png', 'image/jpg', 'image/jpeg']
 
-export type DomainSettingsProps = {
-  domain?: string
+export type CompanySettingsProps = {
+  company?: string
   image?: any
   welcomeMessage?: string
 }
@@ -40,8 +40,8 @@ export type FilterQuestionsProps = {
   question: string
 }
 
-export const AddDomainSchema = z.object({
-  domain: z
+export const AddCompanySchema = z.object({
+  company: z
     .string()
     .min(2, { message: 'El nombre de la empresa debe tener al menos 2 caracteres' })
     .max(50, { message: 'El nombre de la empresa no puede exceder 50 caracteres' })
@@ -59,9 +59,9 @@ export const AddDomainSchema = z.object({
     }),
 })
 
-export const DomainSettingsSchema = z
+export const CompanySettingsSchema = z
   .object({
-    domain: z
+    company: z
       .string()
       .min(2, { message: 'El nombre de la empresa debe tener al menos 2 caracteres' })
       .max(50, { message: 'El nombre de la empresa no puede exceder 50 caracteres' })

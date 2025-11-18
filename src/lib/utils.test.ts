@@ -92,10 +92,10 @@ describe('utils', () => {
     })
 
     it('debe extraer email con guiones y puntos', () => {
-      const text = 'Email: user-name.test@example-domain.com'
+      const text = 'Email: user-name.test@example-company.com'
       const result = extractEmailsFromString(text)
       expect(result).not.toBeNull()
-      expect(result?.[0]).toBe('user-name.test@example-domain.com')
+      expect(result?.[0]).toBe('user-name.test@example-company.com')
     })
 
     it('debe retornar null si no hay emails', () => {

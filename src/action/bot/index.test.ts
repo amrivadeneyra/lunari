@@ -65,7 +65,7 @@ describe('Bot Actions', () => {
             mockPrismaClient.chatMessage.count.mockResolvedValue(2)
             mockPrismaClient.chatRoom.findUnique.mockResolvedValue({
                 Customer: {
-                    domainId: 'domain-123',
+                    companyId: 'company-123',
                 },
             })
             mockPrismaClient.conversationMetrics.findFirst.mockResolvedValue(null)
@@ -104,7 +104,7 @@ describe('Bot Actions', () => {
     describe('onGetCurrentChatBot', () => {
         it('debe obtener chatbot por ID', async () => {
             const mockChatBot = {
-                id: 'domain-123',
+                id: 'company-123',
                 name: 'Mi Empresa',
                 helpdesk: [],
                 chatBot: {
@@ -118,17 +118,17 @@ describe('Bot Actions', () => {
                 customer: [],
             }
 
-            mockPrismaClient.domain.findFirst.mockResolvedValue(mockChatBot)
+            mockPrismaClient.company.findFirst.mockResolvedValue(mockChatBot)
 
-            const result = await onGetCurrentChatBot('domain-123')
+            const result = await onGetCurrentChatBot('company-123')
 
             expect(result).toEqual(mockChatBot)
-            expect(mockPrismaClient.domain.findFirst).toHaveBeenCalled()
+            expect(mockPrismaClient.company.findFirst).toHaveBeenCalled()
         })
 
         it('debe obtener chatbot por nombre', async () => {
             const mockChatBot = {
-                id: 'domain-123',
+                id: 'company-123',
                 name: 'Mi Empresa',
                 helpdesk: [],
                 chatBot: {
@@ -142,19 +142,19 @@ describe('Bot Actions', () => {
                 customer: [],
             }
 
-            mockPrismaClient.domain.findFirst.mockResolvedValue(mockChatBot)
+            mockPrismaClient.company.findFirst.mockResolvedValue(mockChatBot)
 
             const result = await onGetCurrentChatBot('Mi Empresa')
 
             expect(result).toEqual(mockChatBot)
-            expect(mockPrismaClient.domain.findFirst).toHaveBeenCalledWith({
+            expect(mockPrismaClient.company.findFirst).toHaveBeenCalledWith({
                 where: { name: 'Mi Empresa' },
                 select: expect.any(Object),
             })
         })
 
         it('debe retornar undefined si no encuentra el chatbot', async () => {
-            mockPrismaClient.domain.findFirst.mockResolvedValue(null)
+            mockPrismaClient.company.findFirst.mockResolvedValue(null)
 
             const result = await onGetCurrentChatBot('inexistente')
 
@@ -164,7 +164,7 @@ describe('Bot Actions', () => {
 
     describe('onAiChatBotAssistant', () => {
         it('debe procesar mensaje y retornar respuesta', async () => {
-            const mockDomain = {
+            const mockCompany = {
                 name: 'Mi Empresa',
                 helpdesk: [],
                 products: [],
@@ -177,7 +177,7 @@ describe('Bot Actions', () => {
                 features: [],
             }
 
-            mockPrismaClient.domain.findUnique.mockResolvedValue(mockDomain)
+            mockPrismaClient.company.findUnique.mockResolvedValue(mockCompany)
 
             // Mock funciones que pueden ser llamadas internamente
             mockOpenAI.chat.completions.create.mockResolvedValue({
@@ -194,7 +194,7 @@ describe('Bot Actions', () => {
             mockPrismaClient.customer.create.mockResolvedValue({
                 id: 'customer-123',
                 email: 'test@example.com',
-                domainId: 'domain-123',
+                companyId: 'company-123',
             })
 
             mockPrismaClient.chatRoom.findFirst.mockResolvedValue(null)
@@ -206,7 +206,7 @@ describe('Bot Actions', () => {
             // Solo verificamos que se llama al dominio correctamente
             try {
                 await onAiChatBotAssistant(
-                    'domain-123',
+                    'company-123',
                     [],
                     'user',
                     'Hola'
@@ -214,20 +214,20 @@ describe('Bot Actions', () => {
                 // Si no lanza error, está bien
             } catch (error) {
                 // Si lanza error por funciones internas, verificamos que al menos se llamó al dominio
-                expect(mockPrismaClient.domain.findUnique).toHaveBeenCalled()
+                expect(mockPrismaClient.company.findUnique).toHaveBeenCalled()
             }
         })
 
         it('debe retornar error si el dominio no existe', async () => {
-            mockPrismaClient.domain.findUnique.mockResolvedValue(null)
+            mockPrismaClient.company.findUnique.mockResolvedValue(null)
 
             // La función puede retornar un mensaje de error o lanzar excepción
             try {
-                const result = await onAiChatBotAssistant('domain-inexistente', [], 'user', 'Hola')
+                const result = await onAiChatBotAssistant('company-inexistente', [], 'user', 'Hola')
                 // Si no lanza error, verificar que retorna un mensaje de error
                 expect(result).toBeDefined()
             } catch (error: any) {
-                expect(error.message).toContain('Chatbot domain not found')
+                expect(error.message).toContain('Chatbot company not found')
             }
         })
     })

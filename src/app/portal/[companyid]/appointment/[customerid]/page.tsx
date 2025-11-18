@@ -1,12 +1,12 @@
-import { onDomainCustomerResponses, onGetAllDomainBookings } from '@/action/appointment'
+import { onCompanyCustomerResponses, onGetAllCompanyBookings } from '@/action/appointment'
 import PortalForm from '@/components/forms/portal/portal-form';
 import React from 'react'
 
-type Props = { params: { domainid: string; customerid: string } }
+type Props = { params: { companyid: string; customerid: string } }
 
 const CustomerSignUpForm = async ({ params }: Props) => {
-  const questions = await onDomainCustomerResponses(params.customerid)
-  const bookings = await onGetAllDomainBookings(params.domainid)
+  const questions = await onCompanyCustomerResponses(params.customerid)
+  const bookings = await onGetAllCompanyBookings(params.companyid)
 
   if (!questions) return null
 
@@ -14,7 +14,7 @@ const CustomerSignUpForm = async ({ params }: Props) => {
     <PortalForm
       bookings={bookings}
       email={questions.email!}
-      domainid={params.domainid}
+      companyid={params.companyid}
       customerId={params.customerid}
       questions={questions.questions}
       type="Appointment"
