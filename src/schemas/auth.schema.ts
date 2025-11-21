@@ -44,6 +44,7 @@ export const UserRegistrationSchema = z
 export type UserLoginProps = {
   email: string;
   password: string;
+  code?: string;
 };
 
 export type ChangePasswordProps = {
@@ -57,6 +58,7 @@ export const UserLoginSchema = z.object({
     .string()
     .min(8, { message: "Tu contraseña debe tener al menos 8 caracteres" })
     .max(64, { message: "Tu contraseña no puede ser mayor a 64 caracteres" }),
+  code: z.string().optional(),
 });
 
 export const ChangePasswordSchema = z

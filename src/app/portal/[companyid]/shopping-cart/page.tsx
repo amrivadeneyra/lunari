@@ -210,7 +210,7 @@ export default function ShoppingCartPage() {
                                     variant="outline"
                                     className="w-full mt-3 border-orange/30 text-gravel hover:bg-peach"
                                 >
-                                    Continuar Comprando
+                                    Continuar Reservando
                                 </Button>
                             </Link>
                         </div>

@@ -9,23 +9,33 @@ type AuthContextProviderProps = {
 type InitialValuesProps = {
   currentStep: number;
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
+  requiresMFA?: boolean;
+  setRequiresMFA?: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const InitialValues: InitialValuesProps = {
   currentStep: 1,
   setCurrentStep: () => undefined,
+  requiresMFA: false,
+  setRequiresMFA: () => undefined,
 };
 
 const authContext = React.createContext(InitialValues);
 
 const { Provider } = authContext;
 
-export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
+export const AuthContextProvider = ({ children, requiresMFA: propRequiresMFA = false }: AuthContextProviderProps & { requiresMFA?: boolean }) => {
   const [currentStep, setCurrentStep] = useState<number>(
     InitialValues.currentStep,
   );
+  const [requiresMFA, setRequiresMFA] = useState<boolean>(propRequiresMFA);
 
-  const values = { currentStep, setCurrentStep };
+  // Actualizar requiresMFA cuando el prop cambia
+  React.useEffect(() => {
+    setRequiresMFA(propRequiresMFA);
+  }, [propRequiresMFA]);
+
+  const values = { currentStep, setCurrentStep, requiresMFA, setRequiresMFA };
 
   return <Provider value={values}>{children}</Provider>;
 };

@@ -38,11 +38,11 @@ const FormGenerator = ({
       return (
         <Label
           className="flex flex-col gap-2"
-          htmlFor={`input-${label}`}
+          htmlFor={`input-${name}`}
         >
           {label && label}
           <Input
-            id={`input-${label}`}
+            id={`input-${name}`}
             type={type}
             placeholder={placeholder}
             form={form}
