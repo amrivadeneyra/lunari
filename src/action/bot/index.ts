@@ -135,7 +135,7 @@ export const onGetCurrentChatBot = async (idOrName: string) => {
             helpdesk: true,
           },
         },
-        // ✅ AGREGAR INFORMACIÓN DE CHATROOM PARA EL TOGGLE
+        // AGREGAR INFORMACIÓN DE CHATROOM PARA EL TOGGLE
         customer: {
           select: {
             chatRoom: {
@@ -209,7 +209,7 @@ interface CustomerInfo {
 // DETECCIÓN DE ESCALACIÓN A HUMANO
 // ============================================
 /**
- * ✅ Detecta automáticamente cuando el cliente quiere hablar con un humano
+ * Detecta automáticamente cuando el cliente quiere hablar con un humano
  */
 const detectHumanTransferRequest = (message: string): boolean => {
   const humanKeywords = [
@@ -231,7 +231,7 @@ const detectHumanTransferRequest = (message: string): boolean => {
 // OPTIMIZACIÓN: Respuestas rápidas sin OpenAI
 // ============================================
 /**
- * ✅ SIMPLIFICADO: Genera respuestas instantáneas para casos comunes
+ * SIMPLIFICADO: Genera respuestas instantáneas para casos comunes
  * Reduce latencia de 2-5s a 50ms y ahorra tokens
  */
 const getQuickResponse = (
@@ -292,9 +292,9 @@ const handleAuthenticatedUser = async (
   sessionToken: string
 ) => {
 
-  // ✅ SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
+  // SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
   if (!customerInfo.chatRoom[0].live) {
-    // ✅ NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
+    // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
 
     if (shouldEndConversation) {
@@ -333,17 +333,17 @@ Tu opinión nos ayuda a mejorar.`
     }
   }
 
-  // 0.1 ✅ Actualizar última actividad del usuario
+  // 0.1 Actualizar última actividad del usuario
   await updateUserActivity(customerInfo.chatRoom[0].id)
 
-  // 0.2 ✅ Verificar estado de la conversación (SIN crear nuevas conversaciones)
+  // 0.2 Verificar estado de la conversación (SIN crear nuevas conversaciones)
   const conversationState = await handleConversationState(
     customerInfo.chatRoom[0].id,
     customerInfo.id,
     chatBotCompany.chatBot?.welcomeMessage || '¡Hola! ¿En qué puedo ayudarte?'
   )
 
-  // ✅ NUEVA LÓGICA: NO crear nuevas conversaciones, mantener la misma
+  // NUEVA LÓGICA: NO crear nuevas conversaciones, mantener la misma
   // Si la conversación está ENDED, simplemente reactivarla
   if (conversationState.shouldStartNew) {
     // Reactivar la conversación existente en lugar de crear una nueva
@@ -371,10 +371,10 @@ Tu opinión nos ayuda a mejorar.`
   // 1. FR4: Detectar si el usuario está calificando (1-5)
   const satisfactionRating = detectSatisfactionRating(message)
   if (satisfactionRating) {
-    // ✅ Guardar mensaje de calificación del usuario
+    // Guardar mensaje de calificación del usuario
     await onStoreConversations(customerInfo.chatRoom[0].id, message, 'user')
 
-    // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+    // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
     if (customerInfo.chatRoom[0].live) {
       await onRealTimeChat(
         customerInfo.chatRoom[0].id,
@@ -392,14 +392,14 @@ Tu opinión nos ayuda a mejorar.`
       message
     )
 
-    // ✅ VERIFICAR SI ESTABA ESPERANDO CALIFICACIÓN PARA ESCALAR
+    // VERIFICAR SI ESTABA ESPERANDO CALIFICACIÓN PARA ESCALAR
     const chatRoom = await client.chatRoom.findUnique({
       where: { id: customerInfo.chatRoom[0].id },
       select: { conversationState: true }
     })
 
     if (chatRoom?.conversationState === 'AWAITING_RATING') {
-      // ✅ ESCALAR A HUMANO DESPUÉS DE LA CALIFICACIÓN
+      // ESCALAR A HUMANO DESPUÉS DE LA CALIFICACIÓN
       await client.chatRoom.update({
         where: { id: customerInfo.chatRoom[0].id },
         data: {
@@ -408,10 +408,10 @@ Tu opinión nos ayuda a mejorar.`
         }
       })
 
-      // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO
+      // ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO
       try {
         const companyOwner = await client.company.findFirst({
-          where: { id: companyId }, // ✅ Usar el companyId del parámetro
+          where: { id: companyId }, // Usar el companyId del parámetro
           select: {
             User: {
               select: {
@@ -449,7 +449,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
         sessionToken
       }
     } else {
-      // ✅ CALIFICACIÓN NORMAL (terminar conversación)
+      // CALIFICACIÓN NORMAL (terminar conversación)
       await markConversationAsEnded(customerInfo.chatRoom[0].id)
 
       const thankYouMessage = `¡Muchas gracias por tu calificación de ${satisfactionRating}/5! Tu opinión es muy importante para nosotros y nos ayuda a mejorar nuestro servicio. 😊
@@ -479,7 +479,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
     }
   }
 
-  // 3. ✅ NUEVO: Preparar mensajes para guardar chat completo
+  // 3. NUEVO: Preparar mensajes para guardar chat completo
   const messagesToSave: {
     role: 'user' | 'assistant';
     content: string;
@@ -496,7 +496,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
       }
     ]
 
-  // ✅ 4. DETECCIÓN DE TRANSFERENCIA A HUMANO
+  // 4. DETECCIÓN DE TRANSFERENCIA A HUMANO
   if (detectHumanTransferRequest(message)) {
     console.log(`🚨 Solicitud de transferencia detectada: "${message}"`)
 
@@ -511,7 +511,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
       }
     })
 
-    // ✅ SOLICITAR CALIFICACIÓN ANTES DE ESCALAR
+    // SOLICITAR CALIFICACIÓN ANTES DE ESCALAR
     const transferMessage = `Te comunicarás con un humano en breve. 😊
 
 Antes de transferirte, ¿podrías calificar mi ayuda del 1 al 5?
@@ -532,10 +532,10 @@ Tu opinión me ayuda a mejorar.`
       }
     })
 
-    // ✅ ENVIAR EMAIL AL DUEÑO INMEDIATAMENTE CUANDO CLIENTE PIDE HUMANO
+    // ENVIAR EMAIL AL DUEÑO INMEDIATAMENTE CUANDO CLIENTE PIDE HUMANO
     try {
       const companyOwner = await client.company.findFirst({
-        where: { id: companyId }, // ✅ Usar el companyId del parámetro
+        where: { id: companyId }, // Usar el companyId del parámetro
         select: {
           User: {
             select: {
@@ -563,7 +563,7 @@ Tu opinión me ayuda a mejorar.`
     await client.chatRoom.update({
       where: { id: customerInfo.chatRoom[0].id },
       data: {
-        conversationState: 'AWAITING_RATING' as any // ✅ Esperar calificación antes de escalar
+        conversationState: 'AWAITING_RATING' as any // Esperar calificación antes de escalar
       }
     })
 
@@ -582,9 +582,9 @@ Tu opinión me ayuda a mejorar.`
   const quickResponse = getQuickResponse(message, customerInfo, companyId)
 
   if (quickResponse) {
-    console.log('✅ Respuesta rápida utilizada (sin OpenAI)')
+    console.log('Respuesta rápida utilizada (sin OpenAI)')
 
-    // ✅ SIMPLIFICADO: Agregar pregunta de ayuda
+    // SIMPLIFICADO: Agregar pregunta de ayuda
     const finalQuickContent = addHelpOffer(quickResponse.content)
 
     // Agregar respuesta rápida a los mensajes
@@ -596,7 +596,7 @@ Tu opinión me ayuda a mejorar.`
       respondedWithin2Hours: true // Siempre efectiva
     })
 
-    // ✅ NUEVO: Guardar chat completo
+    // NUEVO: Guardar chat completo
     await saveCompleteChatSession(
       customerInfo.id,
       customerInfo.chatRoom[0].id,
@@ -654,17 +654,17 @@ Tu opinión me ayuda a mejorar.`
   // 8. Manejar respuesta
   const response = chatCompletion.choices[0].message.content
 
-  // ✅ Validar que la respuesta no sea null
+  // Validar que la respuesta no sea null
   if (!response) {
     throw new Error('OpenAI no retornó una respuesta válida')
   }
 
   const result = await handleOpenAIResponse(response, customerInfo, chat, message)
 
-  // ✅ SIMPLIFICADO: Agregar "¿Hay algo más en que te pueda ayudar?" a todas las respuestas
+  // SIMPLIFICADO: Agregar "¿Hay algo más en que te pueda ayudar?" a todas las respuestas
   const finalContent = addHelpOffer(result.response.content)
 
-  // 9. ✅ NUEVO: Agregar respuesta de OpenAI a los mensajes
+  // 9. NUEVO: Agregar respuesta de OpenAI a los mensajes
   messagesToSave.push({
     role: 'assistant' as const,
     content: finalContent,
@@ -673,7 +673,7 @@ Tu opinión me ayuda a mejorar.`
     respondedWithin2Hours: true // Respuesta inmediata
   })
 
-  // 10. ✅ NUEVO: Guardar chat completo con respuesta de OpenAI
+  // 10. NUEVO: Guardar chat completo con respuesta de OpenAI
   await saveCompleteChatSession(
     customerInfo.id,
     customerInfo.chatRoom[0].id,
@@ -846,7 +846,7 @@ const handleConversationState = async (
       return { shouldStartNew: false }
     }
 
-    // ✅ NUEVA LÓGICA: Si la conversación está ENDED, reactivarla (NO crear nueva)
+    // NUEVA LÓGICA: Si la conversación está ENDED, reactivarla (NO crear nueva)
     if (chatRoom.conversationState === 'ENDED') {
       return {
         shouldStartNew: true,
@@ -873,7 +873,7 @@ const handleConversationState = async (
 // ===== FUNCIONES AUXILIARES =====
 
 /**
- * ✅ NUEVA FUNCIÓN: Guardar chat completo por sesión de cliente
+ * NUEVA FUNCIÓN: Guardar chat completo por sesión de cliente
  * Reemplaza el guardado fragmentado por uno completo y organizado
  */
 const saveCompleteChatSession = async (
@@ -1154,7 +1154,7 @@ const isResponseEffective = async (
 }
 
 /**
- * ✅ NUEVA FUNCIÓN: Usa IA para detectar si el usuario quiere terminar la conversación
+ * NUEVA FUNCIÓN: Usa IA para detectar si el usuario quiere terminar la conversación
  */
 const detectConversationEndingWithAI = async (
   message: string,
@@ -1209,12 +1209,12 @@ EJEMPLOS DE NO TERMINACIÓN:
 
   } catch (error) {
     console.log('Error en detectConversationEndingWithAI:', error)
-    return false // ✅ Retornar false en caso de error
+    return false // Retornar false en caso de error
   }
 }
 
 /**
- * ✅ NUEVA FUNCIÓN: Agrega "¿Hay algo más en que te pueda ayudar?" a las respuestas
+ * NUEVA FUNCIÓN: Agrega "¿Hay algo más en que te pueda ayudar?" a las respuestas
  */
 const addHelpOffer = (content: string): string => {
   // No agregar si ya tiene la pregunta o si es una solicitud de calificación
@@ -1418,7 +1418,7 @@ const findOrCreateCustomer = async (companyId: string, customerData: CustomerDat
       }
     })
 
-    // ✅ CORREGIDO: Buscar el cliente recién creado con la estructura correcta
+    // CORREGIDO: Buscar el cliente recién creado con la estructura correcta
     const createdCustomer = await client.company.findUnique({
       where: { id: companyId },
       select: {
@@ -1695,7 +1695,7 @@ const generateProductsContext = async (
     const productDetails = await Promise.all(filteredProducts.slice(0, 5).map(async (p) => {
       const details: string[] = [`${p.name} - S/${p.salePrice || p.price}`]
 
-      // ✅ AGREGAR IMAGEN DEL PRODUCTO - Construir URL completa con validación
+      // AGREGAR IMAGEN DEL PRODUCTO - Construir URL completa con validación
       if (p.image && p.image.trim() !== '') {
 
         // Validar que el UUID tenga el formato correcto
@@ -1705,11 +1705,11 @@ const generateProductsContext = async (
         if (isValidUUID) {
           const imageUrl = `https://ucarecdn.com/${p.image}/`
 
-          // ✅ VALIDAR QUE LA IMAGEN EXISTA ANTES DE INCLUIRLA
+          // VALIDAR QUE LA IMAGEN EXISTA ANTES DE INCLUIRLA
           try {
             const response = await fetch(imageUrl, { method: 'HEAD' })
             if (response.ok) {
-              // ✅ Capturar la primera imagen válida para retornarla por separado
+              // Capturar la primera imagen válida para retornarla por separado
               if (!firstProductImageUrl) {
                 firstProductImageUrl = imageUrl
               }
@@ -1740,7 +1740,7 @@ const generateProductsContext = async (
     const productDetailsString = productDetails.join('\n')
 
     return {
-      content: `\n✅ Productos que coinciden con tu búsqueda (${filteredProducts.length} encontrados):\n${productDetailsString}${filteredProducts.length > 5 ? `\n... y ${filteredProducts.length - 5} productos más` : ''
+      content: `\nProductos que coinciden con tu búsqueda (${filteredProducts.length} encontrados):\n${productDetailsString}${filteredProducts.length > 5 ? `\n... y ${filteredProducts.length - 5} productos más` : ''
         }`,
       imageUrl: firstProductImageUrl
     }
@@ -1796,7 +1796,7 @@ const generateOpenAIContext = async (
     ? `\nFAQs: ${chatBotCompany.helpdesk.map(h => h.question).join(', ')}`
     : ''
 
-  // ✅ NUEVO: Usar sistema inteligente de productos
+  // NUEVO: Usar sistema inteligente de productos
   const productsContext = await generateProductsContext(chatBotCompany, message)
 
   return {
@@ -1883,7 +1883,7 @@ const handleOpenAIResponse = async (
   chatHistory: any[],
   userMessage?: string
 ) => {
-  // ✅ Manejar solicitudes iniciales de compra
+  // Manejar solicitudes iniciales de compra
   const initialPurchase = detectInitialPurchaseRequest(userMessage || '')
   if (initialPurchase.isInitialPurchase) {
     try {
@@ -1956,7 +1956,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
     }
   }
 
-  // ✅ Manejar respuestas a preguntas de compra
+  // Manejar respuestas a preguntas de compra
   const purchaseResponse = detectPurchaseResponse(userMessage || '', chatHistory)
   if (purchaseResponse.isPurchaseResponse && purchaseResponse.productName) {
     try {
@@ -2012,7 +2012,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
           // Actualizar stock
           const stockUpdated = await updateProductStock(product.id, quantity)
 
-          console.log(`✅ RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+          console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
 
           return {
             response: {
@@ -2063,17 +2063,17 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar modo tiempo real (escalado a humano)
+  // Manejar modo tiempo real (escalado a humano)
   if (response.includes('(realtime)')) {
     await client.chatRoom.update({
       where: { id: customerInfo.chatRoom[0].id },
       data: {
         live: true,
-        conversationState: 'ESCALATED' as any // ✅ Marcar como escalado as any // ✅ Marcar como escalado
+        conversationState: 'ESCALATED' as any // Marcar como escalado as any // Marcar como escalado
       }
     })
 
-    // ✅ Notificar al equipo humano sobre la escalación
+    // Notificar al equipo humano sobre la escalación
     console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${customerInfo.chatRoom[0].id} - Cliente: ${customerInfo.email}`)
 
     return {
@@ -2081,12 +2081,12 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
         role: 'assistant' as const,
         content: response.replace('(realtime)', '')
       },
-      live: true, // ✅ Indicar que está en modo live
-      chatRoom: customerInfo.chatRoom[0].id // ✅ ID del chatRoom para Pusher
+      live: true, // Indicar que está en modo live
+      chatRoom: customerInfo.chatRoom[0].id // ID del chatRoom para Pusher
     }
   }
 
-  // ✅ Manejar reservas de productos con detalles específicos
+  // Manejar reservas de productos con detalles específicos
   if (response.includes('(reserve)')) {
     const reservationMatch = response.match(/\(reserve\)\s*(.+)/i)
     if (reservationMatch) {
@@ -2147,7 +2147,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
             // Actualizar stock
             const stockUpdated = await updateProductStock(product.id, quantity)
 
-            console.log(`✅ RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+            console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
 
             return {
               response: {
@@ -2214,7 +2214,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar solicitudes de visita a la tienda
+  // Manejar solicitudes de visita a la tienda
   if (response.includes('(visit)')) {
     return {
       response: {
@@ -2234,7 +2234,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar solicitudes de compra directa con preguntas específicas
+  // Manejar solicitudes de compra directa con preguntas específicas
   if (response.includes('(purchase)')) {
     const purchaseMatch = response.match(/\(purchase\)\s*(.+)/i)
     if (purchaseMatch) {
@@ -2321,7 +2321,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     return {
       response: {
         role: 'assistant' as const,
-        content: response, // ✅ CORREGIDO: Mantener el contenido completo original
+        content: response, // CORREGIDO: Mantener el contenido completo original
         link: cleanLink
       }
     }
@@ -2519,7 +2519,7 @@ const createProductReservation = async (
         notes,
         status: 'PENDING',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expira en 7 días
-        // ✅ NUEVOS CAMPOS: Detalles específicos de compra
+        // NUEVOS CAMPOS: Detalles específicos de compra
         unitPrice: purchaseDetails?.unitPrice,
         totalPrice: purchaseDetails?.totalPrice,
         unit: purchaseDetails?.unit,
@@ -3000,7 +3000,7 @@ export const onAiChatBotAssistant = async (
       throw new Error('Chatbot company not found')
     }
 
-    // ✅ NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
+    // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
 
     if (sessionToken) {
@@ -3017,7 +3017,7 @@ export const onAiChatBotAssistant = async (
           message,
           author,
           chat,
-          id, // ✅ Pasar el companyId
+          id, // Pasar el companyId
           chatBotCompany,
           sessionToken
         )
@@ -3087,7 +3087,7 @@ export const onAiChatBotAssistant = async (
 
           await onStoreConversations(customerInfo.chatRoom[0].id, message, 'user')
 
-          // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+          // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
           if (customerInfo.chatRoom[0].live) {
             await onRealTimeChat(
               customerInfo.chatRoom[0].id,
@@ -3169,7 +3169,7 @@ export const onAiChatBotAssistant = async (
         )
       }
 
-      // ✅ PRIORIDAD: Detectar si el usuario quiere terminar usando IA
+      // PRIORIDAD: Detectar si el usuario quiere terminar usando IA
       if (customerInfo && customerInfo.chatRoom && customerInfo.chatRoom[0]) {
         if (shouldEndConversation) {
           await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
@@ -3246,7 +3246,7 @@ export const onAiChatBotAssistant = async (
       if (customerInfo.chatRoom[0].live) {
         await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
 
-        // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+        // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
         await onRealTimeChat(
           customerInfo.chatRoom[0].id,
           message,
@@ -3344,7 +3344,7 @@ export const onAiChatBotAssistant = async (
 
       const response = chatCompletion.choices[0].message.content
 
-      // ✅ Validar que la respuesta no sea null
+      // Validar que la respuesta no sea null
       if (!response) {
         throw new Error('OpenAI no retornó una respuesta válida')
       }
@@ -3396,7 +3396,7 @@ export const onAiChatBotAssistant = async (
       }
     }
 
-    // ✅ VERIFICAR SI PIDE HABLAR CON HUMANO SIN ESTAR AUTENTICADO
+    // VERIFICAR SI PIDE HABLAR CON HUMANO SIN ESTAR AUTENTICADO
     if (detectHumanTransferRequest(message)) {
       return {
         response: {

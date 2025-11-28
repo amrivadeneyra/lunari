@@ -35,7 +35,7 @@ export function ChatbotWidget({ companyId, className }: ChatbotWidgetProps) {
     isHumanMode,
     onToggleHumanMode,
     isToggleDisabled,
-  } = useChatBot(companyId) // ✅ Pasar companyId directamente
+  } = useChatBot(companyId) // Pasar companyId directamente
 
   // Función para agregar producto al carrito desde el chatbot
   const handleProductRecommended = (productId: string, productName: string) => {

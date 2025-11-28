@@ -119,7 +119,7 @@ export const useChatBot = (companyId?: string) => {
       setCurrentBot(chatbot)
       setLoading(false)
 
-      // ✅ CARGAR ESTADO INICIAL DE LA CONVERSACIÓN
+      // CARGAR ESTADO INICIAL DE LA CONVERSACIÓN
       if (chatbot.customer && chatbot.customer.length > 0) {
         const customer = chatbot.customer[0]
         if (customer.chatRoom && customer.chatRoom.length > 0) {

@@ -23,7 +23,7 @@ const Bubble = ({ message, createdAt }: Props) => {
 
   let d = new Date()
 
-  // ✅ SIMPLIFICADO: Usar directamente la URL de imagen del mensaje
+  // SIMPLIFICADO: Usar directamente la URL de imagen del mensaje
   const imageUrl = message.imageUrl
 
   return (
@@ -60,14 +60,14 @@ const Bubble = ({ message, createdAt }: Props) => {
           <div className="flex gap-2 text-xs opacity-70">
             <p>
               {(() => {
-                // ✅ Convertir a Date si es necesario
+                // Convertir a Date si es necesario
                 const date = createdAt instanceof Date ? createdAt : new Date(createdAt)
                 return `${date.getDate()} ${getMonthName(date.getMonth())}`
               })()}
             </p>
             <p>
               {(() => {
-                // ✅ Convertir a Date si es necesario
+                // Convertir a Date si es necesario
                 const date = createdAt instanceof Date ? createdAt : new Date(createdAt)
                 const hours = date.getHours()
                 const minutes = date.getMinutes().toString().padStart(2, '0')
@@ -82,7 +82,7 @@ const Bubble = ({ message, createdAt }: Props) => {
           </p>
         )}
         <div className="text-xs leading-relaxed whitespace-pre-line">
-          {/* ✅ SIEMPRE mostrar el texto del producto */}
+          {/* SIEMPRE mostrar el texto del producto */}
           {message.content.replace('(complete)', ' ')}
           {message.link && (
             <Link
@@ -95,7 +95,7 @@ const Bubble = ({ message, createdAt }: Props) => {
           )}
         </div>
 
-        {/* ✅ Si hay imagen, mostrarla debajo del texto */}
+        {/* Si hay imagen, mostrarla debajo del texto */}
         {imageUrl && (
           <div className="relative aspect-square rounded-md overflow-hidden bg-gray-100 mt-2">
             <Image

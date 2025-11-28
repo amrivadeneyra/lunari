@@ -47,11 +47,11 @@ type Props = {
       }[]
     >
   >
-  // ✅ Nuevos props para el toggle de modo
+  // Nuevos props para el toggle de modo
   onToggleHumanMode: (isHumanMode: boolean) => void
   isHumanMode?: boolean
   isToggleDisabled?: boolean
-  // ✅ Props de sesión
+  // Props de sesión
   sessionData?: {
     customerId: string
     email: string
@@ -76,11 +76,11 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       textColor,
       theme,
       help,
-      // ✅ Nuevos props
+      // Nuevos props
       sessionData,
       isAuthenticated,
       onClearSession,
-      // ✅ Props del toggle
+      // Props del toggle
       onToggleHumanMode,
       isHumanMode = false,
       isToggleDisabled = false,
@@ -89,7 +89,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
   ) => {
     return (
       <div className="h-[500px] w-[380px] flex flex-col bg-white rounded-xl border-[1px] overflow-hidden overflow-x-hidden shadow-lg">
-        {/* ✅ Indicador de sesión compacto (si está autenticado) */}
+        {/* Indicador de sesión compacto (si está autenticado) */}
         {(isAuthenticated && sessionData) && (
           <SessionIndicator
             sessionData={sessionData}
@@ -116,7 +116,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
             </div>
             <div className="flex items-center gap-2">
-              {/* ✅ Solo mostrar toggle cuando hay sesión activa */}
+              {/* Solo mostrar toggle cuando hay sesión activa */}
               {isAuthenticated && (
                 <div className="w-full">
                   <ChatModeToggle

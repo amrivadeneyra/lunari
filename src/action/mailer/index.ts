@@ -147,7 +147,7 @@ export const sendAppointmentConfirmation = async (
           
           <div style="background: #FFE0BD; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 3px solid #FFA947;">
             <p style="margin: 0; color: #4E4E4E; font-size: 14px;">
-              <strong>✅ Confirmación:</strong> El cliente ha recibido una confirmación automática de su cita.
+              <strong>Confirmación:</strong> El cliente ha recibido una confirmación automática de su cita.
             </p>
           </div>
           

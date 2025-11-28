@@ -219,7 +219,7 @@ export const useHelpDesk = (id: string, initialData?: Array<{ id: string; questi
     }
 
     useEffect(() => {
-        // ✅ OPTIMIZACIÓN: Solo cargar si no hay datos iniciales
+        // OPTIMIZACIÓN: Solo cargar si no hay datos iniciales
         if (!initialData || initialData.length === 0) {
             let isMounted = true
 
@@ -338,7 +338,7 @@ export const useFilterQuestions = (id: string, initialData?: Array<{ id: string;
     }
 
     useEffect(() => {
-        // ✅ OPTIMIZACIÓN: Solo cargar si no hay datos iniciales
+        // OPTIMIZACIÓN: Solo cargar si no hay datos iniciales
         if (!initialData || initialData.length === 0) {
             let isMounted = true
 

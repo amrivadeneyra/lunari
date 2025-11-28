@@ -16,7 +16,7 @@ type Props = {
 }
 
 const RealTimeMode = ({ chatRoomId, setChats }: Props) => {
-  // ✅ Descomentado: Activar tiempo real
+  // Descomentado: Activar tiempo real
   useRealTime(chatRoomId, setChats)
 
   return (

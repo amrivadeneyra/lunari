@@ -2,11 +2,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// generator erd {
-//   provider = "prisma-erd-generator"
-//   output   = "./ERD.svg"
-// }
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -157,7 +152,7 @@ model Bookings {
   customerId      String?              @db.Uuid
   companyId       String?              @db.Uuid
   createdAt       DateTime             @default(now())
-  // ✅ NUEVO: Tipo de cita y propósito
+  // NUEVO: Tipo de cita y propósito
   appointmentType AppointmentType      @default(STORE_VISIT)
   purpose         String? // Propósito específico de la cita
   notes           String? // Notas adicionales del cliente
@@ -165,13 +160,13 @@ model Bookings {
   reservations    ProductReservation[] // Relación con reservas de productos
 }
 
-// ✅ SIMPLIFICADO: Enum para tipos de citas (100% presencial)
+// SIMPLIFICADO: Enum para tipos de citas (100% presencial)
 enum AppointmentType {
   STORE_VISIT // Visita a la tienda (ver productos, asesoría)
   PURCHASE // Compra en tienda (con o sin reserva previa)
 }
 
-// ✅ MEJORADO: Modelo para reservas de productos con detalles de compra
+// MEJORADO: Modelo para reservas de productos con detalles de compra
 model ProductReservation {
   id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productId  String            @db.Uuid
@@ -184,7 +179,7 @@ model ProductReservation {
   updatedAt  DateTime          @updatedAt
   expiresAt  DateTime? // Fecha de expiración de la reserva
 
-  // ✅ NUEVOS CAMPOS: Detalles específicos de compra
+  // NUEVOS CAMPOS: Detalles específicos de compra
   unitPrice  Int? // Precio por unidad al momento de la reserva
   totalPrice Int? // Precio total calculado (quantity * unitPrice)
   unit       String? // Unidad específica: metro, rollo, kg, etc.
@@ -204,7 +199,7 @@ model ProductReservation {
   @@index([status])
 }
 
-// ✅ NUEVO: Enum para estados de reserva
+// NUEVO: Enum para estados de reserva
 enum ReservationStatus {
   PENDING // Pendiente de confirmación
   CONFIRMED // Confirmada

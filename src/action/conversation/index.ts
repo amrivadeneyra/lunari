@@ -1,9 +1,9 @@
 "use server";
 
 import { client } from "@/lib/prisma";
-// ✅ COMENTADO: Pusher Server (plan agotado)
+// COMENTADO: Pusher Server (plan agotado)
 // import { pusherServer } from "@/lib/utils";
-// ✅ NUEVO: Socket.io Server
+// NUEVO: Socket.io Server
 import { socketServer } from "@/lib/utils";
 import { ConversationState } from "@prisma/client";
 import { clerkClient } from '@clerk/nextjs';
@@ -61,7 +61,7 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
       },
     });
 
-    // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO MANUALMENTE
+    // ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO MANUALMENTE
     if (state === 'ESCALATED' && chatRoom?.Customer && chatRoom.Customer.companyId) {
       try {
         const companyOwner = await client.company.findFirst({
@@ -228,16 +228,6 @@ export const onRealTimeChat = async (
   id: string,
   role: 'user' | 'assistant'
 ) => {
-  // ✅ COMENTADO: Pusher Server (plan agotado)
-  // pusherServer.trigger(chatroomId, 'realtime-mode', {
-  //   chat: {
-  //     message,
-  //     id,
-  //     role,
-  //   },
-  // })
-
-  // ✅ NUEVO: Socket.io Server
   await socketServer.trigger(chatroomId, 'realtime-mode', {
     chat: {
       message,
@@ -253,13 +243,12 @@ export const onOwnerSendMessage = async (
   role: 'user' | 'assistant'
 ) => {
   try {
-    // ✅ ACTIVAR MODO REAL TIME cuando el agente envía mensaje
     const chat = await client.chatRoom.update({
       where: {
         id: chatroom,
       },
       data: {
-        live: true, // ✅ Activar modo live
+        live: true, // Activar modo live
         message: {
           create: {
             message,
@@ -286,21 +275,8 @@ export const onOwnerSendMessage = async (
 
     if (chat) {
 
-      // ENVIAR MENSAJE A TRAVÉS DE PUSHER PARA TIEMPO REAL
       const newMessage = chat.message[0]
       if (newMessage) {
-        // ✅ COMENTADO: Pusher Server (plan agotado)
-        // await pusherServer.trigger(chatroom, 'realtime-mode', {
-        //   chat: {
-        //     message: newMessage.message,
-        //     id: newMessage.id,
-        //     role: newMessage.role,
-        //     createdAt: newMessage.createdAt,
-        //     seen: newMessage.seen
-        //   }
-        // })
-
-        // ✅ NUEVO: Socket.io Server
         await socketServer.trigger(chatroom, 'realtime-mode', {
           chat: {
             message: newMessage.message,
@@ -350,7 +326,7 @@ export const onToggleFavorite = async (chatRoomId: string, isFavorite: boolean) 
   }
 }
 
-// ✅ NUEVA FUNCIÓN: Obtener todas las conversaciones agrupadas por cliente
+// NUEVA FUNCIÓN: Obtener todas las conversaciones agrupadas por cliente
 export const onGetAllCompanyChatRooms = async (id: string) => {
   try {
 

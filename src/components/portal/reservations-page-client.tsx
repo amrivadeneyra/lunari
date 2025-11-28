@@ -96,7 +96,7 @@ export function ReservationsPageClient({ companyId }: ReservationsPageClientProp
         // Marcar que estamos cargando ANTES de iniciar la petición (usando ref global)
         globalLoadingRef.set(loadingKey, true)
         loadAttemptedRef.current = customerId
-        console.log('✅ Iniciando carga para', customerId, 'refreshKey:', refreshKey)
+        console.log('Iniciando carga para', customerId, 'refreshKey:', refreshKey)
 
         const loadBookings = async () => {
             try {
@@ -113,7 +113,7 @@ export function ReservationsPageClient({ companyId }: ReservationsPageClientProp
                 setBookingsData(data)
                 hasLoadedData.current = true
                 lastCustomerId.current = customerId
-                console.log('✅ Datos cargados exitosamente')
+                console.log('Datos cargados exitosamente')
             } catch (error) {
                 console.error('❌ Error loading bookings:', error)
                 // En caso de error, permitir reintento

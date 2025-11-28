@@ -55,7 +55,7 @@ export function ShoppingCart({ isOpen, onClose }: ShoppingCartProps) {
         sessionData.customerId
       )
 
-      console.log('✅ Resultado:', result)
+      console.log('Resultado:', result)
 
       if (result.success) {
         toast.success(`${items.length} reserva(s) creada(s) exitosamente`)

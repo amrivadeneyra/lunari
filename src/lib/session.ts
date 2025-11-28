@@ -126,7 +126,7 @@ export const validateSessionToken = async (
       return null
     }
 
-    console.log(`✅ Sesión válida para: ${customer.email}`)
+    console.log(`Sesión válida para: ${customer.email}`)
 
     // Retornar datos actualizados de la BD
     return {
