@@ -31,10 +31,9 @@ type Props = {
         welcomeMessage: string | null
     } | null
     helpdesk?: Array<{ id: string; question: string; answer: string }>
-    filterQuestions?: Array<{ id: string; question: string }>
 }
 
-const ChatbotSettings = ({ id, name, chatBot, helpdesk, filterQuestions }: Props) => {
+const ChatbotSettings = ({ id, name, chatBot, helpdesk }: Props) => {
     const {
         register,
         onUpdateSettings,
@@ -135,28 +134,27 @@ const ChatbotSettings = ({ id, name, chatBot, helpdesk, filterQuestions }: Props
                             </Button>
                         </div>
                     </div>
+                </form>
 
-                    {/* Sección de Configuración de Respuestas */}
-                    <div className="bg-white rounded-xl p-6 border border-gray-200/50 shadow-sm">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-8 h-8 bg-orange/10 rounded-lg flex items-center justify-center">
-                                <MessageSquare className="w-4 h-4 text-orange" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-lg text-gray-900">Configuración de Respuestas</h3>
-                                <p className="text-sm text-gray-600">Gestiona las preguntas frecuentes y respuestas del asistente</p>
-                            </div>
+                {/* Sección de Configuración de Respuestas - FUERA del form */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200/50 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-8 h-8 bg-orange/10 rounded-lg flex items-center justify-center">
+                            <MessageSquare className="w-4 h-4 text-orange" />
                         </div>
-
-                        <div className="pt-4 border-t border-gray-100">
-                            <BotTrainingForm
-                                id={id}
-                                helpdesk={helpdesk || []}
-                                filterQuestions={filterQuestions || []}
-                            />
+                        <div>
+                            <h3 className="font-semibold text-lg text-gray-900">Configuración de Respuestas</h3>
+                            <p className="text-sm text-gray-600">Gestiona las preguntas frecuentes y respuestas del asistente</p>
                         </div>
                     </div>
-                </form>
+
+                    <div className="pt-4 border-t border-gray-100">
+                        <BotTrainingForm
+                            id={id}
+                            helpdesk={helpdesk || []}
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     )

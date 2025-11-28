@@ -1,4 +1,4 @@
-import { HeartHandshake, LayoutDashboard, Mail, MessageCircleMore, MessageSquareMore, Settings, Settings2, SquareUser, StarIcon, TimerIcon, FolderKanban, Package, Clock } from "lucide-react";
+import { HeartHandshake, LayoutDashboard, Mail, MessageCircleMore, MessageSquareMore, Settings, Settings2, SquareUser, StarIcon, TimerIcon, FolderKanban, Package, Clock, Home, HelpCircle } from "lucide-react";
 
 type SIDE_BAR_MENU_PROPS = {
     label: string;
@@ -102,8 +102,6 @@ export const HELP_DESK_TABS_MENU: TABS_MENU_PROPS[] = [
     {
         label: 'soporte',
 
-    }, {
-        label: 'preguntas',
     }
 ]
 
@@ -117,12 +115,16 @@ export const APPOINTMENT_TABLE_HEADER = [
 
 export const BOT_TABS_MENU: TABS_MENU_PROPS[] = [
     {
+        label: 'inicio',
+        icon: <Home className="w-4 h-4" />
+    },
+    {
         label: 'asistente',
-        icon: <MessageCircleMore />
+        icon: <MessageCircleMore className="w-4 h-4" />
     },
     {
         label: 'soporte',
-        icon: <HeartHandshake />
+        icon: <HeartHandshake className="w-4 h-4" />
     }
 ]
 

@@ -384,7 +384,11 @@ export const onCreateHelpDeskQuestion = async (
       message: 'Oops! algo salió mal',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onCreateHelpDeskQuestion:', error)
+    return {
+      status: 400,
+      message: 'Error al crear la pregunta. Por favor, intenta nuevamente.',
+    }
   }
 }
 
@@ -403,11 +407,16 @@ export const onGetAllHelpDeskQuestions = async (id: string) => {
 
     return {
       status: 200,
-      message: 'Nueva pregunta agregada',
+      message: 'Preguntas obtenidas exitosamente',
       questions: questions,
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onGetAllHelpDeskQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al obtener las preguntas',
+      questions: [],
+    }
   }
 }
 
@@ -510,7 +519,11 @@ export const onCreateFilterQuestions = async (id: string, question: string) => {
       message: 'Oops! algo salió mal',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onCreateFilterQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al crear la pregunta. Por favor, intenta nuevamente.',
+    }
   }
 }
 
@@ -531,11 +544,16 @@ export const onGetAllFilterQuestions = async (id: string) => {
 
     return {
       status: 200,
-      message: '',
+      message: 'Preguntas obtenidas exitosamente',
       questions: questions,
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onGetAllFilterQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al obtener las preguntas',
+      questions: [],
+    }
   }
 }
 
@@ -590,7 +608,7 @@ export const onDeleteFilterQuestion = async (questionId: string) => {
       message: 'Error al eliminar la pregunta',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onDeleteFilterQuestion:', error)
     return {
       status: 400,
       message: 'Error al eliminar la pregunta',
