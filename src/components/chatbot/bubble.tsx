@@ -50,10 +50,10 @@ const Bubble = ({ message, createdAt }: Props) => {
       )}
       <div
         className={cn(
-          'flex flex-col gap-1 min-w-[150px] max-w-[250px] p-3 rounded-lg',
+          'flex flex-col gap-1 min-w-[150px] max-w-[280px] p-3 rounded-lg',
           message.role == 'assistant'
-            ? 'bg-gray-100 rounded-br-sm'
-            : 'bg-blue-500 text-white rounded-bl-sm'
+            ? 'bg-cream/60 rounded-br-sm'
+            : 'bg-orange text-white rounded-bl-sm'
         )}
       >
         {createdAt ? (
