@@ -95,9 +95,43 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       companyId: string | null
     } | null>(null)
 
-    // Función para sincronizar navegación inferior con tabs
-    const handleTabChange = (value: string) => {
-      setActiveTab(value as 'inicio' | 'asistente' | 'soporte')
+    // Estado para búsqueda en soporte
+    const [searchQuery, setSearchQuery] = useState('')
+
+    // Filtrar FAQs basado en la búsqueda
+    const filteredHelpdesk = helpdesk.filter((faq) =>
+      faq.question.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    // Función para resaltar palabras completas que contienen la búsqueda
+    const highlightText = (text: string, query: string) => {
+      if (!query.trim()) return text
+
+      // Dividir el texto en palabras y espacios, preservando puntuación
+      const parts = text.split(/(\s+)/)
+
+      return parts.map((part, index) => {
+        // Si es un espacio, devolverlo tal cual
+        if (/^\s+$/.test(part)) return part
+
+        // Separar palabra de puntuación
+        const match = part.match(/^([^\w]*)(\w+)([^\w]*)$/)
+        if (!match) return part
+
+        const [, before, word, after] = match
+
+        // Si la palabra contiene el query (case insensitive)
+        if (word.toLowerCase().includes(query.toLowerCase())) {
+          return (
+            <span key={index}>
+              {before}
+              <span className="text-orange font-semibold">{word}</span>
+              {after}
+            </span>
+          )
+        }
+        return part
+      })
     }
 
     // Función para cambiar desde navegación inferior
@@ -108,12 +142,13 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
         'help': 'soporte'
       }
       setActiveTab(tabMap[nav] as 'inicio' | 'asistente' | 'soporte')
+      setSearchQuery('') // Limpiar búsqueda al cambiar de tab
     }
 
     return (
       <div className="h-[500px] w-[380px] flex flex-col bg-white rounded-xl overflow-hidden shadow-lg">
         {/* HEADER */}
-        {activeTab !== 'inicio' && (
+        {activeTab === 'asistente' && (
           <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -306,26 +341,64 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
           {/* TAB: SOPORTE/FAQs */}
           {activeTab === 'soporte' && (
-            <div className="absolute inset-0 flex flex-col">
-              <div className="overflow-y-auto overflow-x-hidden p-5 flex flex-col gap-4 flex-1 scrollbar-custom">
-                <div className="mb-3">
-                  <CardTitle className="text-sm font-medium text-gravel">Ayuda</CardTitle>
+            <div className="absolute inset-0 flex flex-col bg-cream/20">
+              {/* Header con título y botón cerrar */}
+              <div className="px-4 py-3 bg-white border-b border-orange/10 flex-shrink-0 flex items-center justify-center relative">
+                <h2 className="text-base font-semibold text-gravel">Ayuda</h2>
+                <button
+                  onClick={() => setActiveTab('asistente')}
+                  className="absolute right-4 p-1 hover:bg-orange/10 rounded-lg transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-5 h-5 text-ironside/60" />
+                </button>
+              </div>
+
+              {/* Search bar */}
+              <div className="px-4 py-3 bg-white border-b border-orange/10 flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange" />
+                  <Input
+                    placeholder="Buscar ayuda"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full border border-ironside/20 bg-cream/10 rounded-lg px-3 py-2 pr-10 text-xs text-gravel placeholder:text-ironside/60 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-white focus:border-orange/30 h-auto transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="overflow-y-auto overflow-x-hidden flex-1 scrollbar-custom">
+                {/* Counter */}
+                <div className="px-4 py-4">
+                  <p className="text-xs font-medium text-gravel px-2">
+                    {filteredHelpdesk.length} {filteredHelpdesk.length === 1 ? 'pregunta' : 'preguntas'}
+                  </p>
                 </div>
 
-                {helpdesk.length > 0 ? (
-                  <div className="space-y-0">
-                    {helpdesk.map((desk) => (
-                      <Accordion
+                {filteredHelpdesk.length > 0 ? (
+                  <div className="space-y-1">
+                    {filteredHelpdesk.map((desk) => (
+                      <button
                         key={desk.id}
-                        trigger={desk.question}
-                        content={desk.answer}
-                      />
+                        onClick={() => setSelectedFaq(desk)}
+                        className="w-full bg-white hover:bg-orange/5 rounded-lg px-6 py-4 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 text-left">
+                            <p className="text-xs font-medium text-gravel mb-1">
+                              {highlightText(desk.question, searchQuery)}
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-orange flex-shrink-0 ml-3" />
+                        </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <p className="text-xs text-ironside/60">
-                      No hay preguntas frecuentes disponibles
+                  <div className="text-center py-12 px-4">
+                    <p className="text-sm text-ironside/60">
+                      {searchQuery ? 'No se encontraron resultados' : 'No hay preguntas frecuentes disponibles'}
                     </p>
                   </div>
                 )}
