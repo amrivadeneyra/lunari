@@ -8,7 +8,7 @@ import Bubble from './bubble'
 import { Responding } from './responding'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, CheckCircle2, Bot, ArrowRight } from 'lucide-react'
+import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, CheckCircle2, Bot, ArrowRight, ChevronLeft, X, Maximize2 } from 'lucide-react'
 import { CardDescription, CardTitle } from '../ui/card'
 import Accordion from '../accordian'
 import Image from 'next/image'
@@ -86,6 +86,14 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
   ) => {
     // Estado para navegación inferior (solo visual) - sincronizado con tabs
     const [activeTab, setActiveTab] = useState<'inicio' | 'asistente' | 'soporte'>('asistente')
+
+    // Estado para FAQ seleccionada (pantalla completa)
+    const [selectedFaq, setSelectedFaq] = useState<{
+      id: string
+      question: string
+      answer: string
+      companyId: string | null
+    } | null>(null)
 
     // Función para sincronizar navegación inferior con tabs
     const handleTabChange = (value: string) => {
@@ -222,7 +230,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                         {helpdesk.slice(0, 4).map((faq) => (
                           <button
                             key={faq.id}
-                            onClick={() => setActiveTab('soporte')}
+                            onClick={() => setSelectedFaq(faq)}
                             className="w-full flex items-center justify-between py-2.5 px-0 text-left hover:bg-orange/10 rounded-lg transition-colors group"
                           >
                             <p className="text-xs text-gravel font-normal line-clamp-1 flex-1 px-3">
@@ -326,41 +334,87 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
           )}
         </div>
 
-        {/* NAVEGACIÓN INFERIOR */}
-        <div className="border-t border-orange/10 bg-white px-3 py-2.5 flex-shrink-0">
-          <div className="flex items-center justify-around">
-            <button
-              onClick={() => handleBottomNavClick('home')}
-              className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'inicio'
-                ? 'text-orange'
-                : 'text-ironside/50'
-                }`}
-            >
-              <Home className="w-4 h-4" />
-              <span className="text-[10px] font-medium">Inicio</span>
-            </button>
-            <button
-              onClick={() => handleBottomNavClick('messages')}
-              className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'asistente'
-                ? 'text-orange'
-                : 'text-ironside/50'
-                }`}
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-[10px] font-medium">Chat</span>
-            </button>
-            <button
-              onClick={() => handleBottomNavClick('help')}
-              className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'soporte'
-                ? 'text-orange'
-                : 'text-ironside/50'
-                }`}
-            >
-              <HelpCircle className="w-4 h-4" />
-              <span className="text-[10px] font-medium">Ayuda</span>
-            </button>
+        {/* PANTALLA COMPLETA DE FAQ - Cubre todo el chat */}
+        {selectedFaq && (
+          <div className="absolute inset-0 flex flex-col bg-white z-50 rounded-xl">
+            {/* Header con botones de retroceso y cerrar */}
+            <div className="bg-white border-b border-orange/10 px-4 py-3 flex items-center justify-between flex-shrink-0 rounded-t-xl">
+              <button
+                onClick={() => setSelectedFaq(null)}
+                className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                aria-label="Volver"
+              >
+                <ChevronLeft className="w-5 h-5 text-ironside/60" />
+              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                  aria-label="Expandir"
+                >
+                  <Maximize2 className="w-4 h-4 text-ironside/60" />
+                </button>
+                <button
+                  onClick={() => setSelectedFaq(null)}
+                  className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-4 h-4 text-ironside/60" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido de la FAQ */}
+            <div className="overflow-y-auto overflow-x-hidden px-6 py-6 flex flex-col flex-1 scrollbar-custom bg-white rounded-b-xl">
+              {/* Título principal */}
+              <h1 className="text-2xl font-bold text-gravel mb-4">
+                {selectedFaq.question}
+              </h1>
+
+              {/* Contenido directo sin card */}
+              <div className="text-sm text-ironside/70 leading-relaxed whitespace-pre-wrap">
+                {selectedFaq.answer}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* NAVEGACIÓN INFERIOR */}
+        {!selectedFaq && (
+          <div className="border-t border-orange/10 bg-white px-3 py-2.5 flex-shrink-0">
+            <div className="flex items-center justify-around">
+              <button
+                onClick={() => handleBottomNavClick('home')}
+                className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'inicio'
+                  ? 'text-orange'
+                  : 'text-ironside/50'
+                  }`}
+              >
+                <Home className="w-4 h-4" />
+                <span className="text-[10px] font-medium">Inicio</span>
+              </button>
+              <button
+                onClick={() => handleBottomNavClick('messages')}
+                className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'asistente'
+                  ? 'text-orange'
+                  : 'text-ironside/50'
+                  }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-[10px] font-medium">Chat</span>
+              </button>
+              <button
+                onClick={() => handleBottomNavClick('help')}
+                className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'soporte'
+                  ? 'text-orange'
+                  : 'text-ironside/50'
+                  }`}
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span className="text-[10px] font-medium">Ayuda</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
