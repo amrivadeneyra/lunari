@@ -63,19 +63,19 @@ const GuidePage = async ({ params }: Props) => {
                 <ul className="text-gray-600 leading-relaxed space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="text-orange-500 mt-1">•</span>
-                    <span><strong>Productos:</strong> "¿Qué telas de algodón tienen disponibles?"</span>
+                    <span><strong>Productos:</strong> &quot;¿Qué telas de algodón tienen disponibles?&quot;</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-orange-500 mt-1">•</span>
-                    <span><strong>Precios:</strong> "¿Cuál es el precio de la tela de lino?"</span>
+                    <span><strong>Precios:</strong> &quot;¿Cuál es el precio de la tela de lino?&quot;</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-orange-500 mt-1">•</span>
-                    <span><strong>Recomendaciones:</strong> "Necesito una tela para hacer cortinas"</span>
+                    <span><strong>Recomendaciones:</strong> &quot;Necesito una tela para hacer cortinas&quot;</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-orange-500 mt-1">•</span>
-                    <span><strong>Disponibilidad:</strong> "¿Tienen stock de algodón pima?"</span>
+                    <span><strong>Disponibilidad:</strong> &quot;¿Tienen stock de algodón pima?&quot;</span>
                   </li>
                 </ul>
               </div>
