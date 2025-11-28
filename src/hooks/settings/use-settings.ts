@@ -414,6 +414,8 @@ export const useProducts = (companyId: string) => {
         // Temporada (ID)
         seasonId: z.string().optional(),
         care: z.string().optional(),
+        // Características (IDs de relación many-to-many)
+        featureIds: z.array(z.string()).optional(),
     })
 
     const {
@@ -433,7 +435,32 @@ export const useProducts = (companyId: string) => {
     const onCreateNewProduct = handleSubmit(async (values) => {
         try {
             setLoading(true)
-            const uploaded = await upload.uploadFile(values.image[0])
+            
+            // Si no hay imagen, usar la imagen por defecto
+            let imageUuid: string
+            if (values.image && values.image[0]) {
+                // Subir la imagen proporcionada
+                const uploaded = await upload.uploadFile(values.image[0])
+                imageUuid = uploaded.uuid
+            } else {
+                // Subir la imagen por defecto desde public/images/sinImagen.png
+                try {
+                    const response = await fetch('/images/sinImagen.png')
+                    const blob = await response.blob()
+                    const file = new File([blob], 'sinImagen.png', { type: 'image/png' })
+                    const uploaded = await upload.uploadFile(file)
+                    imageUuid = uploaded.uuid
+                } catch (error) {
+                    console.error('Error al cargar imagen por defecto:', error)
+                    toast({
+                        title: 'Error',
+                        description: 'No se pudo cargar la imagen por defecto. Por favor, intenta subir una imagen.',
+                        variant: 'destructive',
+                    })
+                    setLoading(false)
+                    return
+                }
+            }
 
             // Preparar datos adicionales del producto (usando IDs, convertir 'none' a undefined)
             const productData = {
@@ -453,12 +480,13 @@ export const useProducts = (companyId: string) => {
                 colors: values.colors ? values.colors.split(',').map(c => c.trim()) : undefined,
                 seasonId: values.seasonId && values.seasonId !== 'none' ? values.seasonId : undefined,
                 care: values.care,
+                featureIds: values.featureIds && values.featureIds.length > 0 ? values.featureIds : undefined,
             }
 
             const product = await onCreateNewCompanyProduct(
                 companyId,
                 values.name,
-                uploaded.uuid,
+                imageUuid,
                 values.price,
                 productData
             )
@@ -505,6 +533,7 @@ export const useProducts = (companyId: string) => {
                 colors: values.colors ? values.colors.split(',').map(c => c.trim()) : undefined,
                 seasonId: values.seasonId && values.seasonId !== 'none' ? values.seasonId : undefined,
                 care: values.care,
+                featureIds: values.featureIds && values.featureIds.length > 0 ? values.featureIds : undefined,
             }
 
             const result = await onUpdateCompanyProduct(
@@ -527,8 +556,14 @@ export const useProducts = (companyId: string) => {
                     window.location.reload()
                 }
             }
-        } catch (error) {
-            console.log(error)
+        } catch (error: any) {
+            console.error('Error al actualizar producto:', error)
+            const errorMessage = error?.message || error?.response?.data?.message || 'Ocurrió un error al actualizar el producto. Por favor, verifica los datos e intenta nuevamente.'
+            toast({
+                title: 'Error al actualizar producto',
+                description: errorMessage,
+                variant: 'destructive',
+            })
             setLoading(false)
         }
     })
@@ -573,6 +608,13 @@ export const useProducts = (companyId: string) => {
         setValue('colors', product.colors?.join(', ') || '')
         setValue('seasonId', product.seasonId || 'none')
         setValue('care', product.care || '')
+        // Cargar características seleccionadas
+        if (product.features && product.features.length > 0) {
+            const featureIds = product.features.map((f: any) => f.featureId)
+            setValue('featureIds', featureIds)
+        } else {
+            setValue('featureIds', [])
+        }
     }
 
     useEffect(() => {

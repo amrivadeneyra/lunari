@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ErrorMessage } from '@hookform/error-message'
 import { Loader } from '@/components/loader'
 import FormGenerator from '../forms/form-generator'
@@ -57,25 +58,48 @@ export const CreateProductForm = ({
 }: CreateProductFormProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [featured, setFeatured] = useState(editingProduct?.featured || false)
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(
+    editingProduct?.features?.map((f: any) => f.featureId) || []
+  )
+
+  // Sincronizar valores iniciales cuando cambia editingProduct
+  useEffect(() => {
+    if (editingProduct) {
+      setFeatured(editingProduct.featured || false)
+      // Establecer valores iniciales de los selects
+      if (editingProduct.materialId) setValue('materialId', editingProduct.materialId)
+      if (editingProduct.textureId) setValue('textureId', editingProduct.textureId)
+      if (editingProduct.categoryId) setValue('categoryId', editingProduct.categoryId)
+      if (editingProduct.seasonId) setValue('seasonId', editingProduct.seasonId)
+      // Establecer características seleccionadas
+      if (editingProduct.features) {
+        const featureIds = editingProduct.features.map((f: any) => f.featureId)
+        setSelectedFeatures(featureIds)
+        setValue('featureIds', featureIds)
+      }
+    } else {
+      // Resetear valores cuando se crea un producto nuevo
+      setFeatured(false)
+      setSelectedFeatures([])
+      setValue('materialId', 'none')
+      setValue('textureId', 'none')
+      setValue('categoryId', 'none')
+      setValue('seasonId', 'none')
+      setValue('featureIds', [])
+    }
+  }, [editingProduct, setValue])
+
+  // Manejar selección/deselección de características
+  const handleFeatureToggle = (featureId: string) => {
+    const newSelected = selectedFeatures.includes(featureId)
+      ? selectedFeatures.filter(id => id !== featureId)
+      : [...selectedFeatures, featureId]
+    setSelectedFeatures(newSelected)
+    setValue('featureIds', newSelected)
+  }
 
   return (
     <div className="w-full">
-      {/* Botón solo para CREAR producto - NO mostrar cuando esté editando */}
-      {!editingProduct && (
-        <div className="flex gap-3 pb-4 border-b border-gray-200 mb-6">
-          <Button
-            type="submit"
-            className="flex-1 bg-orange hover:bg-orange/90"
-            disabled={loading}
-            onClick={onCreateNewProduct}
-          >
-            <Loader loading={loading}>
-              Crear producto
-            </Loader>
-          </Button>
-        </div>
-      )}
-
     <form
         className="w-full flex flex-col gap-6 py-6 max-h-[60vh] overflow-y-auto px-2"
       onSubmit={editingProduct ? onUpdateProduct : onCreateNewProduct}
@@ -110,7 +134,7 @@ export const CreateProductForm = ({
             Subir imagen principal
         </Label>
         <p className="text-xs text-gray-500 mt-1">
-          Solo se aceptan archivos JPG, JPEG y PNG (máx. 2MB)
+          Solo se aceptan archivos JPG, JPEG y PNG (máx. 2MB). Si no subes una imagen, se usará una imagen por defecto.
         </p>
         {editingProduct && (
           <p className="text-xs text-blue-600 mt-1">
@@ -122,7 +146,7 @@ export const CreateProductForm = ({
           name="image"
           render={({ message }) => (
               <p className="text-red-400 mt-2 text-sm">
-              {message === 'Required' ? '' : message}
+              {message}
             </p>
           )}
         />
@@ -279,6 +303,42 @@ export const CreateProductForm = ({
           />
           <p className="text-xs text-gray-500 mt-1">Separa los colores con comas</p>
         </div>
+
+        {/* Características */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium text-gray-700">
+            Características
+          </Label>
+          {features.filter(f => f.active).length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              {features.filter(f => f.active).map((feature) => (
+                <div key={feature.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`feature-${feature.id}`}
+                    checked={selectedFeatures.includes(feature.id)}
+                    onCheckedChange={() => handleFeatureToggle(feature.id)}
+                  />
+                  <Label
+                    htmlFor={`feature-${feature.id}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    {feature.name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <AlertCircle size={16} className="text-yellow-600" />
+              <p className="text-xs text-yellow-700">
+                No hay características disponibles.{' '}
+                <Link href="/catalogs" className="underline font-medium">
+                  Crear en Catálogos
+                </Link>
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Inventario */}
@@ -427,41 +487,54 @@ export const CreateProductForm = ({
                 <p className="text-xs text-gray-500">Aparecerá primero en el catálogo</p>
               </div>
               <Switch
-                {...register('featured')}
                 id="featured"
                 checked={featured}
-                onCheckedChange={setFeatured}
+                onCheckedChange={(checked) => {
+                  setFeatured(checked)
+                  setValue('featured', checked)
+                }}
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Botones solo para EDITAR producto - NO mostrar cuando esté creando */}
-      {editingProduct && (
-        <div className="flex gap-3 pt-4 border-t border-gray-200 mt-6">
+      {/* Botones de acción del formulario */}
+      <div className="flex gap-3 pt-4 border-t border-gray-200 mt-6">
+        {!editingProduct ? (
           <Button
             type="submit"
             className="flex-1 bg-orange hover:bg-orange/90"
             disabled={loading}
-            onClick={onUpdateProduct}
           >
             <Loader loading={loading}>
-              Actualizar producto
+              Crear producto
             </Loader>
           </Button>
-          {onCancel && (
+        ) : (
+          <>
             <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              className="flex-1"
+              type="submit"
+              className="flex-1 bg-orange hover:bg-orange/90"
+              disabled={loading}
             >
-              Cancelar
+              <Loader loading={loading}>
+                Actualizar producto
+              </Loader>
             </Button>
-          )}
-        </div>
-      )}
+            {onCancel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+            )}
+          </>
+        )}
+      </div>
     </form>
     </div>
   )

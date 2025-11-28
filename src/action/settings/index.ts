@@ -156,6 +156,11 @@ export const onGetCurrentCompanyInfo = async (companyId: string) => {
                 material: true,
                 texture: true,
                 season: true,
+                features: {
+                  select: {
+                    featureId: true,
+                  },
+                },
               },
             },
             categories: true,
@@ -616,9 +621,13 @@ export const onCreateNewCompanyProduct = async (
     images?: string[]
     seasonId?: string
     care?: string
+    featureIds?: string[]
   }
 ) => {
   try {
+    // Separar featureIds del resto de productData
+    const { featureIds, ...restProductData } = productData || {}
+    
     const product = await client.company.update({
       where: {
         id,
@@ -629,7 +638,15 @@ export const onCreateNewCompanyProduct = async (
             name,
             image,
             price: parseInt(price),
-            ...productData,
+            ...restProductData,
+            // Agregar características si existen
+            ...(featureIds && featureIds.length > 0 && {
+              features: {
+                create: featureIds.map(featureId => ({
+                  featureId
+                }))
+              }
+            })
           },
         },
       },
@@ -692,17 +709,42 @@ export const onUpdateCompanyProduct = async (
     images?: string[]
     seasonId?: string
     care?: string
+    featureIds?: string[]
   }
 ) => {
   try {
+    // Separar featureIds del resto de productData
+    const { featureIds, ...restProductData } = productData || {}
+    
     const updateData: any = {
       name,
       price: parseInt(price),
-      ...productData,
+      ...restProductData,
     }
 
     if (image) {
       updateData.image = image
+    }
+
+    // Si hay featureIds, actualizar las características
+    if (featureIds !== undefined) {
+      // Primero eliminar todas las características existentes
+      await client.productFeature.deleteMany({
+        where: {
+          productId: productId
+        }
+      })
+      
+      // Luego crear las nuevas si hay alguna seleccionada
+      if (featureIds.length > 0) {
+        await client.productFeature.createMany({
+          data: featureIds.map(featureId => ({
+            productId: productId,
+            featureId: featureId
+          })),
+          skipDuplicates: true
+        })
+      }
     }
 
     const product = await client.product.update({
