@@ -88,14 +88,14 @@ export const TABS_MENU: TABS_MENU_PROPS[] = [
         label: 'todos',
         icon: <Mail />
     },
-    {
+    /* {
         label: 'expirados',
         icon: <TimerIcon />
     },
     {
         label: 'favoritos',
         icon: <StarIcon />
-    }
+    } */
 ]
 
 export const HELP_DESK_TABS_MENU: TABS_MENU_PROPS[] = [

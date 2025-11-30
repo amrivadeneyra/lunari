@@ -7,7 +7,7 @@ import { TABS_MENU } from '@/constants/menu'
 import { TabsContent } from '../ui/tabs'
 import ConversationSearch from './search'
 import { Loader } from '../loader'
-import ChatCard from './chat-card'
+import CustomerConversationGroup from './customer-group'
 
 type Props = {
   company?:
@@ -32,29 +32,28 @@ const ConversationMenu = ({ company }: Props) => {
           <h2 className="font-bold text-base md:text-lg lg:text-xl text-gray-900">Conversaciones</h2>
         </div>
       </div>
-      
+
       <div className="flex-1 p-3 md:p-4 lg:p-6 overflow-hidden">
         <TabsMenu triggers={TABS_MENU} onTabChange={changeActiveTab} value={activeTab}>
           <TabsContent value="no leidos" className="mt-3 md:mt-4">
-            <ConversationSearch
+            {/* <ConversationSearch
               company={company}
               register={register}
               setValue={setValue}
-            />
-            <div className="flex flex-col gap-2 mt-3 md:mt-4 overflow-y-auto">
+            /> */}
+            <div className="flex flex-col mt-3 md:mt-4 overflow-y-auto">
               <Loader loading={loading}>
                 {chatRooms.length ? (
-                  chatRooms.map((room) => (
-                    <ChatCard
-                      seen={room.conversations[0].message[0]?.seen}
-                      id={room.conversations[0].id}
-                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
-                      createdAt={room.conversations[0].message[0]?.createdAt}
-                      key={room.conversations[0].id}
-                      title={room.email!}
-                      description={room.conversations[0].message[0]?.message}
-                      isFavorite={room.conversations[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
+                  chatRooms.map((customerGroup) => (
+                    <CustomerConversationGroup
+                      key={customerGroup.id || customerGroup.email}
+                      customerId={customerGroup.id}
+                      customerName={customerGroup.name}
+                      customerEmail={customerGroup.email}
+                      conversations={customerGroup.conversations}
+                      onGetActiveChatMessages={onGetActiveChatMessages}
+                      toggleFavorite={toggleFavorite}
+                      defaultExpanded={false}
                     />
                   ))
                 ) : (
@@ -76,25 +75,24 @@ const ConversationMenu = ({ company }: Props) => {
             </div>
           </TabsContent>
           <TabsContent value="todos" className="mt-3 md:mt-4">
-            <ConversationSearch
+            {/* <ConversationSearch
               company={company}
               register={register}
               setValue={setValue}
-            />
-            <div className="flex flex-col gap-2 mt-3 md:mt-4 overflow-y-auto">
+            /> */}
+            <div className="flex flex-col mt-6 md:mt-7 overflow-y-auto">
               <Loader loading={loading}>
                 {chatRooms.length ? (
-                  chatRooms.map((room) => (
-                    <ChatCard
-                      seen={room.conversations[0].message[0]?.seen}
-                      id={room.conversations[0].id}
-                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
-                      createdAt={room.conversations[0].message[0]?.createdAt}
-                      key={room.conversations[0].id}
-                      title={room.email!}
-                      description={room.conversations[0].message[0]?.message}
-                      isFavorite={room.conversations[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
+                  chatRooms.map((customerGroup) => (
+                    <CustomerConversationGroup
+                      key={customerGroup.id || customerGroup.email}
+                      customerId={customerGroup.id}
+                      customerName={customerGroup.name}
+                      customerEmail={customerGroup.email}
+                      conversations={customerGroup.conversations}
+                      onGetActiveChatMessages={onGetActiveChatMessages}
+                      toggleFavorite={toggleFavorite}
+                      defaultExpanded={false}
                     />
                   ))
                 ) : (
@@ -116,25 +114,24 @@ const ConversationMenu = ({ company }: Props) => {
             </div>
           </TabsContent>
           <TabsContent value="expirados" className="mt-3 md:mt-4">
-            <ConversationSearch
+            {/* <ConversationSearch
               company={company}
               register={register}
               setValue={setValue}
-            />
-            <div className="flex flex-col gap-2 mt-3 md:mt-4 overflow-y-auto">
+            /> */}
+            <div className="flex flex-col mt-6 md:mt-7 overflow-y-auto">
               <Loader loading={loading}>
                 {chatRooms.length ? (
-                  chatRooms.map((room) => (
-                    <ChatCard
-                      seen={room.conversations[0].message[0]?.seen}
-                      id={room.conversations[0].id}
-                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
-                      createdAt={room.conversations[0].message[0]?.createdAt}
-                      key={room.conversations[0].id}
-                      title={room.email!}
-                      description={room.conversations[0].message[0]?.message}
-                      isFavorite={room.conversations[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
+                  chatRooms.map((customerGroup) => (
+                    <CustomerConversationGroup
+                      key={customerGroup.id || customerGroup.email}
+                      customerId={customerGroup.id}
+                      customerName={customerGroup.name}
+                      customerEmail={customerGroup.email}
+                      conversations={customerGroup.conversations}
+                      onGetActiveChatMessages={onGetActiveChatMessages}
+                      toggleFavorite={toggleFavorite}
+                      defaultExpanded={false}
                     />
                   ))
                 ) : (
@@ -156,25 +153,24 @@ const ConversationMenu = ({ company }: Props) => {
             </div>
           </TabsContent>
           <TabsContent value="favoritos" className="mt-3 md:mt-4">
-            <ConversationSearch
+            {/* <ConversationSearch
               company={company}
               register={register}
               setValue={setValue}
-            />
-            <div className="flex flex-col gap-2 mt-3 md:mt-4 overflow-y-auto">
+            /> */}
+            <div className="flex flex-col mt-3 md:mt-4 overflow-y-auto">
               <Loader loading={loading}>
                 {chatRooms.length ? (
-                  chatRooms.map((room) => (
-                    <ChatCard
-                      seen={room.conversations[0].message[0]?.seen}
-                      id={room.conversations[0].id}
-                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
-                      createdAt={room.conversations[0].message[0]?.createdAt}
-                      key={room.conversations[0].id}
-                      title={room.email!}
-                      description={room.conversations[0].message[0]?.message}
-                      isFavorite={room.conversations[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
+                  chatRooms.map((customerGroup) => (
+                    <CustomerConversationGroup
+                      key={customerGroup.id || customerGroup.email}
+                      customerId={customerGroup.id}
+                      customerName={customerGroup.name}
+                      customerEmail={customerGroup.email}
+                      conversations={customerGroup.conversations}
+                      onGetActiveChatMessages={onGetActiveChatMessages}
+                      toggleFavorite={toggleFavorite}
+                      defaultExpanded={false}
                     />
                   ))
                 ) : (

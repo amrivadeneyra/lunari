@@ -11,6 +11,12 @@ const openai = new OpenAi({
   apiKey: process.env.OPEN_AI_KEY,
 });
 
+/**
+ * Función para activar o desactivar el modo en tiempo real
+ * @param id - ID de la conversación
+ * @param state - true si se activa el modo en tiempo real, false si se desactiva
+ * @returns - El estado de la conversación actualizado
+ */
 export const onToggleRealtime = async (id: string, state: boolean) => {
   try {
     const chatRoom = await client.conversation.update({
@@ -40,7 +46,12 @@ export const onToggleRealtime = async (id: string, state: boolean) => {
   }
 };
 
-// Nueva función para actualizar el estado de la conversación
+/**
+ * Función para actualizar el estado de la conversación
+ * @param conversationId - ID de la conversación
+ * @param state - El nuevo estado de la conversación
+ * @returns - El estado de la conversación actualizado
+ */
 export const onUpdateConversationState = async (conversationId: string, state: ConversationState) => {
   try {
     const chatRoom = await client.conversation.update({
@@ -63,7 +74,6 @@ export const onUpdateConversationState = async (conversationId: string, state: C
       },
     });
 
-    // ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO MANUALMENTE
     if (state === 'ESCALATED' && chatRoom?.Customer && chatRoom.Customer.companyId) {
       try {
         const companyOwner = await client.company.findFirst({
@@ -106,6 +116,11 @@ export const onUpdateConversationState = async (conversationId: string, state: C
   }
 };
 
+/**
+ * Función para obtener el modo de la conversación
+ * @param id - ID de la conversación
+ * @returns - El modo de la conversación
+ */
 export const onGetConversationMode = async (id: string) => {
   try {
     const mode = await client.conversation.findUnique({
@@ -123,6 +138,11 @@ export const onGetConversationMode = async (id: string) => {
   }
 };
 
+/**
+ * Función para obtener las conversaciones de una empresa en tiempo real
+ * @param id - ID de la empresa
+ * @returns - Las conversaciones de la empresa
+ */
 export const onGetCompanyChatRooms = async (id: string) => {
   try {
 
@@ -177,6 +197,11 @@ export const onGetCompanyChatRooms = async (id: string) => {
   } catch (error) { }
 }
 
+/**
+ * Función para obtener los mensajes de una conversación
+ * @param id - ID de la conversación
+ * @returns - Los mensajes de la conversación
+ */
 export const onGetChatMessages = async (id: string) => {
   try {
     const messages = await client.conversation.findUnique({
@@ -209,6 +234,10 @@ export const onGetChatMessages = async (id: string) => {
   } catch (error) { }
 }
 
+/**
+ * Función para marcar un mensaje como leído
+ * @param id - ID de la conversación
+ */
 export const onViewUnReadMessages = async (id: string) => {
   try {
     await client.chatMessage.updateMany({
@@ -224,6 +253,13 @@ export const onViewUnReadMessages = async (id: string) => {
   }
 }
 
+/**
+ * Función para enviar un mensaje desde el asistente
+ * @param chatroomId - ID de la conversación
+ * @param message - Mensaje a enviar
+ * @param id - ID del mensaje
+ * @param role - Rol del mensaje (user o assistant)
+ */
 export const onRealTimeChat = async (
   chatroomId: string,
   message: string,
@@ -239,6 +275,13 @@ export const onRealTimeChat = async (
   })
 }
 
+/**
+ * Función para enviar un mensaje desde el asistente
+ * @param chatroom - ID de la conversación
+ * @param message - Mensaje a enviar
+ * @param role - Rol del mensaje (user o assistant)
+ * @returns - La conversación actualizada
+ */
 export const onOwnerSendMessage = async (
   chatroom: string,
   message: string,
@@ -250,7 +293,7 @@ export const onOwnerSendMessage = async (
         id: chatroom,
       },
       data: {
-        live: true, // Activar modo live
+        live: true,
         messages: {
           create: {
             message,
@@ -295,6 +338,12 @@ export const onOwnerSendMessage = async (
   } catch (error) { }
 }
 
+/**
+ * Función para agregar o quitar una conversación de favoritos
+ * @param conversationId - ID de la conversación
+ * @param isFavorite - true si se agrega a favoritos, false si se quita de favoritos
+ * @returns - El estado de la conversación actualizada
+ */
 export const onToggleFavorite = async (conversationId: string, isFavorite: boolean) => {
   try {
     const chatRoom = await client.conversation.update({
@@ -328,11 +377,14 @@ export const onToggleFavorite = async (conversationId: string, isFavorite: boole
   }
 }
 
-// NUEVA FUNCIÓN: Obtener todas las conversaciones agrupadas por cliente
+/**
+ * Función para obtener todas las conversaciones agrupadas por cliente
+ * @param id - ID de la empresa
+ * @returns - Las conversaciones de la empresa agrupadas por cliente
+ */
 export const onGetAllCompanyChatRooms = async (id: string) => {
   try {
 
-    // Obtener todas las conversaciones del dominio
     const allChatRooms = await client.conversation.findMany({
       where: {
         Customer: {
@@ -341,6 +393,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
       },
       select: {
         id: true,
+        title: true,
         createdAt: true,
         updatedAt: true,
         live: true,
@@ -375,7 +428,24 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
       },
     })
 
-    // Agrupar por cliente (email) y tomar solo la conversación más reciente de cada cliente
+    const conversationIds = allChatRooms.map((room: any) => room.id)
+
+    const unreadCounts = await client.chatMessage.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: conversationIds },
+        role: 'assistant',
+        seen: false,
+      },
+      _count: {
+        id: true,
+      },
+    })
+
+    const unreadCountMap = new Map(
+      unreadCounts.map((item) => [item.conversationId, item._count.id])
+    )
+
     const groupedByCustomer = new Map()
 
     allChatRooms.forEach(chatRoom => {
@@ -386,18 +456,36 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
           id: (chatRoom as any).Customer?.id,
           email: (chatRoom as any).Customer?.email,
           name: (chatRoom as any).Customer?.name,
-          conversations: [{
-            id: chatRoom.id,
-            createdAt: chatRoom.createdAt,
-            updatedAt: chatRoom.updatedAt,
-            live: chatRoom.live,
-            isFavorite: (chatRoom as any).isFavorite,
-            conversationState: (chatRoom as any).conversationState,
-            lastUserActivityAt: (chatRoom as any).lastUserActivityAt,
-            message: (chatRoom as any).message
-          }]
+          conversations: []
         })
       }
+
+      const customerGroup = groupedByCustomer.get(customerEmail)
+
+      const unreadCount = unreadCountMap.get(chatRoom.id) || 0
+
+      const lastMessage = (chatRoom as any).messages?.[0]
+      const hasUnreadMessages = unreadCount > 0 || (lastMessage?.role === 'assistant' && !lastMessage?.seen)
+
+      customerGroup.conversations.push({
+        id: chatRoom.id,
+        title: chatRoom.title,
+        createdAt: chatRoom.createdAt,
+        updatedAt: chatRoom.updatedAt,
+        live: chatRoom.live,
+        isFavorite: (chatRoom as any).isFavorite,
+        conversationState: (chatRoom as any).conversationState,
+        lastUserActivityAt: (chatRoom as any).lastUserActivityAt,
+        hasUnreadMessages,
+        unreadCount,
+        message: (chatRoom as any).messages || []
+      })
+    })
+
+    groupedByCustomer.forEach((customerGroup) => {
+      customerGroup.conversations.sort((a: any, b: any) => {
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      })
     })
 
     const result = {
