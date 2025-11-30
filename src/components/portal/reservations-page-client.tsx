@@ -115,7 +115,7 @@ export function ReservationsPageClient({ companyId }: ReservationsPageClientProp
                 lastCustomerId.current = customerId
                 console.log('Datos cargados exitosamente')
             } catch (error) {
-                console.error('❌ Error loading bookings:', error)
+                console.error('Error loading bookings:', error)
                 // En caso de error, permitir reintento
                 hasLoadedData.current = false
                 loadAttemptedRef.current = null

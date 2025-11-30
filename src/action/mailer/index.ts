@@ -39,8 +39,8 @@ export const sendEmail = async (
     const info = await transporter.sendMail(mailOptions)
     return { success: true, messageId: info.messageId, response: info.response }
   } catch (error) {
-    console.error('❌ Error al enviar email:', error)
-    console.error('❌ Detalles del error:', {
+    console.error('Error al enviar email:', error)
+    console.error('Detalles del error:', {
       code: error.code,
       command: error.command,
       message: error.message
@@ -251,7 +251,7 @@ export const onMailer = async (email: string, customerName?: string, customerEma
     const info = await transporter.sendMail(mailOptions)
     return { success: true, messageId: info.messageId }
   } catch (error) {
-    console.error('❌ Error enviando email de escalación:', error)
+    console.error('Error enviando email de escalación:', error)
     return { success: false, error: error }
   }
 }

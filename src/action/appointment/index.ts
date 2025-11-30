@@ -120,7 +120,7 @@ export const onBookNewAppointment = async (
 
                 console.log('Email de confirmación de cita enviado exitosamente')
             } catch (emailError) {
-                console.error('❌ Error al enviar email de confirmación:', emailError)
+                console.error('Error al enviar email de confirmación:', emailError)
             }
 
             return {
@@ -130,7 +130,7 @@ export const onBookNewAppointment = async (
             }
         }
     } catch (error) {
-        console.error('❌ Error al reservar cita:', error)
+        console.error('Error al reservar cita:', error)
         return { status: 500, message: 'Error al reservar la cita' }
     }
 }

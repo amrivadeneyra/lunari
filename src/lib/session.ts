@@ -122,7 +122,7 @@ export const validateSessionToken = async (
     })
 
     if (!customer || !customer.status) {
-      console.log('❌ Token válido pero cliente no existe o inactivo')
+      console.log('Token válido pero cliente no existe o inactivo')
       return null
     }
 
@@ -141,7 +141,7 @@ export const validateSessionToken = async (
     if (error instanceof jwt.TokenExpiredError) {
       console.log('⏰ Token expirado')
     } else if (error instanceof jwt.JsonWebTokenError) {
-      console.log('❌ Token inválido')
+      console.log('Token inválido')
     } else {
       console.error('Error al validar token:', error)
     }

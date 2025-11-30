@@ -517,7 +517,7 @@ Tu opinión nos ayuda a mejorar.`
           )
         }
       } catch (error) {
-        console.error('❌ Error enviando email de escalación:', error)
+        console.error('Error enviando email de escalación:', error)
       }
 
       const transferMessage = `¡Muchas gracias por tu calificación de ${satisfactionRating}/5! 😊
@@ -643,7 +643,7 @@ Tu opinión me ayuda a mejorar.`
         )
       }
     } catch (error) {
-      console.error('❌ Error enviando email de solicitud de humano:', error)
+      console.error('Error enviando email de solicitud de humano:', error)
     }
 
     // Marcar como esperando calificación antes de escalar
@@ -1015,7 +1015,7 @@ const saveCompleteChatSession = async (
     return uniqueMessages
 
   } catch (error) {
-    console.error('❌ Error al guardar chat completo:', error)
+    console.error('Error al guardar chat completo:', error)
     throw error
   }
 }
@@ -1730,7 +1730,7 @@ const generateProductsContext = async (
 
     if (filteredProducts.length === 0) {
       return {
-        content: `\n❌ No encontramos productos que coincidan exactamente con: ${[...preferences.materials, ...preferences.categories, ...preferences.textures,
+        content: `\nNo encontramos productos que coincidan exactamente con: ${[...preferences.materials, ...preferences.categories, ...preferences.textures,
         ...preferences.seasons, ...preferences.uses, ...preferences.features,
         ...preferences.colors].join(', ')
           }. Tenemos ${chatBotCompany.products.length} productos disponibles en total.`
@@ -1897,13 +1897,13 @@ ${helpdeskContext}${productsContext.content}
 - Ejemplo cálido: "¡Me encanta que te interese! Te puedo ayudar con toda la información sobre nuestros productos. Para realizar tu compra, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría que te ayude con eso?"
 
 EJEMPLOS DE RESPUESTAS CÁLIDAS:
-❌ Evita: "De acuerdo. Procesando tu solicitud. Aquí está la información."
+Evita: "De acuerdo. Procesando tu solicitud. Aquí está la información."
 ✅ Mejor: "¡Perfecto! Me encanta ayudarte con eso. Aquí tienes toda la información que necesitas 😊"
 
-❌ Evita: "Entendido. Especifica tus preferencias."
+Evita: "Entendido. Especifica tus preferencias."
 ✅ Mejor: "¡Claro! Para recomendarte lo mejor, ¿me cuentas qué tipo de proyecto tienes en mente?"
 
-❌ Evita: "Información del producto: [datos]"
+Evita: "Información del producto: [datos]"
 ✅ Mejor: "¡Excelente elección! Este producto es perfecto para lo que buscas. Te cuento los detalles: [datos con entusiasmo]"
 
 Responde en español, de forma natural, cálida y genuinamente amigable. Usa el nombre del cliente cuando sea apropiado. Sé útil, empático y NUNCA inventes información.`,
@@ -2063,7 +2063,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
             return {
               response: {
                 role: 'assistant' as const,
-                content: `❌ Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
+                content: `Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
               }
             }
           }
@@ -2198,7 +2198,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
               return {
                 response: {
                   role: 'assistant' as const,
-                  content: `❌ Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
+                  content: `Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
                 }
               }
             }
