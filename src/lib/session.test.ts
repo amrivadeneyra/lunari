@@ -44,7 +44,7 @@ describe('session', () => {
       expect(result.sessionData.customerId).toBe('customer-123')
       expect(result.sessionData.email).toBe('test@example.com')
       expect(result.sessionData.companyId).toBe('company-123')
-      expect(result.sessionData.chatRoomId).toBe('chatroom-123')
+      expect(result.sessionData.conversationId).toBe('chatroom-123')
     })
 
     it('debe lanzar error si el cliente no existe', async () => {
@@ -71,7 +71,7 @@ describe('session', () => {
           customerId: 'customer-123',
           email: 'test@example.com',
           companyId: 'company-123',
-          chatRoomId: 'chatroom-123',
+          conversationId: 'chatroom-123',
         },
         'test-secret-key',
         {
@@ -104,7 +104,7 @@ describe('session', () => {
           customerId: 'customer-123',
           email: 'test@example.com',
           companyId: 'company-123',
-          chatRoomId: 'chatroom-123',
+          conversationId: 'chatroom-123',
         },
         'test-secret-key',
         {
@@ -135,7 +135,7 @@ describe('session', () => {
           customerId: 'customer-123',
           email: 'test@example.com',
           companyId: 'company-123',
-          chatRoomId: 'chatroom-123',
+          conversationId: 'chatroom-123',
         },
         'test-secret-key',
         {

@@ -53,7 +53,7 @@ export const onGetDashboardMetrics = async () => {
         })
 
         // Conversaciones activas (chats con mensajes recientes)
-        const activeConversations = await client.chatRoom.count({
+        const activeConversations = await client.conversation.count({
             where: {
                 Customer: { companyId },
                 live: false,
@@ -80,7 +80,7 @@ export const onGetDashboardMetrics = async () => {
         })
 
         // Chats en tiempo real (urgentes)
-        const urgentChats = await client.chatRoom.count({
+        const urgentChats = await client.conversation.count({
             where: {
                 Customer: { companyId },
                 live: true
@@ -130,7 +130,7 @@ export const onGetUrgentChats = async () => {
 
         const companyId = userCompany.company.id
 
-        const urgentChats = await client.chatRoom.findMany({
+        const urgentChats = await client.conversation.findMany({
             where: {
                 Customer: { companyId },
                 live: true
@@ -146,7 +146,7 @@ export const onGetUrgentChats = async () => {
                         email: true
                     }
                 },
-                message: {
+                messages: {
                     select: {
                         message: true,
                         createdAt: true,
@@ -246,7 +246,7 @@ export const onGetRecentActivity = async () => {
         const companyId = userCompany.company.id
 
         // Obtener últimas conversaciones
-        const recentChats = await client.chatRoom.findMany({
+        const recentChats = await client.conversation.findMany({
             where: {
                 Customer: { companyId }
             },
@@ -345,7 +345,7 @@ export const onGetConversationStats = async () => {
             const nextDate = new Date(date)
             nextDate.setDate(nextDate.getDate() + 1)
 
-            const count = await client.chatRoom.count({
+            const count = await client.conversation.count({
                 where: {
                     Customer: { companyId },
                     createdAt: {
@@ -397,7 +397,7 @@ export const onGetWeeklyStats = async () => {
         })
 
         // Total de conversaciones
-        const totalConversations = await client.chatRoom.count({
+        const totalConversations = await client.conversation.count({
             where: {
                 Customer: { companyId },
                 createdAt: { gte: oneWeekAgo }
@@ -415,7 +415,7 @@ export const onGetWeeklyStats = async () => {
         // Total de mensajes
         const totalMessages = await client.chatMessage.count({
             where: {
-                ChatRoom: {
+                Conversation: {
                     Customer: { companyId }
                 },
                 createdAt: { gte: oneWeekAgo }

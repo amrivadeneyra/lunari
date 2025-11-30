@@ -39,8 +39,8 @@ export const sendEmail = async (
     const info = await transporter.sendMail(mailOptions)
     return { success: true, messageId: info.messageId, response: info.response }
   } catch (error) {
-    console.error('❌ Error al enviar email:', error)
-    console.error('❌ Detalles del error:', {
+    console.error('Error al enviar email:', error)
+    console.error('Detalles del error:', {
       code: error.code,
       command: error.command,
       message: error.message
@@ -147,7 +147,7 @@ export const sendAppointmentConfirmation = async (
           
           <div style="background: #FFE0BD; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 3px solid #FFA947;">
             <p style="margin: 0; color: #4E4E4E; font-size: 14px;">
-              <strong>✅ Confirmación:</strong> El cliente ha recibido una confirmación automática de su cita.
+              <strong>Confirmación:</strong> El cliente ha recibido una confirmación automática de su cita.
             </p>
           </div>
           
@@ -251,7 +251,7 @@ export const onMailer = async (email: string, customerName?: string, customerEma
     const info = await transporter.sendMail(mailOptions)
     return { success: true, messageId: info.messageId }
   } catch (error) {
-    console.error('❌ Error enviando email de escalación:', error)
+    console.error('Error enviando email de escalación:', error)
     return { success: false, error: error }
   }
 }

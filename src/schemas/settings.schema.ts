@@ -34,6 +34,7 @@ export type AddProductProps = {
   colors?: string
   seasonId?: string
   care?: string
+  featureIds?: string[]
 }
 
 export type FilterQuestionsProps = {
@@ -114,10 +115,21 @@ export const AddProductSchema = z.object({
     .min(3, { message: 'El nombre debe tener al menos 3 caracteres' }),
   image: z
     .any()
-    .refine((files) => files?.[0]?.size <= MAX_UPLOAD_SIZE, {
+    .optional()
+    .refine((files) => {
+      // Si no hay archivo, está bien (usaremos imagen por defecto)
+      if (!files || !files[0]) return true
+      // Si hay archivo, validar tamaño y tipo
+      return files[0].size <= MAX_UPLOAD_SIZE
+    }, {
       message: 'El tamaño del archivo debe ser menor a 2MB',
     })
-    .refine((files) => ACCEPTED_FILE_TYPES.includes(files?.[0]?.type), {
+    .refine((files) => {
+      // Si no hay archivo, está bien (usaremos imagen por defecto)
+      if (!files || !files[0]) return true
+      // Si hay archivo, validar tipo
+      return ACCEPTED_FILE_TYPES.includes(files[0].type)
+    }, {
       message: 'Solo se aceptan archivos JPG, JPEG & PNG',
     }),
   price: z.string(),
@@ -141,4 +153,6 @@ export const AddProductSchema = z.object({
   // Temporada (ID de relación)
   seasonId: z.string().optional(),
   care: z.string().optional(),
+  // Características (IDs de relación many-to-many)
+  featureIds: z.array(z.string()).optional(),
 })

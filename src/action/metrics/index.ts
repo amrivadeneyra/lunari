@@ -168,7 +168,7 @@ export const getFirstInteractionResolutionRate = async (dateRange?: { from: Date
     }
 
     // Obtener todas las conversaciones con su tipo de resolución
-    const chatRooms = await client.chatRoom.findMany({
+    const chatRooms = await client.conversation.findMany({
       where: whereClause,
       select: {
         resolutionType: true,

@@ -316,7 +316,7 @@ describe('Conversation Actions', () => {
       await onViewUnReadMessages('chatroom-123')
 
       expect(mockPrismaClient.chatMessage.updateMany).toHaveBeenCalledWith({
-        where: { chatRoomId: 'chatroom-123' },
+        where: { conversationId: 'chatroom-123' },
         data: { seen: true },
       })
     })

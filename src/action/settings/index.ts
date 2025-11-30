@@ -88,7 +88,7 @@ export const onGetAccountCompany = async () => {
             icon: true,
             customer: {
               select: {
-                chatRoom: {
+                conversations: {
                   select: {
                     id: true,
                     live: true,
@@ -156,6 +156,11 @@ export const onGetCurrentCompanyInfo = async (companyId: string) => {
                 material: true,
                 texture: true,
                 season: true,
+                features: {
+                  select: {
+                    featureId: true,
+                  },
+                },
               },
             },
             categories: true,
@@ -246,8 +251,11 @@ export const onChatBotImageUpdate = async (id: string, icon: string) => {
       },
       data: {
         chatBot: {
-          update: {
-            data: {
+          upsert: {
+            create: {
+              icon,
+            },
+            update: {
               icon,
             },
           },
@@ -282,8 +290,11 @@ export const onUpdateWelcomeMessage = async (
       },
       data: {
         chatBot: {
-          update: {
-            data: {
+          upsert: {
+            create: {
+              welcomeMessage: message,
+            },
+            update: {
               welcomeMessage: message,
             },
           },
@@ -379,7 +390,11 @@ export const onCreateHelpDeskQuestion = async (
       message: 'Oops! algo salió mal',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onCreateHelpDeskQuestion:', error)
+    return {
+      status: 400,
+      message: 'Error al crear la pregunta. Por favor, intenta nuevamente.',
+    }
   }
 }
 
@@ -398,11 +413,16 @@ export const onGetAllHelpDeskQuestions = async (id: string) => {
 
     return {
       status: 200,
-      message: 'Nueva pregunta agregada',
+      message: 'Preguntas obtenidas exitosamente',
       questions: questions,
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onGetAllHelpDeskQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al obtener las preguntas',
+      questions: [],
+    }
   }
 }
 
@@ -505,7 +525,11 @@ export const onCreateFilterQuestions = async (id: string, question: string) => {
       message: 'Oops! algo salió mal',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onCreateFilterQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al crear la pregunta. Por favor, intenta nuevamente.',
+    }
   }
 }
 
@@ -526,11 +550,16 @@ export const onGetAllFilterQuestions = async (id: string) => {
 
     return {
       status: 200,
-      message: '',
+      message: 'Preguntas obtenidas exitosamente',
       questions: questions,
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onGetAllFilterQuestions:', error)
+    return {
+      status: 400,
+      message: 'Error al obtener las preguntas',
+      questions: [],
+    }
   }
 }
 
@@ -585,7 +614,7 @@ export const onDeleteFilterQuestion = async (questionId: string) => {
       message: 'Error al eliminar la pregunta',
     }
   } catch (error) {
-    console.log(error)
+    console.log('Error en onDeleteFilterQuestion:', error)
     return {
       status: 400,
       message: 'Error al eliminar la pregunta',
@@ -616,9 +645,13 @@ export const onCreateNewCompanyProduct = async (
     images?: string[]
     seasonId?: string
     care?: string
+    featureIds?: string[]
   }
 ) => {
   try {
+    // Separar featureIds del resto de productData
+    const { featureIds, ...restProductData } = productData || {}
+
     const product = await client.company.update({
       where: {
         id,
@@ -629,7 +662,15 @@ export const onCreateNewCompanyProduct = async (
             name,
             image,
             price: parseInt(price),
-            ...productData,
+            ...restProductData,
+            // Agregar características si existen
+            ...(featureIds && featureIds.length > 0 && {
+              features: {
+                create: featureIds.map(featureId => ({
+                  featureId
+                }))
+              }
+            })
           },
         },
       },
@@ -692,17 +733,42 @@ export const onUpdateCompanyProduct = async (
     images?: string[]
     seasonId?: string
     care?: string
+    featureIds?: string[]
   }
 ) => {
   try {
+    // Separar featureIds del resto de productData
+    const { featureIds, ...restProductData } = productData || {}
+
     const updateData: any = {
       name,
       price: parseInt(price),
-      ...productData,
+      ...restProductData,
     }
 
     if (image) {
       updateData.image = image
+    }
+
+    // Si hay featureIds, actualizar las características
+    if (featureIds !== undefined) {
+      // Primero eliminar todas las características existentes
+      await client.productFeature.deleteMany({
+        where: {
+          productId: productId
+        }
+      })
+
+      // Luego crear las nuevas si hay alguna seleccionada
+      if (featureIds.length > 0) {
+        await client.productFeature.createMany({
+          data: featureIds.map(featureId => ({
+            productId: productId,
+            featureId: featureId
+          })),
+          skipDuplicates: true
+        })
+      }
     }
 
     const product = await client.product.update({
@@ -1259,5 +1325,128 @@ export const onToggleFeature = async (id: string) => {
   } catch (error) {
     console.log(error)
     return { status: 400, message: 'Error al actualizar estado' }
+  }
+}
+
+// Eliminar cuenta completa del usuario y todos los datos asociados
+export const onDeleteAccount = async () => {
+  const user = await currentUser()
+
+  if (!user) {
+    return {
+      status: 401,
+      message: 'No autorizado'
+    }
+  }
+
+  try {
+    // 1. Obtener el usuario de la base de datos y verificar que tiene una company
+    const dbUser = await client.user.findUnique({
+      where: {
+        clerkId: user.id,
+      },
+      select: {
+        id: true,
+        company: {
+          select: {
+            id: true,
+            userId: true,
+          }
+        }
+      }
+    })
+
+    if (!dbUser) {
+      return {
+        status: 404,
+        message: 'Usuario no encontrado en la base de datos'
+      }
+    }
+
+    if (!dbUser.company) {
+      return {
+        status: 400,
+        message: 'No tienes una empresa asociada para eliminar'
+      }
+    }
+
+    // Verificar que el usuario es el dueño de la company
+    if (dbUser.company.userId !== dbUser.id) {
+      return {
+        status: 403,
+        message: 'No tienes permisos para eliminar esta cuenta'
+      }
+    }
+
+    const companyId = dbUser.company.id
+    const clerkIdToDelete = user.id
+
+    // 2. Eliminar Bookings asociados a la company (no tienen cascade)
+    await client.bookings.deleteMany({
+      where: {
+        companyId: companyId
+      }
+    })
+
+    // 3. Eliminar ConversationMetrics y CustomerSatisfaction asociados a la company
+    // (aunque tienen cascade, los borramos manualmente por companyId para asegurar limpieza completa)
+    await client.conversationMetrics.deleteMany({
+      where: {
+        companyId: companyId
+      }
+    })
+
+    await client.customerSatisfaction.deleteMany({
+      where: {
+        companyId: companyId
+      }
+    })
+
+    // 4. Eliminar Campaigns asociadas al usuario
+    await client.campaign.deleteMany({
+      where: {
+        userId: dbUser.id
+      }
+    })
+
+    // 5. Eliminar la Company (esto borrará automáticamente todos los datos relacionados con cascade):
+    // - ChatBot
+    // - Customer (y sus CustomerResponses, ChatRoom, Bookings, ProductReservation, CustomerSatisfaction)
+    // - FilterQuestions
+    // - HelpDesk
+    // - Product (y sus ProductUse, ProductFeature, ProductReservation)
+    // - AvailabilitySchedule
+    // - Category, Material, Texture, Season, Use, Feature
+    await client.company.delete({
+      where: {
+        id: companyId
+      }
+    })
+
+    // 6. Eliminar el User de la base de datos
+    await client.user.delete({
+      where: {
+        id: dbUser.id
+      }
+    })
+
+    // 7. Eliminar el usuario de Clerk (solo la cuenta del proyecto)
+    try {
+      await clerkClient.users.deleteUser(clerkIdToDelete)
+    } catch (clerkError) {
+      console.error('Error al eliminar usuario de Clerk:', clerkError)
+      // Continuamos aunque falle Clerk, ya que los datos de la DB ya fueron eliminados
+    }
+
+    return {
+      status: 200,
+      message: 'Cuenta eliminada exitosamente. Todos los datos asociados han sido eliminados.'
+    }
+  } catch (error) {
+    console.error('Error al eliminar cuenta:', error)
+    return {
+      status: 500,
+      message: 'Error al eliminar la cuenta. Por favor, intenta nuevamente.'
+    }
   }
 }

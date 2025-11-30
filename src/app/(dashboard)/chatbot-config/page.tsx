@@ -22,7 +22,6 @@ const ChatbotConfigPage = async ({ params }: Props) => {
         name={currentCompany.name}
         chatBot={currentCompany.chatBot}
         helpdesk={currentCompany.helpdesk || []}
-        filterQuestions={currentCompany.filterQuestions || []}
       />
     </div>
   )

@@ -22,6 +22,7 @@ export function ChatbotWidget({ companyId, className }: ChatbotWidgetProps) {
     onChats,
     register,
     onStartChatting,
+    onStartChattingWithConversationId,
     onAiTyping,
     messageWindowRef,
     currentBot,
@@ -35,7 +36,19 @@ export function ChatbotWidget({ companyId, className }: ChatbotWidgetProps) {
     isHumanMode,
     onToggleHumanMode,
     isToggleDisabled,
-  } = useChatBot(companyId) // ✅ Pasar companyId directamente
+  } = useChatBot(companyId) // Pasar companyId directamente
+
+  // Wrapper para adaptar onStartChatting a la firma de onChat
+  // En el portal no hay lista de chats, así que siempre llamamos sin conversationId
+  const handleChat = (conversationId?: string) => {
+    if (conversationId) {
+      // Si se pasa un conversationId, usar la función específica
+      onStartChattingWithConversationId(conversationId)
+    } else {
+      // Si no hay conversationId, usar onStartChatting normal (comportamiento del portal)
+      onStartChatting()
+    }
+  }
 
   // Función para agregar producto al carrito desde el chatbot
   const handleProductRecommended = (productId: string, productName: string) => {
@@ -61,7 +74,7 @@ export function ChatbotWidget({ companyId, className }: ChatbotWidgetProps) {
             textColor={currentBot?.chatBot?.textColor}
             chats={onChats}
             register={register}
-            onChat={onStartChatting}
+            onChat={handleChat}
             onResponding={onAiTyping}
             sessionData={sessionData}
             isAuthenticated={isAuthenticated}

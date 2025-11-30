@@ -33,6 +33,30 @@ html {
   scrollbar-width: none;
 }
 
+/* Scrollbar personalizado transparente */
+.scrollbar-custom::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+/* Firefox */
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-custom:hover {
+  scrollbar-color: #9D9FA1 transparent;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -72,6 +96,7 @@ html {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -88,11 +113,13 @@ html {
   border-bottom-left-radius: 2px;
   display: inline-block;
 }
+
 .typing {
   align-items: center;
   display: flex;
   height: 17px;
 }
+
 .typing .dot {
   animation: mercuryTypingAnimation 1.8s infinite ease-in-out;
   background-color: #ffc989;
@@ -103,15 +130,19 @@ html {
   width: 7px;
   display: inline-block;
 }
+
 .typing .dot:nth-child(1) {
   animation-delay: 200ms;
 }
+
 .typing .dot:nth-child(2) {
   animation-delay: 300ms;
 }
+
 .typing .dot:nth-child(3) {
   animation-delay: 400ms;
 }
+
 .typing .dot:last-child {
   margin-right: 0;
 }
@@ -121,10 +152,12 @@ html {
     transform: translateY(0px);
     background-color: #ffc989;
   }
+
   28% {
     transform: translateY(-7px);
     background-color: #ffa947;
   }
+
   44% {
     transform: translateY(0px);
     background-color: #f1f1f1;
@@ -141,4 +174,3 @@ html {
   width: 100% !important;
   border-radius: 20px;
 }
-

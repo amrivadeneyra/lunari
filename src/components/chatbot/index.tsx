@@ -16,6 +16,7 @@ const AiChatBot = (props: Props) => {
     onChats,
     register,
     onStartChatting,
+    onStartChattingWithConversationId,
     onAiTyping,
     messageWindowRef,
     currentBot,
@@ -31,12 +32,16 @@ const AiChatBot = (props: Props) => {
     isHumanMode,
     onToggleHumanMode,
     isToggleDisabled,
+    setCurrentChatRoom,
+    setSelectedConversationId,
   } = useChatBot()
+
 
   return (
     <div className="h-screen flex flex-col justify-end items-end gap-4 pr-4 pb-4">
       {botOpened && (
         <BotWindow
+          key="bot-window" // Agregar key para forzar re-render cuando cambian las props
           errors={errors}
           setChat={setOnChats}
           realtimeMode={onRealTime}
@@ -48,7 +53,7 @@ const AiChatBot = (props: Props) => {
           textColor={currentBot?.chatBot?.textColor}
           chats={onChats}
           register={register}
-          onChat={onStartChatting}
+          onChat={onStartChattingWithConversationId}
           onResponding={onAiTyping}
           // Pasar datos de sesión
           sessionData={sessionData}
@@ -58,6 +63,9 @@ const AiChatBot = (props: Props) => {
           isHumanMode={isHumanMode}
           onToggleHumanMode={onToggleHumanMode}
           isToggleDisabled={isToggleDisabled}
+          // Pasar setCurrentChatRoom para actualizar cuando se selecciona una conversación
+          setCurrentChatRoom={setCurrentChatRoom}
+          setSelectedConversationId={setSelectedConversationId}
         />
       )}
       <div

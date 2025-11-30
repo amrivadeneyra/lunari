@@ -16,7 +16,7 @@ export interface SessionData {
   name?: string
   phone?: string
   companyId: string
-  chatRoomId: string
+  conversationId: string
 }
 
 export interface SessionToken {
@@ -44,7 +44,7 @@ export const generateSessionToken = async (
   customerId: string,
   email: string,
   companyId: string,
-  chatRoomId: string
+  conversationId: string
 ): Promise<SessionToken> => {
   try {
     // Obtener datos completos del cliente
@@ -69,7 +69,7 @@ export const generateSessionToken = async (
       name: customer.name || undefined,
       phone: customer.phone || undefined,
       companyId,
-      chatRoomId,
+      conversationId,
     }
 
     // Generar token JWT
@@ -122,11 +122,11 @@ export const validateSessionToken = async (
     })
 
     if (!customer || !customer.status) {
-      console.log('❌ Token válido pero cliente no existe o inactivo')
+      console.log('Token válido pero cliente no existe o inactivo')
       return null
     }
 
-    console.log(`✅ Sesión válida para: ${customer.email}`)
+    console.log(`Sesión válida para: ${customer.email}`)
 
     // Retornar datos actualizados de la BD
     return {
@@ -135,13 +135,13 @@ export const validateSessionToken = async (
       name: customer.name || decoded.name,
       phone: customer.phone || decoded.phone,
       companyId: decoded.companyId,
-      chatRoomId: decoded.chatRoomId,
+      conversationId: decoded.conversationId,
     }
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
       console.log('⏰ Token expirado')
     } else if (error instanceof jwt.JsonWebTokenError) {
-      console.log('❌ Token inválido')
+      console.log('Token inválido')
     } else {
       console.error('Error al validar token:', error)
     }
@@ -175,7 +175,7 @@ export const getCustomerFromToken = async (
         status: true,
         totalInteractions: true,
         lastActiveAt: true,
-        chatRoom: {
+        conversations: {
           where: {
             Customer: {
               companyId: companyId
@@ -191,8 +191,7 @@ export const getCustomerFromToken = async (
           },
           orderBy: {
             updatedAt: 'desc'
-          },
-          take: 1
+          }
         }
       }
     })
@@ -219,7 +218,7 @@ export const refreshTokenIfNeeded = async (
 ): Promise<SessionToken | null> => {
   try {
     const decoded = jwt.decode(token) as any
-    
+
     if (!decoded || !decoded.exp) {
       return null
     }
@@ -246,7 +245,7 @@ export const refreshTokenIfNeeded = async (
       sessionData.customerId,
       sessionData.email,
       sessionData.companyId,
-      sessionData.chatRoomId
+      sessionData.conversationId
     )
 
     return newToken
@@ -264,9 +263,8 @@ export const refreshTokenIfNeeded = async (
 export const invalidateSession = async (customerId: string): Promise<void> => {
   try {
     // En una implementación completa, aquí se agregaría el token a una blacklist
-    // Por ahora, solo registramos el evento
     console.log(`🚪 Sesión invalidada para cliente: ${customerId}`)
-    
+
     // Opcional: Actualizar última actividad
     await client.customer.update({
       where: { id: customerId },

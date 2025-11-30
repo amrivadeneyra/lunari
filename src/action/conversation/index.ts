@@ -1,17 +1,25 @@
 "use server";
 
 import { client } from "@/lib/prisma";
-// ✅ COMENTADO: Pusher Server (plan agotado)
-// import { pusherServer } from "@/lib/utils";
-// ✅ NUEVO: Socket.io Server
 import { socketServer } from "@/lib/utils";
 import { ConversationState } from "@prisma/client";
 import { clerkClient } from '@clerk/nextjs';
 import { onMailer } from '../mailer';
+import OpenAi from 'openai';
 
+const openai = new OpenAi({
+  apiKey: process.env.OPEN_AI_KEY,
+});
+
+/**
+ * Función para activar o desactivar el modo en tiempo real
+ * @param id - ID de la conversación
+ * @param state - true si se activa el modo en tiempo real, false si se desactiva
+ * @returns - El estado de la conversación actualizado
+ */
 export const onToggleRealtime = async (id: string, state: boolean) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
         id,
       },
@@ -38,12 +46,17 @@ export const onToggleRealtime = async (id: string, state: boolean) => {
   }
 };
 
-// Nueva función para actualizar el estado de la conversación
-export const onUpdateConversationState = async (chatRoomId: string, state: ConversationState) => {
+/**
+ * Función para actualizar el estado de la conversación
+ * @param conversationId - ID de la conversación
+ * @param state - El nuevo estado de la conversación
+ * @returns - El estado de la conversación actualizado
+ */
+export const onUpdateConversationState = async (conversationId: string, state: ConversationState) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
-        id: chatRoomId,
+        id: conversationId,
       },
       data: {
         conversationState: state,
@@ -61,7 +74,6 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
       },
     });
 
-    // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO MANUALMENTE
     if (state === 'ESCALATED' && chatRoom?.Customer && chatRoom.Customer.companyId) {
       try {
         const companyOwner = await client.company.findFirst({
@@ -84,7 +96,7 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
           )
         }
       } catch (error) {
-        console.error('❌ Error enviando email de escalación manual:', error)
+        console.error('Error enviando email de escalación manual:', error)
       }
     }
 
@@ -104,9 +116,14 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
   }
 };
 
+/**
+ * Función para obtener el modo de la conversación
+ * @param id - ID de la conversación
+ * @returns - El modo de la conversación
+ */
 export const onGetConversationMode = async (id: string) => {
   try {
-    const mode = await client.chatRoom.findUnique({
+    const mode = await client.conversation.findUnique({
       where: {
         id,
       },
@@ -121,6 +138,11 @@ export const onGetConversationMode = async (id: string) => {
   }
 };
 
+/**
+ * Función para obtener las conversaciones de una empresa en tiempo real
+ * @param id - ID de la empresa
+ * @returns - Las conversaciones de la empresa
+ */
 export const onGetCompanyChatRooms = async (id: string) => {
   try {
 
@@ -135,7 +157,7 @@ export const onGetCompanyChatRooms = async (id: string) => {
             id: true,
             email: true,
             name: true,
-            chatRoom: {
+            conversations: {
               select: {
                 createdAt: true,
                 id: true,
@@ -147,7 +169,7 @@ export const onGetCompanyChatRooms = async (id: string) => {
                 conversationState: true,
                 // @ts-ignore
                 lastUserActivityAt: true,
-                message: {
+                messages: {
                   select: {
                     message: true,
                     createdAt: true,
@@ -175,16 +197,21 @@ export const onGetCompanyChatRooms = async (id: string) => {
   } catch (error) { }
 }
 
+/**
+ * Función para obtener los mensajes de una conversación
+ * @param id - ID de la conversación
+ * @returns - Los mensajes de la conversación
+ */
 export const onGetChatMessages = async (id: string) => {
   try {
-    const messages = await client.chatRoom.findUnique({
+    const messages = await client.conversation.findUnique({
       where: {
         id,
       },
       select: {
         id: true,
         live: true,
-        message: {
+        messages: {
           select: {
             id: true,
             role: true,
@@ -207,11 +234,15 @@ export const onGetChatMessages = async (id: string) => {
   } catch (error) { }
 }
 
+/**
+ * Función para marcar un mensaje como leído
+ * @param id - ID de la conversación
+ */
 export const onViewUnReadMessages = async (id: string) => {
   try {
     await client.chatMessage.updateMany({
       where: {
-        chatRoomId: id,
+        conversationId: id,
       },
       data: {
         seen: true,
@@ -222,22 +253,19 @@ export const onViewUnReadMessages = async (id: string) => {
   }
 }
 
+/**
+ * Función para enviar un mensaje desde el asistente
+ * @param chatroomId - ID de la conversación
+ * @param message - Mensaje a enviar
+ * @param id - ID del mensaje
+ * @param role - Rol del mensaje (user o assistant)
+ */
 export const onRealTimeChat = async (
   chatroomId: string,
   message: string,
   id: string,
   role: 'user' | 'assistant'
 ) => {
-  // ✅ COMENTADO: Pusher Server (plan agotado)
-  // pusherServer.trigger(chatroomId, 'realtime-mode', {
-  //   chat: {
-  //     message,
-  //     id,
-  //     role,
-  //   },
-  // })
-
-  // ✅ NUEVO: Socket.io Server
   await socketServer.trigger(chatroomId, 'realtime-mode', {
     chat: {
       message,
@@ -247,20 +275,26 @@ export const onRealTimeChat = async (
   })
 }
 
+/**
+ * Función para enviar un mensaje desde el asistente
+ * @param chatroom - ID de la conversación
+ * @param message - Mensaje a enviar
+ * @param role - Rol del mensaje (user o assistant)
+ * @returns - La conversación actualizada
+ */
 export const onOwnerSendMessage = async (
   chatroom: string,
   message: string,
   role: 'user' | 'assistant'
 ) => {
   try {
-    // ✅ ACTIVAR MODO REAL TIME cuando el agente envía mensaje
-    const chat = await client.chatRoom.update({
+    const chat = await client.conversation.update({
       where: {
         id: chatroom,
       },
       data: {
-        live: true, // ✅ Activar modo live
-        message: {
+        live: true,
+        messages: {
           create: {
             message,
             role: role,
@@ -268,7 +302,7 @@ export const onOwnerSendMessage = async (
         },
       },
       select: {
-        message: {
+        messages: {
           select: {
             id: true,
             role: true,
@@ -286,21 +320,8 @@ export const onOwnerSendMessage = async (
 
     if (chat) {
 
-      // ENVIAR MENSAJE A TRAVÉS DE PUSHER PARA TIEMPO REAL
-      const newMessage = chat.message[0]
+      const newMessage = chat.messages[0]
       if (newMessage) {
-        // ✅ COMENTADO: Pusher Server (plan agotado)
-        // await pusherServer.trigger(chatroom, 'realtime-mode', {
-        //   chat: {
-        //     message: newMessage.message,
-        //     id: newMessage.id,
-        //     role: newMessage.role,
-        //     createdAt: newMessage.createdAt,
-        //     seen: newMessage.seen
-        //   }
-        // })
-
-        // ✅ NUEVO: Socket.io Server
         await socketServer.trigger(chatroom, 'realtime-mode', {
           chat: {
             message: newMessage.message,
@@ -317,11 +338,17 @@ export const onOwnerSendMessage = async (
   } catch (error) { }
 }
 
-export const onToggleFavorite = async (chatRoomId: string, isFavorite: boolean) => {
+/**
+ * Función para agregar o quitar una conversación de favoritos
+ * @param conversationId - ID de la conversación
+ * @param isFavorite - true si se agrega a favoritos, false si se quita de favoritos
+ * @returns - El estado de la conversación actualizada
+ */
+export const onToggleFavorite = async (conversationId: string, isFavorite: boolean) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
-        id: chatRoomId,
+        id: conversationId,
       },
       data: {
         // @ts-ignore
@@ -350,12 +377,15 @@ export const onToggleFavorite = async (chatRoomId: string, isFavorite: boolean) 
   }
 }
 
-// ✅ NUEVA FUNCIÓN: Obtener todas las conversaciones agrupadas por cliente
+/**
+ * Función para obtener todas las conversaciones agrupadas por cliente
+ * @param id - ID de la empresa
+ * @returns - Las conversaciones de la empresa agrupadas por cliente
+ */
 export const onGetAllCompanyChatRooms = async (id: string) => {
   try {
 
-    // Obtener todas las conversaciones del dominio
-    const allChatRooms = await client.chatRoom.findMany({
+    const allChatRooms = await client.conversation.findMany({
       where: {
         Customer: {
           companyId: id
@@ -363,6 +393,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
       },
       select: {
         id: true,
+        title: true,
         createdAt: true,
         updatedAt: true,
         live: true,
@@ -379,7 +410,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
             name: true,
           }
         },
-        message: {
+        messages: {
           select: {
             message: true,
             createdAt: true,
@@ -397,7 +428,24 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
       },
     })
 
-    // Agrupar por cliente (email) y tomar solo la conversación más reciente de cada cliente
+    const conversationIds = allChatRooms.map((room: any) => room.id)
+
+    const unreadCounts = await client.chatMessage.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: conversationIds },
+        role: 'assistant',
+        seen: false,
+      },
+      _count: {
+        id: true,
+      },
+    })
+
+    const unreadCountMap = new Map(
+      unreadCounts.map((item) => [item.conversationId, item._count.id])
+    )
+
     const groupedByCustomer = new Map()
 
     allChatRooms.forEach(chatRoom => {
@@ -408,18 +456,36 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
           id: (chatRoom as any).Customer?.id,
           email: (chatRoom as any).Customer?.email,
           name: (chatRoom as any).Customer?.name,
-          chatRoom: [{
-            id: chatRoom.id,
-            createdAt: chatRoom.createdAt,
-            updatedAt: chatRoom.updatedAt,
-            live: chatRoom.live,
-            isFavorite: (chatRoom as any).isFavorite,
-            conversationState: (chatRoom as any).conversationState,
-            lastUserActivityAt: (chatRoom as any).lastUserActivityAt,
-            message: (chatRoom as any).message
-          }]
+          conversations: []
         })
       }
+
+      const customerGroup = groupedByCustomer.get(customerEmail)
+
+      const unreadCount = unreadCountMap.get(chatRoom.id) || 0
+
+      const lastMessage = (chatRoom as any).messages?.[0]
+      const hasUnreadMessages = unreadCount > 0 || (lastMessage?.role === 'assistant' && !lastMessage?.seen)
+
+      customerGroup.conversations.push({
+        id: chatRoom.id,
+        title: chatRoom.title,
+        createdAt: chatRoom.createdAt,
+        updatedAt: chatRoom.updatedAt,
+        live: chatRoom.live,
+        isFavorite: (chatRoom as any).isFavorite,
+        conversationState: (chatRoom as any).conversationState,
+        lastUserActivityAt: (chatRoom as any).lastUserActivityAt,
+        hasUnreadMessages,
+        unreadCount,
+        message: (chatRoom as any).messages || []
+      })
+    })
+
+    groupedByCustomer.forEach((customerGroup) => {
+      customerGroup.conversations.sort((a: any, b: any) => {
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      })
     })
 
     const result = {
@@ -428,7 +494,175 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
 
     return result
   } catch (error) {
-    console.log('❌ Error en onGetAllCompanyChatRooms:', error)
+    console.log('Error en onGetAllCompanyChatRooms:', error)
+    return null
+  }
+}
+
+/**
+ * Función para obtener las conversaciones de un cliente específico
+ * @param customerId - El ID del cliente
+ * @returns Las conversaciones del cliente
+ */
+export const onGetCustomerConversations = async (customerId: string) => {
+  try {
+    const conversations = await client.conversation.findMany({
+      where: {
+        customerId,
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        live: true,
+        conversationState: true,
+        messages: {
+          select: {
+            message: true,
+            createdAt: true,
+            role: true,
+            seen: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    })
+
+    return conversations
+  } catch (error) {
+    console.log('Error en onGetCustomerConversations:', error)
+    return null
+  }
+}
+
+/**
+ * Genera un título para la conversación usando OpenAI
+ * Máximo 5 palabras basado en el contexto del mensaje del usuario
+ */
+export const generateConversationTitle = async (userMessage: string): Promise<string | null> => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Eres un asistente que genera títulos cortos para conversaciones. Genera un título de máximo 5 palabras que resuma el tema principal del mensaje del usuario. Responde SOLO con el título, sin explicaciones adicionales.'
+        },
+        {
+          role: 'user',
+          content: `Genera un título corto (máximo 5 palabras) para este mensaje: "${userMessage}"`
+        }
+      ],
+      max_tokens: 20,
+      temperature: 0.7,
+    })
+
+    const title = response.choices[0]?.message?.content?.trim() || null
+    return title
+  } catch (error) {
+    console.error('Error al generar título de conversación:', error)
+    return null
+  }
+}
+
+/**
+ * Crea una nueva conversación con título generado
+ * IMPORTANTE: Solo guarda el mensaje de bienvenida. El mensaje del usuario
+ * se guardará cuando se procese en onAiChatBotAssistant para evitar duplicación.
+ * 
+ * @param customerId - ID del cliente
+ * @param companyId - ID de la empresa (para validación)
+ * @param userMessage - Mensaje inicial del usuario (solo para generar el título)
+ * @param welcomeMessage - Mensaje de bienvenida del asistente
+ * @returns Objeto con conversationId y title, o null si hay error
+ */
+export const onCreateNewConversation = async (
+  customerId: string,
+  companyId: string,
+  userMessage: string,
+  welcomeMessage: string
+): Promise<{ conversationId: string; title: string } | null> => {
+  if (!customerId || !companyId || !userMessage || !welcomeMessage) {
+    console.error('Error: Parámetros requeridos faltantes en onCreateNewConversation')
+    return null
+  }
+
+  try {
+    const customer = await client.customer.findFirst({
+      where: {
+        id: customerId,
+        companyId: companyId,
+      },
+      select: {
+        id: true,
+      }
+    })
+
+    if (!customer) {
+      console.error(`Error: Cliente ${customerId} no encontrado o no pertenece a la empresa ${companyId}`)
+      return null
+    }
+
+    let title = 'Nueva conversación'
+    try {
+      const generatedTitle = await generateConversationTitle(userMessage)
+      if (generatedTitle) {
+        title = generatedTitle
+      }
+    } catch (titleError) {
+      console.warn('⚠️ No se pudo generar título, usando título por defecto:', titleError)
+    }
+
+    const result = await client.$transaction(async (tx) => {
+      // Crear la conversación
+      const conversation = await tx.conversation.create({
+        data: {
+          customerId,
+          title,
+          conversationState: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          title: true,
+        }
+      })
+
+      // Solo crear el mensaje de bienvenida del asistente
+      // El mensaje del usuario se guardará cuando se procese en onAiChatBotAssistant
+      await tx.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          message: welcomeMessage,
+          role: 'assistant',
+        }
+      })
+
+      return {
+        conversationId: conversation.id,
+        title: conversation.title || title,
+      }
+    })
+
+    return result
+  } catch (error) {
+    console.error('Error al crear nueva conversación:', error)
+    // Log más detallado en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Detalles del error:', {
+        customerId,
+        companyId,
+        userMessageLength: userMessage.length,
+        welcomeMessageLength: welcomeMessage.length,
+        error: error instanceof Error ? error.message : error
+      })
+    }
     return null
   }
 }

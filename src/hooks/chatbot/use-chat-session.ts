@@ -66,7 +66,7 @@ export const useChatSession = () => {
           }
         }
       } catch (error) {
-        console.error('❌ Error al cargar sesión:', error)
+        console.error('Error al cargar sesión:', error)
         // Limpiar directamente
         localStorage.removeItem('lunari_session_token')
         localStorage.removeItem('lunari_session_data')
@@ -160,7 +160,7 @@ export const useChatSession = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Error al cargar sesión:', error)
+      console.error('Error al cargar sesión:', error)
       clearSession()
     }
     return false
@@ -190,7 +190,7 @@ export const useChatSession = () => {
         window.dispatchEvent(new Event('lunari_session_updated'))
       }, 0)
     } catch (error) {
-      console.error('❌ Error al guardar sesión:', error)
+      console.error('Error al guardar sesión:', error)
     }
   }
 
@@ -219,7 +219,7 @@ export const useChatSession = () => {
 
       console.log('Sesión limpiada')
     } catch (error) {
-      console.error('❌ Error al limpiar sesión:', error)
+      console.error('Error al limpiar sesión:', error)
     }
   }
 

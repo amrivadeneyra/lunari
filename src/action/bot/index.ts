@@ -38,6 +38,84 @@ const getRelevantChatHistory = (
   return [firstMessage, ...recentMessages]
 }
 
+/**
+ * Helper function para obtener y validar el conversationId correcto
+ * Prioridad: conversationId proporcionado > realtimeMode.chatroom > conversación única
+ * 
+ * IMPORTANTE: NO usa conversations[0].id como fallback si hay múltiples conversaciones
+ * para evitar guardar mensajes en la conversación incorrecta.
+ * 
+ * @param conversationId - ID de conversación proporcionado explícitamente
+ * @param customerInfo - Información del cliente con sus conversaciones
+ * @param realtimeMode - Modo tiempo real con chatroom
+ * @returns El conversationId válido o null si no se puede determinar
+ * @throws Error si hay múltiples conversaciones y no se proporciona conversationId
+ */
+const getValidConversationId = (
+  conversationId: string | undefined | null,
+  customerInfo: any,
+  realtimeMode?: { chatroom: string; mode: boolean } | undefined
+): string | null => {
+  const conversations = customerInfo?.conversations || []
+  const hasMultipleConversations = conversations.length > 1
+
+  // 1. Si se proporciona conversationId explícitamente, validar que pertenezca al customer
+  if (conversationId) {
+    const isValid = conversations.some(
+      (conv: any) => conv.id === conversationId
+    )
+    if (isValid) {
+      return conversationId
+    }
+    console.warn(`⚠️ ConversationId ${conversationId} no pertenece al customer`)
+    // Si el conversationId no es válido, no usar fallback - lanzar error
+    if (hasMultipleConversations) {
+      throw new Error(
+        `ConversationId ${conversationId} no pertenece al customer. ` +
+        `Hay ${conversations.length} conversaciones disponibles. ` +
+        `Se requiere un conversationId válido cuando hay múltiples conversaciones.`
+      )
+    }
+  }
+
+  // 2. Si hay realtimeMode con chatroom, validar que pertenezca al customer
+  if (realtimeMode?.chatroom) {
+    const isValid = conversations.some(
+      (conv: any) => conv.id === realtimeMode.chatroom
+    )
+    if (isValid) {
+      return realtimeMode.chatroom
+    }
+    console.warn(`⚠️ RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer`)
+    // Si el chatroom no es válido y hay múltiples conversaciones, lanzar error
+    if (hasMultipleConversations) {
+      throw new Error(
+        `RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer. ` +
+        `Hay ${conversations.length} conversaciones disponibles. ` +
+        `Se requiere un conversationId válido cuando hay múltiples conversaciones.`
+      )
+    }
+  }
+
+  // 3. Fallback SEGURO: Solo usar si hay UNA sola conversación
+  // Esto es seguro porque no hay ambigüedad sobre qué conversación usar
+  if (conversations.length === 1) {
+    return conversations[0].id
+  }
+
+  // 4. Si hay múltiples conversaciones y no se proporcionó conversationId válido, lanzar error
+  if (hasMultipleConversations) {
+    throw new Error(
+      `No se puede determinar el conversationId. ` +
+      `El customer tiene ${conversations.length} conversaciones y no se proporcionó un conversationId explícito. ` +
+      `Se requiere especificar el conversationId cuando hay múltiples conversaciones para evitar guardar mensajes en la conversación incorrecta.`
+    )
+  }
+
+  // 5. Si no hay conversaciones, retornar null
+  return null
+}
+
 export const onStoreConversations = async (
   id: string,
   message: string,
@@ -49,7 +127,7 @@ export const onStoreConversations = async (
     // Obtener el último mensaje del usuario
     const lastUserMessage = await client.chatMessage.findFirst({
       where: {
-        chatRoomId: id,
+        conversationId: id,
         role: 'user',
       },
       orderBy: {
@@ -75,10 +153,10 @@ export const onStoreConversations = async (
         message
       )
 
-      await client.chatRoom.update({
+      await client.conversation.update({
         where: { id },
         data: {
-          message: {
+          messages: {
             create: {
               message,
               role,
@@ -97,10 +175,10 @@ export const onStoreConversations = async (
   }
 
   // Para mensajes del usuario o si no hay mensaje previo
-  await client.chatRoom.update({
+  await client.conversation.update({
     where: { id },
     data: {
-      message: {
+      messages: {
         create: {
           message,
           role,
@@ -135,19 +213,17 @@ export const onGetCurrentChatBot = async (idOrName: string) => {
             helpdesk: true,
           },
         },
-        // ✅ AGREGAR INFORMACIÓN DE CHATROOM PARA EL TOGGLE
         customer: {
           select: {
-            chatRoom: {
+            conversations: {
               select: {
                 id: true,
                 conversationState: true,
                 live: true,
               },
               orderBy: {
-                createdAt: 'desc'
-              },
-              take: 1
+                updatedAt: 'desc' // Ordenar por última actualización para mostrar las más recientes primero
+              }
             }
           }
         }
@@ -202,14 +278,14 @@ interface CustomerInfo {
   id: string
   email: string
   questions: any[]
-  chatRoom: Array<{ id: string; live: boolean; mailed: boolean }>
+  conversations: Array<{ id: string; live?: boolean; mailed?: boolean }>
 }
 
 // ============================================
 // DETECCIÓN DE ESCALACIÓN A HUMANO
 // ============================================
 /**
- * ✅ Detecta automáticamente cuando el cliente quiere hablar con un humano
+ * Detecta automáticamente cuando el cliente quiere hablar con un humano
  */
 const detectHumanTransferRequest = (message: string): boolean => {
   const humanKeywords = [
@@ -231,7 +307,7 @@ const detectHumanTransferRequest = (message: string): boolean => {
 // OPTIMIZACIÓN: Respuestas rápidas sin OpenAI
 // ============================================
 /**
- * ✅ SIMPLIFICADO: Genera respuestas instantáneas para casos comunes
+ * SIMPLIFICADO: Genera respuestas instantáneas para casos comunes
  * Reduce latencia de 2-5s a 50ms y ahorra tokens
  */
 const getQuickResponse = (
@@ -253,13 +329,6 @@ const getQuickResponse = (
   if (/^(hola|hi|hey|buenos días|buenas tardes|buenas noches|qué tal)\.?$/i.test(lowerMsg)) {
     return {
       content: `¡Hola ${customerInfo.name || ''}! Soy Lunari AI. 😊`
-    }
-  }
-
-  // 3. Horarios
-  if (/\b(horario|hora de atención|cuándo abren|está abierto|abren)\b/.test(lowerMsg)) {
-    return {
-      content: 'Nuestro horario de atención es de lunes a viernes de 9:00 AM a 6:00 PM.'
     }
   }
 
@@ -289,17 +358,35 @@ const handleAuthenticatedUser = async (
   chat: { role: 'user' | 'assistant'; content: string }[],
   companyId: string,
   chatBotCompany: any,
-  sessionToken: string
+  sessionToken: string,
+  conversationId?: string | null
 ) => {
+  console.log("🚀 ~ conversationId:", conversationId)
+  // Obtener el conversationId válido usando la función helper
+  const validConversationId = getValidConversationId(
+    conversationId,
+    customerInfo,
+    undefined // realtimeMode se puede pasar si es necesario
+  )
 
-  // ✅ SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
-  if (!customerInfo.chatRoom[0].live) {
-    // ✅ NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
+  if (!validConversationId) {
+    throw new Error('No se pudo determinar un conversationId válido')
+  }
+
+  // Encontrar la conversación específica
+  const currentConversation = customerInfo.conversations.find(
+    (conv: any) => conv.id === validConversationId
+  ) || customerInfo.conversations[0]
+
+  // SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
+  console.log("Usando conversationId: ", validConversationId)
+  if (!currentConversation.live) {
+    // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
 
     if (shouldEndConversation) {
       // Guardar mensaje del usuario
-      await onStoreConversations(customerInfo.chatRoom[0].id, message, 'user')
+      await onStoreConversations(validConversationId, message, 'user')
 
       // Solicitar calificación de forma simple
       const ratingMessage = `¡Perfecto! Me alegra haberte ayudado. 😊
@@ -312,11 +399,11 @@ Antes de que te vayas, ¿podrías calificar tu experiencia del 1 al 5?
 Tu opinión nos ayuda a mejorar.`
 
       // Guardar solicitud de feedback
-      await onStoreConversations(customerInfo.chatRoom[0].id, ratingMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, ratingMessage, 'assistant', message)
 
       // Marcar como esperando calificación
-      await client.chatRoom.update({
-        where: { id: customerInfo.chatRoom[0].id },
+      await client.conversation.update({
+        where: { id: validConversationId },
         data: {
           conversationState: 'AWAITING_RATING',
           resolved: true
@@ -333,22 +420,22 @@ Tu opinión nos ayuda a mejorar.`
     }
   }
 
-  // 0.1 ✅ Actualizar última actividad del usuario
-  await updateUserActivity(customerInfo.chatRoom[0].id)
+  // 0.1 Actualizar última actividad del usuario
+  await updateUserActivity(validConversationId)
 
-  // 0.2 ✅ Verificar estado de la conversación (SIN crear nuevas conversaciones)
+  // 0.2 Verificar estado de la conversación (SIN crear nuevas conversaciones)
   const conversationState = await handleConversationState(
-    customerInfo.chatRoom[0].id,
+    validConversationId,
     customerInfo.id,
     chatBotCompany.chatBot?.welcomeMessage || '¡Hola! ¿En qué puedo ayudarte?'
   )
 
-  // ✅ NUEVA LÓGICA: NO crear nuevas conversaciones, mantener la misma
+  // NUEVA LÓGICA: NO crear nuevas conversaciones, mantener la misma
   // Si la conversación está ENDED, simplemente reactivarla
   if (conversationState.shouldStartNew) {
     // Reactivar la conversación existente en lugar de crear una nueva
-    await client.chatRoom.update({
-      where: { id: customerInfo.chatRoom[0].id },
+    await client.conversation.update({
+      where: { id: validConversationId },
       data: {
         conversationState: 'ACTIVE',
         lastUserActivityAt: new Date(),
@@ -371,13 +458,13 @@ Tu opinión nos ayuda a mejorar.`
   // 1. FR4: Detectar si el usuario está calificando (1-5)
   const satisfactionRating = detectSatisfactionRating(message)
   if (satisfactionRating) {
-    // ✅ Guardar mensaje de calificación del usuario
-    await onStoreConversations(customerInfo.chatRoom[0].id, message, 'user')
+    // Guardar mensaje de calificación del usuario
+    await onStoreConversations(validConversationId, message, 'user')
 
-    // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
-    if (customerInfo.chatRoom[0].live) {
+    // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+    if (currentConversation.live) {
       await onRealTimeChat(
-        customerInfo.chatRoom[0].id,
+        validConversationId,
         message,
         `user-${Date.now()}`,
         'user'
@@ -385,33 +472,33 @@ Tu opinión nos ayuda a mejorar.`
     }
 
     await saveSatisfactionRating(
-      customerInfo.chatRoom[0].id,
+      validConversationId,
       customerInfo.id,
       companyId,
       satisfactionRating,
       message
     )
 
-    // ✅ VERIFICAR SI ESTABA ESPERANDO CALIFICACIÓN PARA ESCALAR
-    const chatRoom = await client.chatRoom.findUnique({
-      where: { id: customerInfo.chatRoom[0].id },
+    // VERIFICAR SI ESTABA ESPERANDO CALIFICACIÓN PARA ESCALAR
+    const chatRoom = await client.conversation.findUnique({
+      where: { id: validConversationId },
       select: { conversationState: true }
     })
 
     if (chatRoom?.conversationState === 'AWAITING_RATING') {
-      // ✅ ESCALAR A HUMANO DESPUÉS DE LA CALIFICACIÓN
-      await client.chatRoom.update({
-        where: { id: customerInfo.chatRoom[0].id },
+      // ESCALAR A HUMANO DESPUÉS DE LA CALIFICACIÓN
+      await client.conversation.update({
+        where: { id: validConversationId },
         data: {
           live: true,
           conversationState: 'ESCALATED' as any
         }
       })
 
-      // ✅ ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO
+      // ENVIAR EMAIL AL DUEÑO CUANDO SE ESCALA A HUMANO
       try {
         const companyOwner = await client.company.findFirst({
-          where: { id: companyId }, // ✅ Usar el companyId del parámetro
+          where: { id: companyId }, // Usar el companyId del parámetro
           select: {
             User: {
               select: {
@@ -430,14 +517,14 @@ Tu opinión nos ayuda a mejorar.`
           )
         }
       } catch (error) {
-        console.error('❌ Error enviando email de escalación:', error)
+        console.error('Error enviando email de escalación:', error)
       }
 
       const transferMessage = `¡Muchas gracias por tu calificación de ${satisfactionRating}/5! 😊
 
 Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nuestro equipo se pondrá en contacto contigo en breve. 👨‍💼`
 
-      await onStoreConversations(customerInfo.chatRoom[0].id, transferMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, transferMessage, 'assistant', message)
 
       return {
         response: {
@@ -445,18 +532,18 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
           content: transferMessage
         },
         live: true,
-        chatRoom: customerInfo.chatRoom[0].id,
+        chatRoom: validConversationId,
         sessionToken
       }
     } else {
-      // ✅ CALIFICACIÓN NORMAL (terminar conversación)
-      await markConversationAsEnded(customerInfo.chatRoom[0].id)
+      // CALIFICACIÓN NORMAL (terminar conversación)
+      await markConversationAsEnded(validConversationId)
 
       const thankYouMessage = `¡Muchas gracias por tu calificación de ${satisfactionRating}/5! Tu opinión es muy importante para nosotros y nos ayuda a mejorar nuestro servicio. 😊
 
 ¿Tienes alguna otra consulta o necesitas ayuda con algo más?`
 
-      await onStoreConversations(customerInfo.chatRoom[0].id, thankYouMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, thankYouMessage, 'assistant', message)
 
       return {
         response: {
@@ -469,17 +556,17 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
   }
 
   // 2. Manejar modo tiempo real si está activo
-  if (customerInfo.chatRoom[0].live) {
-    await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
+  if (currentConversation.live) {
+    await onStoreConversations(validConversationId, message, author)
 
     return {
       live: true,
-      chatRoom: customerInfo.chatRoom[0].id,
+      chatRoom: validConversationId,
       sessionToken // Mantener token
     }
   }
 
-  // 3. ✅ NUEVO: Preparar mensajes para guardar chat completo
+  // 3. NUEVO: Preparar mensajes para guardar chat completo
   const messagesToSave: {
     role: 'user' | 'assistant';
     content: string;
@@ -496,7 +583,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
       }
     ]
 
-  // ✅ 4. DETECCIÓN DE TRANSFERENCIA A HUMANO
+  // 4. DETECCIÓN DE TRANSFERENCIA A HUMANO
   if (detectHumanTransferRequest(message)) {
     console.log(`🚨 Solicitud de transferencia detectada: "${message}"`)
 
@@ -505,13 +592,13 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
       data: {
         message,
         role: 'user',
-        chatRoomId: customerInfo.chatRoom[0].id,
+        conversationId: validConversationId,
         responseTime: 0,
         respondedWithin2Hours: true
       }
     })
 
-    // ✅ SOLICITAR CALIFICACIÓN ANTES DE ESCALAR
+    // SOLICITAR CALIFICACIÓN ANTES DE ESCALAR
     const transferMessage = `Te comunicarás con un humano en breve. 😊
 
 Antes de transferirte, ¿podrías calificar mi ayuda del 1 al 5?
@@ -526,16 +613,16 @@ Tu opinión me ayuda a mejorar.`
       data: {
         message: transferMessage,
         role: 'assistant',
-        chatRoomId: customerInfo.chatRoom[0].id,
+        conversationId: validConversationId,
         responseTime: 0,
         respondedWithin2Hours: true
       }
     })
 
-    // ✅ ENVIAR EMAIL AL DUEÑO INMEDIATAMENTE CUANDO CLIENTE PIDE HUMANO
+    // ENVIAR EMAIL AL DUEÑO INMEDIATAMENTE CUANDO CLIENTE PIDE HUMANO
     try {
       const companyOwner = await client.company.findFirst({
-        where: { id: companyId }, // ✅ Usar el companyId del parámetro
+        where: { id: companyId }, // Usar el companyId del parámetro
         select: {
           User: {
             select: {
@@ -556,18 +643,18 @@ Tu opinión me ayuda a mejorar.`
         )
       }
     } catch (error) {
-      console.error('❌ Error enviando email de solicitud de humano:', error)
+      console.error('Error enviando email de solicitud de humano:', error)
     }
 
     // Marcar como esperando calificación antes de escalar
-    await client.chatRoom.update({
-      where: { id: customerInfo.chatRoom[0].id },
+    await client.conversation.update({
+      where: { id: validConversationId },
       data: {
-        conversationState: 'AWAITING_RATING' as any // ✅ Esperar calificación antes de escalar
+        conversationState: 'AWAITING_RATING' as any // Esperar calificación antes de escalar
       }
     })
 
-    console.log(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${customerInfo.chatRoom[0].id} - Cliente: ${customerInfo.email}`)
+    console.log(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
@@ -582,9 +669,9 @@ Tu opinión me ayuda a mejorar.`
   const quickResponse = getQuickResponse(message, customerInfo, companyId)
 
   if (quickResponse) {
-    console.log('✅ Respuesta rápida utilizada (sin OpenAI)')
+    console.log('Respuesta rápida utilizada (sin OpenAI)')
 
-    // ✅ SIMPLIFICADO: Agregar pregunta de ayuda
+    // SIMPLIFICADO: Agregar pregunta de ayuda
     const finalQuickContent = addHelpOffer(quickResponse.content)
 
     // Agregar respuesta rápida a los mensajes
@@ -596,15 +683,15 @@ Tu opinión me ayuda a mejorar.`
       respondedWithin2Hours: true // Siempre efectiva
     })
 
-    // ✅ NUEVO: Guardar chat completo
+    // NUEVO: Guardar chat completo
     await saveCompleteChatSession(
       customerInfo.id,
-      customerInfo.chatRoom[0].id,
+      validConversationId,
       companyId,
       messagesToSave
     )
 
-    await updateResolutionType(customerInfo.chatRoom[0].id, false)
+    await updateResolutionType(validConversationId, false)
 
     return {
       response: {
@@ -646,25 +733,25 @@ Tu opinión me ayuda a mejorar.`
       ...relevantHistory,
       { role: 'user', content: message }
     ],
-    model: 'gpt-3.5-turbo',
-    temperature: 0.7,
+    model: 'gpt-4o-mini', // Modelo más reciente y económico con mejor calidad conversacional
+    temperature: 0.85, // Temperatura más alta para respuestas más naturales y cálidas
     max_tokens: 300
   })
 
   // 8. Manejar respuesta
   const response = chatCompletion.choices[0].message.content
 
-  // ✅ Validar que la respuesta no sea null
+  // Validar que la respuesta no sea null
   if (!response) {
     throw new Error('OpenAI no retornó una respuesta válida')
   }
 
-  const result = await handleOpenAIResponse(response, customerInfo, chat, message)
+  const result = await handleOpenAIResponse(response, customerInfo, chat, message, validConversationId)
 
-  // ✅ SIMPLIFICADO: Agregar "¿Hay algo más en que te pueda ayudar?" a todas las respuestas
+  // SIMPLIFICADO: Agregar "¿Hay algo más en que te pueda ayudar?" a todas las respuestas
   const finalContent = addHelpOffer(result.response.content)
 
-  // 9. ✅ NUEVO: Agregar respuesta de OpenAI a los mensajes
+  // 9. NUEVO: Agregar respuesta de OpenAI a los mensajes
   messagesToSave.push({
     role: 'assistant' as const,
     content: finalContent,
@@ -673,16 +760,16 @@ Tu opinión me ayuda a mejorar.`
     respondedWithin2Hours: true // Respuesta inmediata
   })
 
-  // 10. ✅ NUEVO: Guardar chat completo con respuesta de OpenAI
+  // 10. NUEVO: Guardar chat completo con respuesta de OpenAI
   await saveCompleteChatSession(
     customerInfo.id,
-    customerInfo.chatRoom[0].id,
+    validConversationId,
     companyId,
     messagesToSave
   )
 
   // 10. Actualizar tipo de resolución
-  await updateResolutionType(customerInfo.chatRoom[0].id, false)
+  await updateResolutionType(validConversationId, false)
 
   return {
     ...result,
@@ -703,10 +790,10 @@ Tu opinión me ayuda a mejorar.`
  * Detecta si el usuario ha estado inactivo y debe finalizar la conversación
  * Inactividad = 5 minutos sin responder
  */
-const checkUserInactivity = async (chatRoomId: string): Promise<boolean> => {
+const checkUserInactivity = async (conversationId: string): Promise<boolean> => {
   try {
-    const chatRoom = await client.chatRoom.findUnique({
-      where: { id: chatRoomId },
+    const chatRoom = await client.conversation.findUnique({
+      where: { id: conversationId },
       select: {
         lastUserActivityAt: true,
         conversationState: true
@@ -733,11 +820,11 @@ const checkUserInactivity = async (chatRoomId: string): Promise<boolean> => {
 /**
  * Finaliza la conversación actual y solicita calificación
  */
-const endConversation = async (chatRoomId: string, customerId: string): Promise<string | null> => {
+const endConversation = async (conversationId: string, customerId: string): Promise<string | null> => {
   try {
     // Actualizar estado a AWAITING_RATING
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         conversationState: 'AWAITING_RATING',
         resolved: true,
@@ -755,10 +842,10 @@ const endConversation = async (chatRoomId: string, customerId: string): Promise<
  * Marca la conversación como temporalmente inactiva (NO como ENDED permanente)
  * Esto permite que se reactive cuando el usuario vuelva a escribir
  */
-const markConversationAsEnded = async (chatRoomId: string): Promise<void> => {
+const markConversationAsEnded = async (conversationId: string): Promise<void> => {
   try {
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         conversationState: 'IDLE', // Cambiar a IDLE en lugar de ENDED
         conversationEndedAt: new Date(),
@@ -771,50 +858,12 @@ const markConversationAsEnded = async (chatRoomId: string): Promise<void> => {
 }
 
 /**
- * Inicia una nueva conversación (después de una que terminó)
- * Mantiene el mismo cliente pero crea nueva sesión de chat
- */
-const startNewConversation = async (
-  customerId: string,
-  companyId: string,
-  welcomeMessage: string
-): Promise<{ chatRoomId: string; welcomeMessage: string }> => {
-  try {
-    // Obtener el número de conversaciones previas
-    const previousConversations = await client.chatRoom.count({
-      where: {
-        customerId,
-        conversationState: 'ENDED'
-      }
-    })
-
-    // Crear nuevo chatRoom para nueva conversación
-    const newChatRoom = await client.chatRoom.create({
-      data: {
-        customerId,
-        conversationState: 'ACTIVE',
-        conversationNumber: previousConversations + 1,
-        lastUserActivityAt: new Date(),
-      }
-    })
-
-    return {
-      chatRoomId: newChatRoom.id,
-      welcomeMessage: `¡Hola de nuevo! 👋 ${welcomeMessage}`
-    }
-  } catch (error) {
-    console.log('Error al iniciar nueva conversación:', error)
-    throw error
-  }
-}
-
-/**
  * Actualiza la última actividad del usuario
  */
-const updateUserActivity = async (chatRoomId: string): Promise<void> => {
+const updateUserActivity = async (conversationId: string): Promise<void> => {
   try {
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         lastUserActivityAt: new Date()
       }
@@ -828,13 +877,13 @@ const updateUserActivity = async (chatRoomId: string): Promise<void> => {
  * Verifica el estado de la conversación y decide qué hacer
  */
 const handleConversationState = async (
-  chatRoomId: string,
+  conversationId: string,
   customerId: string,
   welcomeMessage: string
-): Promise<{ shouldStartNew: boolean; newChatRoomId?: string; message?: string }> => {
+): Promise<{ shouldStartNew: boolean; newConversationId?: string; message?: string }> => {
   try {
-    const chatRoom = await client.chatRoom.findUnique({
-      where: { id: chatRoomId },
+    const chatRoom = await client.conversation.findUnique({
+      where: { id: conversationId },
       select: {
         conversationState: true,
         lastUserActivityAt: true,
@@ -846,7 +895,7 @@ const handleConversationState = async (
       return { shouldStartNew: false }
     }
 
-    // ✅ NUEVA LÓGICA: Si la conversación está ENDED, reactivarla (NO crear nueva)
+    // NUEVA LÓGICA: Si la conversación está ENDED, reactivarla (NO crear nueva)
     if (chatRoom.conversationState === 'ENDED') {
       return {
         shouldStartNew: true,
@@ -856,7 +905,7 @@ const handleConversationState = async (
 
     // Si está IDLE y no ha calificado, solicitar calificación
     if (chatRoom.conversationState === 'IDLE' && !chatRoom.satisfactionCollected) {
-      const ratingMessage = await endConversation(chatRoomId, customerId)
+      const ratingMessage = await endConversation(conversationId, customerId)
       return {
         shouldStartNew: false,
         message: ratingMessage || undefined
@@ -873,12 +922,12 @@ const handleConversationState = async (
 // ===== FUNCIONES AUXILIARES =====
 
 /**
- * ✅ NUEVA FUNCIÓN: Guardar chat completo por sesión de cliente
+ * NUEVA FUNCIÓN: Guardar chat completo por sesión de cliente
  * Reemplaza el guardado fragmentado por uno completo y organizado
  */
 const saveCompleteChatSession = async (
   customerId: string,
-  chatRoomId: string,
+  conversationId: string,
   companyId: string,
   newMessages: {
     role: 'user' | 'assistant';
@@ -891,7 +940,7 @@ const saveCompleteChatSession = async (
   try {
     // 1. Obtener mensajes existentes del chat
     const existingMessages = await client.chatMessage.findMany({
-      where: { chatRoomId },
+      where: { conversationId },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -924,9 +973,9 @@ const saveCompleteChatSession = async (
       )
     )
 
-    // 4. Actualizar el chatRoom con el estado completo
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    // 4. Actualizar la conversación con el estado completo
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         updatedAt: new Date(),
         // Marcar como activo si hay mensajes recientes
@@ -939,7 +988,7 @@ const saveCompleteChatSession = async (
       // Verificar si ya existe
       const exists = await client.chatMessage.findFirst({
         where: {
-          chatRoomId,
+          conversationId,
           message: newMsg.content,
           role: newMsg.role,
           createdAt: {
@@ -952,7 +1001,7 @@ const saveCompleteChatSession = async (
       if (!exists) {
         await client.chatMessage.create({
           data: {
-            chatRoomId,
+            conversationId,
             message: newMsg.content,
             role: newMsg.role,
             responseTime: newMsg.responseTime,
@@ -966,7 +1015,7 @@ const saveCompleteChatSession = async (
     return uniqueMessages
 
   } catch (error) {
-    console.error('❌ Error al guardar chat completo:', error)
+    console.error('Error al guardar chat completo:', error)
     throw error
   }
 }
@@ -975,14 +1024,14 @@ const saveCompleteChatSession = async (
  * FR1 y FR2: Actualizar o crear métricas de conversación
  */
 const updateConversationMetrics = async (
-  chatRoomId: string,
+  conversationId: string,
   responseTime: number,
   respondedWithin2Hours: boolean
 ) => {
   try {
-    // Obtener el companyId del chatRoom
-    const chatRoom = await client.chatRoom.findUnique({
-      where: { id: chatRoomId },
+    // Obtener el companyId de la conversación
+    const chatRoom = await client.conversation.findUnique({
+      where: { id: conversationId },
       select: {
         Customer: {
           select: { companyId: true }
@@ -996,7 +1045,7 @@ const updateConversationMetrics = async (
 
     // Buscar si ya existe un registro de métricas para este chatRoom
     const existingMetrics = await client.conversationMetrics.findFirst({
-      where: { chatRoomId }
+      where: { conversationId }
     })
 
     if (existingMetrics) {
@@ -1027,7 +1076,7 @@ const updateConversationMetrics = async (
 
       await client.conversationMetrics.create({
         data: {
-          chatRoomId,
+          conversationId,
           companyId,
           averageResponseTime: responseTime,
           totalResponseTime: responseTime,
@@ -1046,19 +1095,19 @@ const updateConversationMetrics = async (
 /**
  * FR3: Detectar y marcar el tipo de resolución de la conversación
  */
-const updateResolutionType = async (chatRoomId: string, isNewConversation: boolean) => {
+const updateResolutionType = async (conversationId: string, isNewConversation: boolean) => {
   try {
     // Contar los mensajes del usuario en esta conversación
     const userMessagesCount = await client.chatMessage.count({
       where: {
-        chatRoomId,
+        conversationId,
         role: 'user'
       }
     })
 
     // Verificar si el chat pasó a modo live (escalado a humano)
-    const chatRoom = await client.chatRoom.findUnique({
-      where: { id: chatRoomId },
+    const chatRoom = await client.conversation.findUnique({
+      where: { id: conversationId },
       select: { live: true }
     })
 
@@ -1079,8 +1128,8 @@ const updateResolutionType = async (chatRoomId: string, isNewConversation: boole
       resolvedInFirstInteraction = false
     }
 
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         resolutionType,
         resolvedInFirstInteraction,
@@ -1099,14 +1148,14 @@ const updateResolutionType = async (chatRoomId: string, isNewConversation: boole
  * 3. No hace preguntas cuando ya tiene la información
  */
 const isResponseEffective = async (
-  chatRoomId: string,
+  conversationId: string,
   userMessage: string,
   botResponse: string
 ): Promise<boolean> => {
   try {
     // Contar turnos de conversación (pares user-assistant)
     const messagesCount = await client.chatMessage.count({
-      where: { chatRoomId }
+      where: { conversationId }
     })
     const turnsCount = Math.ceil(messagesCount / 2)
 
@@ -1154,7 +1203,7 @@ const isResponseEffective = async (
 }
 
 /**
- * ✅ NUEVA FUNCIÓN: Usa IA para detectar si el usuario quiere terminar la conversación
+ * NUEVA FUNCIÓN: Usa IA para detectar si el usuario quiere terminar la conversación
  */
 const detectConversationEndingWithAI = async (
   message: string,
@@ -1199,8 +1248,8 @@ EJEMPLOS DE NO TERMINACIÓN:
         ...chatHistory.slice(-5), // Últimos 5 mensajes para contexto
         { role: 'user', content: message }
       ],
-      model: 'gpt-3.5-turbo',
-      temperature: 0.1, // Baja temperatura para respuestas consistentes
+      model: 'gpt-4o-mini', // Modelo más reciente para mejor comprensión
+      temperature: 0.1, // Baja temperatura para respuestas consistentes (OK para detección)
       max_tokens: 10 // Solo necesitamos "SI" o "NO"
     })
 
@@ -1209,12 +1258,12 @@ EJEMPLOS DE NO TERMINACIÓN:
 
   } catch (error) {
     console.log('Error en detectConversationEndingWithAI:', error)
-    return false // ✅ Retornar false en caso de error
+    return false // Retornar false en caso de error
   }
 }
 
 /**
- * ✅ NUEVA FUNCIÓN: Agrega "¿Hay algo más en que te pueda ayudar?" a las respuestas
+ * NUEVA FUNCIÓN: Agrega "¿Hay algo más en que te pueda ayudar?" a las respuestas
  */
 const addHelpOffer = (content: string): string => {
   // No agregar si ya tiene la pregunta o si es una solicitud de calificación
@@ -1260,7 +1309,7 @@ const detectSatisfactionRating = (message: string): number | null => {
  * FR4: Guardar la calificación de satisfacción del cliente
  */
 const saveSatisfactionRating = async (
-  chatRoomId: string,
+  conversationId: string,
   customerId: string,
   companyId: string,
   rating: number,
@@ -1270,7 +1319,7 @@ const saveSatisfactionRating = async (
     // Guardar en CustomerSatisfaction
     await client.customerSatisfaction.create({
       data: {
-        chatRoomId,
+        conversationId,
         customerId,
         companyId,
         rating,
@@ -1279,8 +1328,8 @@ const saveSatisfactionRating = async (
     })
 
     // Actualizar ChatRoom
-    await client.chatRoom.update({
-      where: { id: chatRoomId },
+    await client.conversation.update({
+      where: { id: conversationId },
       data: {
         satisfactionRating: rating,
         satisfactionCollected: true,
@@ -1382,15 +1431,14 @@ const findOrCreateCustomer = async (companyId: string, customerData: CustomerDat
           name: true,
           phone: true,
           questions: true,
-          chatRoom: {
+          conversations: {
             select: {
               id: true,
               live: true,
               mailed: true,
               satisfactionCollected: true,
               conversationState: true,
-              lastUserActivityAt: true,
-              conversationNumber: true
+              lastUserActivityAt: true
             }
           }
         }
@@ -1412,13 +1460,13 @@ const findOrCreateCustomer = async (companyId: string, customerData: CustomerDat
             totalInteractions: 1,
             lastActiveAt: new Date(),
             questions: { create: filterQuestions },
-            chatRoom: { create: {} }
+            conversations: { create: {} }
           }
         }
       }
     })
 
-    // ✅ CORREGIDO: Buscar el cliente recién creado con la estructura correcta
+    // CORREGIDO: Buscar el cliente recién creado con la estructura correcta
     const createdCustomer = await client.company.findUnique({
       where: { id: companyId },
       select: {
@@ -1432,7 +1480,7 @@ const findOrCreateCustomer = async (companyId: string, customerData: CustomerDat
             name: true,
             phone: true,
             questions: true,
-            chatRoom: {
+            conversations: {
               select: {
                 id: true,
                 live: true,
@@ -1440,7 +1488,7 @@ const findOrCreateCustomer = async (companyId: string, customerData: CustomerDat
                 satisfactionCollected: true,
                 conversationState: true,
                 lastUserActivityAt: true,
-                conversationNumber: true
+                // conversationNumber: true // Campo removido
               }
             }
           }
@@ -1682,7 +1730,7 @@ const generateProductsContext = async (
 
     if (filteredProducts.length === 0) {
       return {
-        content: `\n❌ No encontramos productos que coincidan exactamente con: ${[...preferences.materials, ...preferences.categories, ...preferences.textures,
+        content: `\nNo encontramos productos que coincidan exactamente con: ${[...preferences.materials, ...preferences.categories, ...preferences.textures,
         ...preferences.seasons, ...preferences.uses, ...preferences.features,
         ...preferences.colors].join(', ')
           }. Tenemos ${chatBotCompany.products.length} productos disponibles en total.`
@@ -1695,7 +1743,7 @@ const generateProductsContext = async (
     const productDetails = await Promise.all(filteredProducts.slice(0, 5).map(async (p) => {
       const details: string[] = [`${p.name} - S/${p.salePrice || p.price}`]
 
-      // ✅ AGREGAR IMAGEN DEL PRODUCTO - Construir URL completa con validación
+      // AGREGAR IMAGEN DEL PRODUCTO - Construir URL completa con validación
       if (p.image && p.image.trim() !== '') {
 
         // Validar que el UUID tenga el formato correcto
@@ -1705,11 +1753,11 @@ const generateProductsContext = async (
         if (isValidUUID) {
           const imageUrl = `https://ucarecdn.com/${p.image}/`
 
-          // ✅ VALIDAR QUE LA IMAGEN EXISTA ANTES DE INCLUIRLA
+          // VALIDAR QUE LA IMAGEN EXISTA ANTES DE INCLUIRLA
           try {
             const response = await fetch(imageUrl, { method: 'HEAD' })
             if (response.ok) {
-              // ✅ Capturar la primera imagen válida para retornarla por separado
+              // Capturar la primera imagen válida para retornarla por separado
               if (!firstProductImageUrl) {
                 firstProductImageUrl = imageUrl
               }
@@ -1740,7 +1788,7 @@ const generateProductsContext = async (
     const productDetailsString = productDetails.join('\n')
 
     return {
-      content: `\n✅ Productos que coinciden con tu búsqueda (${filteredProducts.length} encontrados):\n${productDetailsString}${filteredProducts.length > 5 ? `\n... y ${filteredProducts.length - 5} productos más` : ''
+      content: `\nProductos que coinciden con tu búsqueda (${filteredProducts.length} encontrados):\n${productDetailsString}${filteredProducts.length > 5 ? `\n... y ${filteredProducts.length - 5} productos más` : ''
         }`,
       imageUrl: firstProductImageUrl
     }
@@ -1796,18 +1844,29 @@ const generateOpenAIContext = async (
     ? `\nFAQs: ${chatBotCompany.helpdesk.map(h => h.question).join(', ')}`
     : ''
 
-  // ✅ NUEVO: Usar sistema inteligente de productos
+  // NUEVO: Usar sistema inteligente de productos
   const productsContext = await generateProductsContext(chatBotCompany, message)
 
   return {
-    content: `Eres Lunari AI, asistente virtual especializado en textiles para ${chatBotCompany.name}.
+    content: `Eres Lunari AI, un asistente virtual especializado en textiles para ${chatBotCompany.name}. Tu personalidad es cálida, empática, entusiasta y genuinamente amigable. Hablas como un amigo cercano que realmente se preocupa por ayudar.
 
-CLIENTE: ${customerData.name || 'Usuario'} | ${customerData.email} | ${customerData.phone || 'Sin teléfono'}
+👤 CLIENTE: ${customerData.name || 'Usuario'} | ${customerData.email} | ${customerData.phone || 'Sin teléfono'}
+
+💬 TONO Y ESTILO DE COMUNICACIÓN (MUY IMPORTANTE):
+- Sé CÁLIDO y EMPÁTICO: Muestra interés genuino en ayudar, como si fueras un amigo cercano
+- Usa un lenguaje NATURAL y CONVERSACIONAL: Evita sonar robótico o demasiado formal
+- Sé ENTHUSIASTA pero no exagerado: Muestra entusiasmo cuando ayudas, pero mantén la naturalidad
+- Usa el nombre del cliente cuando sea apropiado: Crea una conexión personal
+- Empatiza con las necesidades: "Entiendo perfectamente lo que buscas", "Me encantaría ayudarte con eso"
+- Sé POSITIVO y ALENTADOR: Usa frases como "¡Perfecto!", "¡Excelente elección!", "Me alegra ayudarte"
+- Evita frases robóticas como "De acuerdo", "Entendido", "Procesando". En su lugar, di "¡Claro!", "¡Por supuesto!", "¡Con gusto!"
+- Usa emojis con moderación (😊, ✨, 🎉) para dar calidez, pero no exageres
+- Haz preguntas de forma natural: "¿Qué tipo de proyecto tienes en mente?" en lugar de "Especifique el tipo de proyecto"
 
 ⚠️ REGLAS CRÍTICAS - PROHIBIDO INVENTAR INFORMACIÓN:
 1. SOLO usa los productos y datos proporcionados arriba en el contexto
 2. NUNCA inventes productos, materiales, características o servicios que no están en el contexto
-3. Si no tienes la información exacta, di "No tengo esa información específica"
+3. Si no tienes la información exacta, di de forma amigable: "No tengo esa información específica en este momento, pero puedo ayudarte con otras opciones"
 4. NO pidas datos del cliente que ya aparecen arriba (nombre, email, teléfono)
 5. Si dice "agendar/reservar/cita" → Da SOLO este enlace: http://localhost:3000/portal/${companyId}/appointment/${customerInfo?.id}
 6. NO preguntes fecha/hora para citas, solo da el enlace
@@ -1816,17 +1875,17 @@ CLIENTE: ${customerData.name || 'Usuario'} | ${customerData.email} | ${customerD
 9. Si la consulta es fuera de contexto textil, no puedes ayudar, o el cliente solicita hablar con un humano → Responde con "(realtime)" para escalar a humano
    Palabras clave para escalación: "humano", "persona", "agente", "operador", "hablar con alguien", "no me ayuda", "quiero hablar con", "escalar"
 ${helpdeskContext}${productsContext.content}
-9. NO preguntes "¿Hay algo más en que pueda ayudarte?" - esto se agrega automáticamente
+10. NO preguntes "¿Hay algo más en que pueda ayudarte?" - esto se agrega automáticamente
 
-🎯 ESTRATEGIA PARA RECOMENDAR PRODUCTOS:
+🎯 ESTRATEGIA PARA RECOMENDAR PRODUCTOS (CON CALIDEZ):
 - Si el cliente pregunta por productos SIN especificar qué busca, NO le des una lista completa
-- En su lugar, haz preguntas inteligentes para conocer sus necesidades:
-  * "¿Qué tipo de material o tela estás buscando?" (si hay materiales disponibles en el contexto)
-  * "¿Para qué uso necesitas la tela?" (si hay usos disponibles en el contexto)
-  * "¿Qué textura prefieres?" (si hay texturas disponibles en el contexto)
-  * "¿Qué categoría te interesa?" (si hay categorías disponibles en el contexto)
-- Una vez que el cliente mencione sus preferencias (material, uso, categoría, color, etc.), muestra SOLO los productos del contexto que coincidan
-- Si el cliente menciona algo que NO está en tu contexto de productos, indícale qué opciones SÍ tienes disponibles
+- En su lugar, haz preguntas inteligentes y amigables para conocer sus necesidades:
+  * "¡Me encantaría ayudarte a encontrar lo perfecto! ¿Qué tipo de material o tela tienes en mente?" (si hay materiales disponibles)
+  * "Para recomendarte lo mejor, ¿me cuentas para qué proyecto necesitas la tela?" (si hay usos disponibles)
+  * "¡Genial! ¿Tienes alguna preferencia de textura?" (si hay texturas disponibles)
+  * "¿Hay alguna categoría específica que te interese?" (si hay categorías disponibles)
+- Una vez que el cliente mencione sus preferencias, muestra SOLO los productos del contexto que coincidan con entusiasmo
+- Si el cliente menciona algo que NO está en tu contexto, indícale de forma amigable qué opciones SÍ tienes disponibles
 
 🛒 MANEJO DE SOLICITUDES DE COMPRA Y RESERVA (100% PRESENCIAL):
 - IMPORTANTE: NO realizamos ventas online ni pagos en línea. TODAS las compras son presenciales en nuestra tienda.
@@ -1834,10 +1893,20 @@ ${helpdeskContext}${productsContext.content}
 - Si el cliente dice "quiero reservar", "reservar", "me interesa", "quiero ese producto", responde con "(reserve)" seguido del nombre del producto
 - Si el cliente dice "quiero visitar", "visitar la tienda", "ver productos", responde con "(visit)" para sugerir una visita
 - Si el cliente dice "quiero comprar", "hacer compra", "deseo comprar", "deseo realizar una compra", "quiero realizar una compra", "necesito comprar", responde con "(purchase)" seguido del nombre del producto
-- SIEMPRE explica que las compras se realizan presencialmente en la tienda durante la cita
-- Ejemplo: "Te puedo ayudar con información sobre nuestros productos. Para realizar tu compra, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente."
+- SIEMPRE explica que las compras se realizan presencialmente en la tienda durante la cita, de forma amigable
+- Ejemplo cálido: "¡Me encanta que te interese! Te puedo ayudar con toda la información sobre nuestros productos. Para realizar tu compra, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría que te ayude con eso?"
 
-Responde en español, breve, amigable y directo. Usa el nombre del cliente. Sé útil pero NUNCA inventes información.`,
+EJEMPLOS DE RESPUESTAS CÁLIDAS:
+Evita: "De acuerdo. Procesando tu solicitud. Aquí está la información."
+✅ Mejor: "¡Perfecto! Me encanta ayudarte con eso. Aquí tienes toda la información que necesitas 😊"
+
+Evita: "Entendido. Especifica tus preferencias."
+✅ Mejor: "¡Claro! Para recomendarte lo mejor, ¿me cuentas qué tipo de proyecto tienes en mente?"
+
+Evita: "Información del producto: [datos]"
+✅ Mejor: "¡Excelente elección! Este producto es perfecto para lo que buscas. Te cuento los detalles: [datos con entusiasmo]"
+
+Responde en español, de forma natural, cálida y genuinamente amigable. Usa el nombre del cliente cuando sea apropiado. Sé útil, empático y NUNCA inventes información.`,
     imageUrl: productsContext.imageUrl
   }
 }
@@ -1881,15 +1950,22 @@ const handleOpenAIResponse = async (
   response: string,
   customerInfo: CustomerInfo,
   chatHistory: any[],
-  userMessage?: string
+  userMessage?: string,
+  conversationId?: string | null
 ) => {
-  // ✅ Manejar solicitudes iniciales de compra
+  // Obtener el conversationId válido
+  const validConversationId = conversationId || (customerInfo.conversations?.[0]?.id || null)
+
+  if (!validConversationId) {
+    throw new Error('No se pudo determinar un conversationId válido en handleOpenAIResponse')
+  }
+  // Manejar solicitudes iniciales de compra
   const initialPurchase = detectInitialPurchaseRequest(userMessage || '')
   if (initialPurchase.isInitialPurchase) {
     try {
       // Buscar productos que coincidan con el material mencionado
-      const chatRoom = await client.chatRoom.findUnique({
-        where: { id: customerInfo.chatRoom[0].id },
+      const chatRoom = await client.conversation.findUnique({
+        where: { id: validConversationId },
         select: {
           Customer: {
             select: { companyId: true }
@@ -1956,13 +2032,13 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
     }
   }
 
-  // ✅ Manejar respuestas a preguntas de compra
+  // Manejar respuestas a preguntas de compra
   const purchaseResponse = detectPurchaseResponse(userMessage || '', chatHistory)
   if (purchaseResponse.isPurchaseResponse && purchaseResponse.productName) {
     try {
       // Buscar el producto por nombre
-      const chatRoom = await client.chatRoom.findUnique({
-        where: { id: customerInfo.chatRoom[0].id },
+      const chatRoom = await client.conversation.findUnique({
+        where: { id: validConversationId },
         select: {
           Customer: {
             select: { companyId: true }
@@ -1987,7 +2063,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
             return {
               response: {
                 role: 'assistant' as const,
-                content: `❌ Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
+                content: `Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
               }
             }
           }
@@ -2012,7 +2088,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
           // Actualizar stock
           const stockUpdated = await updateProductStock(product.id, quantity)
 
-          console.log(`✅ RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+          console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
 
           return {
             response: {
@@ -2063,30 +2139,30 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar modo tiempo real (escalado a humano)
+  // Manejar modo tiempo real (escalado a humano)
   if (response.includes('(realtime)')) {
-    await client.chatRoom.update({
-      where: { id: customerInfo.chatRoom[0].id },
+    await client.conversation.update({
+      where: { id: validConversationId },
       data: {
         live: true,
-        conversationState: 'ESCALATED' as any // ✅ Marcar como escalado as any // ✅ Marcar como escalado
+        conversationState: 'ESCALATED' as any // Marcar como escalado as any // Marcar como escalado
       }
     })
 
-    // ✅ Notificar al equipo humano sobre la escalación
-    console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${customerInfo.chatRoom[0].id} - Cliente: ${customerInfo.email}`)
+    // Notificar al equipo humano sobre la escalación
+    console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
         role: 'assistant' as const,
         content: response.replace('(realtime)', '')
       },
-      live: true, // ✅ Indicar que está en modo live
-      chatRoom: customerInfo.chatRoom[0].id // ✅ ID del chatRoom para Pusher
+      live: true, // Indicar que está en modo live
+      chatRoom: validConversationId // ID del chatRoom para Pusher
     }
   }
 
-  // ✅ Manejar reservas de productos con detalles específicos
+  // Manejar reservas de productos con detalles específicos
   if (response.includes('(reserve)')) {
     const reservationMatch = response.match(/\(reserve\)\s*(.+)/i)
     if (reservationMatch) {
@@ -2094,8 +2170,8 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
 
       try {
         // Buscar el producto por nombre - obtener companyId del chatRoom
-        const chatRoom = await client.chatRoom.findUnique({
-          where: { id: customerInfo.chatRoom[0].id },
+        const chatRoom = await client.conversation.findUnique({
+          where: { id: validConversationId },
           select: {
             Customer: {
               select: { companyId: true }
@@ -2122,7 +2198,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
               return {
                 response: {
                   role: 'assistant' as const,
-                  content: `❌ Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
+                  content: `Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
                 }
               }
             }
@@ -2147,7 +2223,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
             // Actualizar stock
             const stockUpdated = await updateProductStock(product.id, quantity)
 
-            console.log(`✅ RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+            console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
 
             return {
               response: {
@@ -2214,7 +2290,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar solicitudes de visita a la tienda
+  // Manejar solicitudes de visita a la tienda
   if (response.includes('(visit)')) {
     return {
       response: {
@@ -2234,7 +2310,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     }
   }
 
-  // ✅ Manejar solicitudes de compra directa con preguntas específicas
+  // Manejar solicitudes de compra directa con preguntas específicas
   if (response.includes('(purchase)')) {
     const purchaseMatch = response.match(/\(purchase\)\s*(.+)/i)
     if (purchaseMatch) {
@@ -2242,8 +2318,8 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
 
       try {
         // Buscar el producto por nombre
-        const chatRoom = await client.chatRoom.findUnique({
-          where: { id: customerInfo.chatRoom[0].id },
+        const chatRoom = await client.conversation.findUnique({
+          where: { id: validConversationId },
           select: {
             Customer: {
               select: { companyId: true }
@@ -2321,7 +2397,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     return {
       response: {
         role: 'assistant' as const,
-        content: response, // ✅ CORREGIDO: Mantener el contenido completo original
+        content: response, // CORREGIDO: Mantener el contenido completo original
         link: cleanLink
       }
     }
@@ -2349,23 +2425,31 @@ const handleNoEmailFlow = async (message: string, chatHistory: any[]) => {
   const hasPhone = !!extractedData.phone
 
   // Crear prompt dinámico basado en lo que ya sabemos
-  let systemPrompt = `Eres **Lunari AI**, un asistente virtual profesional y amigable. Tu objetivo es obtener la información necesaria del cliente de manera natural y conversacional.
+  let systemPrompt = `Eres **Lunari AI**, un asistente virtual cálido, empático y genuinamente amigable. Tu personalidad es entusiasta, cercana y natural. Hablas como un amigo que realmente quiere ayudar.
 
 ## INFORMACIÓN ACTUAL DEL CLIENTE:
 ${hasName ? `- Nombre: ${extractedData.name}` : '- Nombre: No disponible'}
 ${hasEmail ? `- Email: ${extractedData.email}` : '- Email: No disponible'}
 ${hasPhone ? `- Teléfono: ${extractedData.phone}` : '- Teléfono: No disponible'}
 
+## TONO Y ESTILO (MUY IMPORTANTE):
+- Sé CÁLIDO y ENTHUSIASTA: Muestra emoción genuina al conocer al cliente
+- Usa lenguaje NATURAL y CONVERSACIONAL: Evita sonar robótico o demasiado formal
+- Si ya tienes el nombre, úsalo con cariño: "¡Hola ${extractedData.name}! 😊" o "¡Perfecto ${extractedData.name}!"
+- Muestra EMPATÍA: "Me encantaría conocerte mejor para ayudarte de la mejor manera"
+- Sé POSITIVO: Usa frases como "¡Genial!", "¡Perfecto!", "Me alegra conocerte"
+- Evita frases robóticas: En lugar de "Procesando información", di "¡Con gusto te ayudo!"
+
 ## INSTRUCCIONES CRÍTICAS PARA EL FORMATO:
-- Da una bienvenida cálida y profesional: "¡Hola! Soy Lunari AI, tu asistente virtual."
+- Da una bienvenida cálida y entusiasta: "¡Hola! Soy Lunari AI, tu asistente virtual. 😊"
 - SIEMPRE da un salto de línea después del saludo
-- Luego escribe: "Para brindarte la mejor atención, necesito algunos datos:"
+- Luego escribe de forma amigable: "Para brindarte la mejor atención personalizada, me encantaría conocerte un poco más:"
 - SIEMPRE da otro salto de línea después de esta frase
 - Enumera SOLO los datos que faltan, numerados del 1 al 3 máximo
 - CADA PREGUNTA debe estar en una línea separada
 - Los únicos datos a pedir son: nombre, correo electrónico, número de celular
-- Si ya tienes el nombre, úsalo en la conversación
-- Mantén un tono amigable y profesional
+- Si ya tienes el nombre, úsalo en la conversación con cariño
+- Mantén un tono cálido, amigable y natural (no robótico)
 - No pidas otros datos, solo estos 3 específicos
 
 ## FORMATO OBLIGATORIO:
@@ -2386,39 +2470,40 @@ Debes responder EXACTAMENTE en este formato:
 2. **Si no tienes email**: Solicita el email explicando que es para brindar mejor servicio
 3. **Si no tienes teléfono**: Puedes solicitar el teléfono para contacto adicional (opcional)
 
-## EJEMPLOS DE RESPUESTAS:
+## EJEMPLOS DE RESPUESTAS CÁLIDAS:
 
 ### Si no tienes nada:
-"¡Hola! Soy Lunari AI, tu asistente virtual.
+"¡Hola! Soy Lunari AI, tu asistente virtual. 😊
 
-Para brindarte la mejor atención, necesito algunos datos:
+Me encantaría conocerte mejor para brindarte la mejor atención personalizada:
 
 1. ¿Cómo te llamas?
 2. ¿Cuál es tu correo electrónico?  
 3. ¿Tu número de celular?"
 
 ### Si ya tienes nombre pero no email:
-"¡Hola ${extractedData.name}! Soy Lunari AI.
+"¡Hola ${extractedData.name}! 😊 Me alegra conocerte.
 
-Para brindarte la mejor atención, necesito algunos datos:
+Para brindarte la mejor atención personalizada, me encantaría conocer:
 
 1. ¿Cuál es tu correo electrónico?
 2. ¿Tu número de celular?"
 
 ### Si ya tienes nombre y email pero no teléfono:
-"¡Perfecto ${extractedData.name}! Ya tengo tu email (${extractedData.email}).
+"¡Perfecto ${extractedData.name}! 😊 Ya tengo tu email (${extractedData.email}).
 
-Para completar tu perfil, necesito:
+Para completar tu perfil y poder ayudarte mejor:
 
 1. ¿Tu número de celular?"
 
 ## TONO:
-- Amigable pero profesional
-- Empático con las necesidades del usuario
-- Claro en las instrucciones
-- Personalizado usando la información disponible
+- Cálido, empático y genuinamente amigable
+- Entusiasta pero natural (no exagerado)
+- Conversacional como un amigo cercano
+- Personalizado usando la información disponible con cariño
+- Positivo y alentador
 
-RECUERDA: Sé natural, amigable y profesional. Solo pide la información que realmente necesitas.
+RECUERDA: Sé natural, cálido y genuinamente amigable. Muestra interés real en ayudar. Solo pide la información que realmente necesitas.
 
          IMPORTANTE: Cuando pidas los datos, usa EXACTAMENTE este formato con saltos de línea:
          ${TEXTILE_MESSAGES.WELCOME}
@@ -2437,8 +2522,8 @@ RECUERDA: Sé natural, amigable y profesional. Solo pide la información que rea
       ...chatHistory,
       { role: 'user', content: message }
     ],
-    model: 'gpt-3.5-turbo',
-    temperature: 0.7,
+    model: 'gpt-4o-mini', // Modelo más reciente y económico con mejor calidad conversacional
+    temperature: 0.85, // Temperatura más alta para respuestas más naturales y cálidas
     max_tokens: 300
   })
 
@@ -2519,7 +2604,7 @@ const createProductReservation = async (
         notes,
         status: 'PENDING',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expira en 7 días
-        // ✅ NUEVOS CAMPOS: Detalles específicos de compra
+        // NUEVOS CAMPOS: Detalles específicos de compra
         unitPrice: purchaseDetails?.unitPrice,
         totalPrice: purchaseDetails?.totalPrice,
         unit: purchaseDetails?.unit,
@@ -2928,7 +3013,8 @@ export const onAiChatBotAssistant = async (
   chat: { role: 'user' | 'assistant'; content: string }[],
   author: 'user',
   message: string,
-  sessionToken?: string
+  sessionToken?: string,
+  conversationId?: string | null
 ) => {
   try {
     const chatBotCompany = await client.company.findUnique({
@@ -3000,16 +3086,16 @@ export const onAiChatBotAssistant = async (
       throw new Error('Chatbot company not found')
     }
 
-    // ✅ NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
+    // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
 
     if (sessionToken) {
       const customerFromToken = await getCustomerFromToken(sessionToken, id)
 
-      if (customerFromToken && customerFromToken.chatRoom && customerFromToken.chatRoom.length > 0) {
+      if (customerFromToken && customerFromToken.conversations && customerFromToken.conversations.length > 0) {
         const customerInfo = {
           ...customerFromToken,
-          chatRoom: customerFromToken.chatRoom
+          conversations: customerFromToken.conversations
         }
 
         return await handleAuthenticatedUser(
@@ -3017,9 +3103,10 @@ export const onAiChatBotAssistant = async (
           message,
           author,
           chat,
-          id, // ✅ Pasar el companyId
+          id, // Pasar el companyId
           chatBotCompany,
-          sessionToken
+          sessionToken,
+          conversationId // Pasar el conversationId si está disponible
         )
       }
     }
@@ -3055,7 +3142,7 @@ export const onAiChatBotAssistant = async (
               name: true,
               phone: true,
               questions: true,
-              chatRoom: {
+              conversations: {
                 select: {
                   id: true,
                   live: true,
@@ -3082,15 +3169,15 @@ export const onAiChatBotAssistant = async (
             customerInfo.id,
             customerInfo.email || finalEmail,
             id,
-            customerInfo.chatRoom[0].id
+            customerInfo.conversations[0].id
           )
 
-          await onStoreConversations(customerInfo.chatRoom[0].id, message, 'user')
+          await onStoreConversations(customerInfo.conversations[0].id, message, 'user')
 
-          // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
-          if (customerInfo.chatRoom[0].live) {
+          // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+          if (customerInfo.conversations[0].live) {
             await onRealTimeChat(
-              customerInfo.chatRoom[0].id,
+              customerInfo.conversations[0].id,
               message,
               `user-${Date.now()}`,
               'user'
@@ -3101,7 +3188,7 @@ export const onAiChatBotAssistant = async (
             ? `¡Hola de nuevo ${customerInfo.name}! 😊 Me alegra verte otra vez. ¿En qué puedo ayudarte hoy?`
             : `¡Hola de nuevo! 😊 Reconozco tu correo ${customerInfo.email}. ¿En qué puedo ayudarte?`
 
-          await onStoreConversations(customerInfo.chatRoom[0].id, welcomeBackMessage, 'assistant', message)
+          await onStoreConversations(customerInfo.conversations[0].id, welcomeBackMessage, 'assistant', message)
 
           return {
             response: {
@@ -3142,7 +3229,7 @@ export const onAiChatBotAssistant = async (
           customerInfo.id,
           customerInfo.email,
           id,
-          customerInfo.chatRoom[0].id
+          customerInfo.conversations[0].id
         )
 
         return {
@@ -3165,14 +3252,14 @@ export const onAiChatBotAssistant = async (
           customerInfo.id,
           customerInfo.email || finalEmail,
           id,
-          customerInfo.chatRoom[0].id
+          customerInfo.conversations[0].id
         )
       }
 
-      // ✅ PRIORIDAD: Detectar si el usuario quiere terminar usando IA
-      if (customerInfo && customerInfo.chatRoom && customerInfo.chatRoom[0]) {
+      // PRIORIDAD: Detectar si el usuario quiere terminar usando IA
+      if (customerInfo && customerInfo.conversations && customerInfo.conversations[0]) {
         if (shouldEndConversation) {
-          await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
+          await onStoreConversations(customerInfo.conversations[0].id, message, author)
 
           const ratingMessage = `¡Perfecto! Me alegra haberte ayudado. 😊
 
@@ -3183,10 +3270,10 @@ export const onAiChatBotAssistant = async (
 
                                   Tu opinión nos ayuda a mejorar.`
 
-          await onStoreConversations(customerInfo.chatRoom[0].id, ratingMessage, 'assistant', message)
+          await onStoreConversations(customerInfo.conversations[0].id, ratingMessage, 'assistant', message)
 
-          await client.chatRoom.update({
-            where: { id: customerInfo.chatRoom[0].id },
+          await client.conversation.update({
+            where: { id: customerInfo.conversations[0].id },
             data: {
               conversationState: 'AWAITING_RATING',
               resolved: true
@@ -3204,15 +3291,15 @@ export const onAiChatBotAssistant = async (
 
       const isAppointment = isAppointmentRequest(message)
       if (isAppointment) {
-        await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
+        await onStoreConversations(customerInfo.conversations[0].id, message, author)
         await onStoreConversations(
-          customerInfo.chatRoom[0].id,
+          customerInfo.conversations[0].id,
           `¡Perfecto! Aquí tienes el enlace para agendar tu cita: http://localhost:3000/portal/${id}/appointment/${customerInfo.id}`,
           'assistant',
           message
         )
 
-        await updateResolutionType(customerInfo.chatRoom[0].id, false)
+        await updateResolutionType(customerInfo.conversations[0].id, false)
 
         return {
           response: {
@@ -3226,7 +3313,7 @@ export const onAiChatBotAssistant = async (
       const satisfactionRating = detectSatisfactionRating(message)
       if (satisfactionRating) {
         await saveSatisfactionRating(
-          customerInfo.chatRoom[0].id,
+          customerInfo.conversations[0].id,
           customerInfo.id,
           id,
           satisfactionRating,
@@ -3243,18 +3330,18 @@ export const onAiChatBotAssistant = async (
         }
       }
 
-      if (customerInfo.chatRoom[0].live) {
-        await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
+      if (customerInfo.conversations[0].live) {
+        await onStoreConversations(customerInfo.conversations[0].id, message, author)
 
-        // ✅ ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
+        // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
         await onRealTimeChat(
-          customerInfo.chatRoom[0].id,
+          customerInfo.conversations[0].id,
           message,
           `user-${Date.now()}`, // ID temporal para el mensaje del usuario
           'user'
         )
 
-        if (!customerInfo.chatRoom[0].mailed) {
+        if (!customerInfo.conversations[0].mailed) {
           const companyOwner = await client.company.findUnique({
             where: { id },
             select: {
@@ -3274,8 +3361,8 @@ export const onAiChatBotAssistant = async (
               customerInfo.email
             )
 
-            await client.chatRoom.update({
-              where: { id: customerInfo.chatRoom[0].id },
+            await client.conversation.update({
+              where: { id: customerInfo.conversations[0].id },
               data: { mailed: true }
             })
           }
@@ -3283,24 +3370,24 @@ export const onAiChatBotAssistant = async (
 
         return {
           live: true,
-          chatRoom: customerInfo.chatRoom[0].id
+          chatRoom: customerInfo.conversations[0].id
         }
       }
 
-      await onStoreConversations(customerInfo.chatRoom[0].id, message, author)
+      await onStoreConversations(customerInfo.conversations[0].id, message, author)
 
       const quickResponse = getQuickResponse(message, customerInfo, id)
       if (quickResponse) {
         const finalQuickContentMain = addHelpOffer(quickResponse.content)
 
         await onStoreConversations(
-          customerInfo.chatRoom[0].id,
+          customerInfo.conversations[0].id,
           finalQuickContentMain,
           'assistant',
           message
         )
 
-        await updateResolutionType(customerInfo.chatRoom[0].id, false)
+        await updateResolutionType(customerInfo.conversations[0].id, false)
 
         return {
           response: {
@@ -3337,19 +3424,21 @@ export const onAiChatBotAssistant = async (
           ...relevantHistory,
           { role: 'user', content: message }
         ],
-        model: 'gpt-3.5-turbo',
-        temperature: 0.7,
+        model: 'gpt-4o-mini', // Modelo más reciente y económico con mejor calidad conversacional
+        temperature: 0.85, // Temperatura más alta para respuestas más naturales y cálidas
         max_tokens: 800
       })
 
       const response = chatCompletion.choices[0].message.content
 
-      // ✅ Validar que la respuesta no sea null
+      // Validar que la respuesta no sea null
       if (!response) {
         throw new Error('OpenAI no retornó una respuesta válida')
       }
 
-      const result = await handleOpenAIResponse(response, customerInfo, chat, message)
+      // Para usuarios no autenticados, usar la primera conversación
+      const conversationIdForUnauthenticated = customerInfo?.conversations?.[0]?.id || null
+      const result = await handleOpenAIResponse(response, customerInfo, chat, message, conversationIdForUnauthenticated)
       const finalContentMain = addHelpOffer(result.response.content)
 
       const messagesToSave = [
@@ -3369,12 +3458,12 @@ export const onAiChatBotAssistant = async (
 
       await saveCompleteChatSession(
         customerInfo.id,
-        customerInfo.chatRoom[0].id,
+        customerInfo.conversations[0].id,
         id,
         messagesToSave
       )
 
-      await updateResolutionType(customerInfo.chatRoom[0].id, false)
+      await updateResolutionType(customerInfo.conversations[0].id, false)
 
       return {
         ...result,
@@ -3396,7 +3485,7 @@ export const onAiChatBotAssistant = async (
       }
     }
 
-    // ✅ VERIFICAR SI PIDE HABLAR CON HUMANO SIN ESTAR AUTENTICADO
+    // VERIFICAR SI PIDE HABLAR CON HUMANO SIN ESTAR AUTENTICADO
     if (detectHumanTransferRequest(message)) {
       return {
         response: {

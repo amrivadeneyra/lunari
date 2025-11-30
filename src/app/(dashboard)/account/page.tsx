@@ -1,6 +1,7 @@
 import ChangePassword from '@/components/settings/change-password';
+import DeleteAccount from '@/components/settings/delete-account';
 import React from 'react'
-import { Shield, User } from 'lucide-react'
+import { Shield, User, Trash2 } from 'lucide-react'
 
 type Props = {}
 
@@ -39,6 +40,23 @@ const AccountPage = (props: Props) => {
 
                         <div className="pt-4 border-t border-gray-100">
                             <ChangePassword />
+                        </div>
+                    </div>
+
+                    {/* Sección de eliminación de cuenta */}
+                    <div className="bg-white rounded-xl p-6 border border-red-200/50 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center">
+                                <Trash2 className="w-4 h-4 text-red-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-lg text-gray-900">Zona de Peligro</h3>
+                                <p className="text-sm text-gray-600">Elimina permanentemente tu cuenta y todos los datos asociados</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-gray-100">
+                            <DeleteAccount />
                         </div>
                     </div>
                 </div>
