@@ -3,14 +3,11 @@ import React, { forwardRef, useState } from 'react'
 import { UseFormRegister } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import ChatModeToggle from './chat-mode-toggle'
-import { Separator } from '../ui/separator'
 import Bubble from './bubble'
 import { Responding } from './responding'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, CheckCircle2, Bot, ArrowRight, ChevronLeft, X, Maximize2 } from 'lucide-react'
-import { CardDescription, CardTitle } from '../ui/card'
-import Accordion from '../accordian'
+import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, ArrowRight, ChevronLeft, X, Maximize2 } from 'lucide-react'
 import Image from 'next/image'
 
 type Props = {
@@ -85,7 +82,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
     ref
   ) => {
     // Estado para navegación inferior (solo visual) - sincronizado con tabs
-    const [activeTab, setActiveTab] = useState<'inicio' | 'asistente' | 'soporte'>('asistente')
+    const [activeTab, setActiveTab] = useState<'inicio' | 'mensajes' | 'soporte'>('mensajes')
 
     // Estado para FAQ seleccionada (pantalla completa)
     const [selectedFaq, setSelectedFaq] = useState<{
@@ -138,17 +135,17 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
     const handleBottomNavClick = (nav: 'home' | 'messages' | 'help') => {
       const tabMap = {
         'home': 'inicio',
-        'messages': 'asistente',
+        'messages': 'mensajes',
         'help': 'soporte'
       }
-      setActiveTab(tabMap[nav] as 'inicio' | 'asistente' | 'soporte')
+      setActiveTab(tabMap[nav] as 'inicio' | 'mensajes' | 'soporte')
       setSearchQuery('') // Limpiar búsqueda al cambiar de tab
     }
 
     return (
       <div className="h-[500px] w-[380px] flex flex-col bg-white rounded-xl overflow-hidden shadow-lg">
         {/* HEADER */}
-        {activeTab === 'asistente' && (
+        {activeTab === 'mensajes' && (
           <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -298,7 +295,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
           )}
 
           {/* TAB: ASISTENTE/CHAT */}
-          {activeTab === 'asistente' && (
+          {activeTab === 'mensajes' && (
             <div className="absolute inset-0 flex flex-col">
               <div className="flex flex-col flex-1 min-h-0">
                 <div
@@ -346,7 +343,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               <div className="px-4 py-3 bg-white border-b border-orange/10 flex-shrink-0 flex items-center justify-center relative">
                 <h2 className="text-base font-semibold text-gravel">Ayuda</h2>
                 <button
-                  onClick={() => setActiveTab('asistente')}
+                  onClick={() => setActiveTab('mensajes')}
                   className="absolute right-4 p-1 hover:bg-orange/10 rounded-lg transition-colors"
                   aria-label="Cerrar"
                 >
@@ -467,13 +464,13 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               </button>
               <button
                 onClick={() => handleBottomNavClick('messages')}
-                className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'asistente'
+                className={`flex flex-col items-center gap-1 px-4 py-1.5 transition-colors ${activeTab === 'mensajes'
                   ? 'text-orange'
                   : 'text-ironside/50'
                   }`}
               >
                 <MessageCircle className="w-4 h-4" />
-                <span className="text-[10px] font-medium">Chat</span>
+                <span className="text-[10px] font-medium">Mensajes</span>
               </button>
               <button
                 onClick={() => handleBottomNavClick('help')}
