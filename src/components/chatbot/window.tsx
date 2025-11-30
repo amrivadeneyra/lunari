@@ -144,8 +144,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
     return (
       <div className="h-[500px] w-[380px] flex flex-col bg-white rounded-xl overflow-hidden shadow-lg">
-        {/* HEADER */}
-        {activeTab === 'mensajes' && (
+        {/* esto saldra unicamente cuando estes dentro de un chat en especifico */}
+        {/* {activeTab === 'mensajes' && (
           <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -179,7 +179,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               )}
             </div>
           </div>
-        )}
+        )} */}
 
         {/* CONTENIDO PRINCIPAL - Ocupa espacio restante */}
         <div className="flex-1 min-h-0 flex flex-col relative">
@@ -253,8 +253,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange" />
                       <div className="w-full border border-ironside/20 bg-ironside/5 hover:bg-orange/10 hover:border-orange/30 hover:text-orange rounded-lg px-3 py-2 text-xs text-ironside/70 cursor-pointer transition-colors">
                         Buscar ayuda
-          </div>
-        </div>
+                      </div>
+                    </div>
 
                     {/* Lista de temas de ayuda */}
                     {helpdesk.length > 0 && (
@@ -294,8 +294,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
             </div>
           )}
 
-          {/* TAB: ASISTENTE/CHAT */}
-          {activeTab === 'mensajes' && (
+          {/* esto saldra unicamente cuando estes dentro de un chat en especifico */}
+          {/* {activeTab === 'mensajes' && (
             <div className="absolute inset-0 flex flex-col">
               <div className="flex flex-col flex-1 min-h-0">
                 <div
@@ -333,6 +333,24 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                   </div>
                 </form>
               </div>
+            </div>
+          )} */}
+
+          {activeTab === 'mensajes' && (
+            <div className="absolute inset-0 flex flex-col bg-cream/20">
+              {/* Header con título y botón cerrar */}
+              <div className="px-4 py-3 bg-white border-b border-orange/10 flex-shrink-0 flex items-center justify-center relative">
+                <h2 className="text-base font-semibold text-gravel">Mensajes</h2>
+                <button
+                  onClick={() => setActiveTab('mensajes')}
+                  className="absolute right-4 p-1 hover:bg-orange/10 rounded-lg transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <X className="w-5 h-5 text-ironside/60" />
+                </button>
+              </div>
+
+              
             </div>
           )}
 
@@ -377,7 +395,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                   <div className="space-y-1">
                     {filteredHelpdesk.map((desk) => (
                       <button
-                    key={desk.id}
+                        key={desk.id}
                         onClick={() => setSelectedFaq(desk)}
                         className="w-full bg-white hover:bg-orange/5 rounded-lg px-6 py-4 transition-colors group"
                       >
@@ -483,7 +501,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                 <span className="text-[10px] font-medium">Ayuda</span>
               </button>
             </div>
-        </div>
+          </div>
         )}
       </div>
     )
