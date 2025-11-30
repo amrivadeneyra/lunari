@@ -7,9 +7,15 @@ import Bubble from './bubble'
 import { Responding } from './responding'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, ArrowRight, ChevronLeft, X, Maximize2 } from 'lucide-react'
+import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, ArrowRight, ChevronLeft, X, Maximize2, MoreVertical } from 'lucide-react'
 import Image from 'next/image'
 import { onGetCustomerConversations } from '@/action/conversation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '../ui/dropdown-menu'
 
 type Props = {
   errors: any
@@ -91,6 +97,11 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       question: string
       answer: string
       companyId: string | null
+    } | null>(null)
+
+    // Estado para conversación seleccionada (pantalla completa)
+    const [selectedConversation, setSelectedConversation] = useState<{
+      id: string
     } | null>(null)
 
     // Estado para búsqueda en soporte
@@ -424,6 +435,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                       return (
                         <button
                           key={conversation.id}
+                          onClick={() => setSelectedConversation({ id: conversation.id })}
                           className="w-full bg-white hover:bg-orange/5 border-b border-orange/10 px-4 py-4 transition-colors group"
                         >
                           <div className="flex items-start gap-3">
@@ -603,8 +615,131 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
           </div>
         )}
 
+        {/* PANTALLA COMPLETA DE CONVERSACIÓN - Cubre todo el chat */}
+        {selectedConversation && (
+          <div className="absolute inset-0 flex flex-col bg-white z-50 rounded-xl">
+            {/* Header con información del chat */}
+            <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Botón retroceso */}
+                  <button
+                    onClick={() => setSelectedConversation(null)}
+                    className="p-1 hover:bg-orange/10 rounded-lg transition-colors flex-shrink-0"
+                    aria-label="Volver"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-ironside/60" />
+                  </button>
+
+                  {/* Avatar */}
+                  <Avatar className="w-8 h-8 flex-shrink-0">
+                    <AvatarImage
+                      src="/images/lunari-avatar.png"
+                      alt="Lunari"
+                    />
+                    <AvatarFallback className="bg-orange/10 text-orange font-medium text-xs">
+                      {companyName.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  {/* Información */}
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-gravel leading-tight truncate">
+                      Lunari
+                    </h3>
+                    <p className="text-[10px] text-ironside/60 truncate">
+                      Un humano también puede ayudarte
+                    </p>
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {isAuthenticated && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                          aria-label="Opciones"
+                        >
+                          <MoreVertical className="w-4 h-4 text-ironside/60" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <div className="px-2 py-2">
+                          <p className="text-xs font-semibold text-gravel mb-2">Modo de chat</p>
+                          <ChatModeToggle
+                            isHumanMode={isHumanMode}
+                            onToggle={onToggleHumanMode}
+                            disabled={isToggleDisabled}
+                            conversationId={selectedConversation.id}
+                            setChats={setChat}
+                          />
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  {!isAuthenticated && (
+                    <button
+                      className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                      aria-label="Opciones"
+                    >
+                      <MoreVertical className="w-4 h-4 text-ironside/60" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedConversation(null)}
+                    className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
+                    aria-label="Cerrar"
+                  >
+                    <X className="w-4 h-4 text-ironside/60" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Contenido de la conversación */}
+            <div className="flex flex-col flex-1 min-h-0">
+              <div
+                style={{
+                  background: theme || 'transparent',
+                  color: textColor || '',
+                }}
+                className="px-5 flex flex-col py-5 gap-4 chat-window overflow-y-auto overflow-x-hidden flex-1 min-h-0"
+                ref={ref}
+              >
+                {chats.map((chat, key) => (
+                  <Bubble
+                    key={key}
+                    message={chat}
+                  />
+                ))}
+                {onResponding && <Responding />}
+              </div>
+              <form
+                onSubmit={onChat}
+                className="px-5 py-4 bg-white border-t border-orange/10 flex-shrink-0 rounded-b-xl"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <Input
+                    {...register('content')}
+                    placeholder="Escribe tu mensaje..."
+                    className="focus-visible:ring-0 flex-1 px-4 py-2.5 focus-visible:ring-offset-0 bg-cream/50 rounded-lg outline-none border border-orange/10 text-xs text-gravel placeholder:text-ironside/50 focus:border-orange focus:bg-white transition-all"
+                  />
+                  <Button
+                    type="submit"
+                    className="p-2 h-9 w-9 rounded-lg bg-orange hover:bg-orange/90 text-white transition-colors"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* NAVEGACIÓN INFERIOR */}
-        {!selectedFaq && (
+        {!selectedFaq && !selectedConversation && (
           <div className="border-t border-orange/10 bg-white px-3 py-2.5 flex-shrink-0">
             <div className="flex items-center justify-around">
               <button
