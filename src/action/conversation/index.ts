@@ -1,13 +1,15 @@
 "use server";
 
 import { client } from "@/lib/prisma";
-// COMENTADO: Pusher Server (plan agotado)
-// import { pusherServer } from "@/lib/utils";
-// NUEVO: Socket.io Server
 import { socketServer } from "@/lib/utils";
 import { ConversationState } from "@prisma/client";
 import { clerkClient } from '@clerk/nextjs';
 import { onMailer } from '../mailer';
+import OpenAi from 'openai';
+
+const openai = new OpenAi({
+  apiKey: process.env.OPEN_AI_KEY,
+});
 
 export const onToggleRealtime = async (id: string, state: boolean) => {
   try {
@@ -84,7 +86,7 @@ export const onUpdateConversationState = async (conversationId: string, state: C
           )
         }
       } catch (error) {
-        console.error('❌ Error enviando email de escalación manual:', error)
+        console.error('Error enviando email de escalación manual:', error)
       }
     }
 
@@ -404,7 +406,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
 
     return result
   } catch (error) {
-    console.log('❌ Error en onGetAllCompanyChatRooms:', error)
+    console.log('Error en onGetAllCompanyChatRooms:', error)
     return null
   }
 }
@@ -447,7 +449,132 @@ export const onGetCustomerConversations = async (customerId: string) => {
 
     return conversations
   } catch (error) {
-    console.log('❌ Error en onGetCustomerConversations:', error)
+    console.log('Error en onGetCustomerConversations:', error)
+    return null
+  }
+}
+
+/**
+ * Genera un título para la conversación usando OpenAI
+ * Máximo 5 palabras basado en el contexto del mensaje del usuario
+ */
+export const generateConversationTitle = async (userMessage: string): Promise<string | null> => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'Eres un asistente que genera títulos cortos para conversaciones. Genera un título de máximo 5 palabras que resuma el tema principal del mensaje del usuario. Responde SOLO con el título, sin explicaciones adicionales.'
+        },
+        {
+          role: 'user',
+          content: `Genera un título corto (máximo 5 palabras) para este mensaje: "${userMessage}"`
+        }
+      ],
+      max_tokens: 20,
+      temperature: 0.7,
+    })
+
+    const title = response.choices[0]?.message?.content?.trim() || null
+    return title
+  } catch (error) {
+    console.error('Error al generar título de conversación:', error)
+    return null
+  }
+}
+
+/**
+ * Crea una nueva conversación con título generado
+ * IMPORTANTE: Solo guarda el mensaje de bienvenida. El mensaje del usuario
+ * se guardará cuando se procese en onAiChatBotAssistant para evitar duplicación.
+ * 
+ * @param customerId - ID del cliente
+ * @param companyId - ID de la empresa (para validación)
+ * @param userMessage - Mensaje inicial del usuario (solo para generar el título)
+ * @param welcomeMessage - Mensaje de bienvenida del asistente
+ * @returns Objeto con conversationId y title, o null si hay error
+ */
+export const onCreateNewConversation = async (
+  customerId: string,
+  companyId: string,
+  userMessage: string,
+  welcomeMessage: string
+): Promise<{ conversationId: string; title: string } | null> => {
+  if (!customerId || !companyId || !userMessage || !welcomeMessage) {
+    console.error('Error: Parámetros requeridos faltantes en onCreateNewConversation')
+    return null
+  }
+
+  try {
+    const customer = await client.customer.findFirst({
+      where: {
+        id: customerId,
+        companyId: companyId,
+      },
+      select: {
+        id: true,
+      }
+    })
+
+    if (!customer) {
+      console.error(`Error: Cliente ${customerId} no encontrado o no pertenece a la empresa ${companyId}`)
+      return null
+    }
+
+    let title = 'Nueva conversación'
+    try {
+      const generatedTitle = await generateConversationTitle(userMessage)
+      if (generatedTitle) {
+        title = generatedTitle
+      }
+    } catch (titleError) {
+      console.warn('⚠️ No se pudo generar título, usando título por defecto:', titleError)
+    }
+
+    const result = await client.$transaction(async (tx) => {
+      // Crear la conversación
+      const conversation = await tx.conversation.create({
+        data: {
+          customerId,
+          title,
+          conversationState: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          title: true,
+        }
+      })
+
+      // Solo crear el mensaje de bienvenida del asistente
+      // El mensaje del usuario se guardará cuando se procese en onAiChatBotAssistant
+      await tx.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          message: welcomeMessage,
+          role: 'assistant',
+        }
+      })
+
+      return {
+        conversationId: conversation.id,
+        title: conversation.title || title,
+      }
+    })
+
+    return result
+  } catch (error) {
+    console.error('Error al crear nueva conversación:', error)
+    // Log más detallado en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Detalles del error:', {
+        customerId,
+        companyId,
+        userMessageLength: userMessage.length,
+        welcomeMessageLength: welcomeMessage.length,
+        error: error instanceof Error ? error.message : error
+      })
+    }
     return null
   }
 }

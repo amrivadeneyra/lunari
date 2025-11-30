@@ -1,5 +1,5 @@
 import { onAiChatBotAssistant, onGetCurrentChatBot } from '@/action/bot'
-import { onUpdateConversationState, onToggleRealtime } from '@/action/conversation'
+import { onUpdateConversationState, onToggleRealtime, onCreateNewConversation } from '@/action/conversation'
 import { postToParent, socketClientUtils } from '@/lib/utils'
 import {
   ChatBotMessageProps,
@@ -197,7 +197,7 @@ export const useChatBot = (companyId?: string) => {
             'user'
           )
         } catch (error) {
-          console.error(`❌ Chatbot: Error al enviar imagen a Pusher:`, error)
+          console.error(`Chatbot: Error al enviar imagen a Pusher:`, error)
         }
       }
 
@@ -252,15 +252,15 @@ export const useChatBot = (companyId?: string) => {
 
       console.log('187 - Enviando mensaje de texto')
 
-      // Prioridad: selectedConversationIdRef (seleccionado explícitamente) > currentChatRoom > realtimeMode?.chatroom
-      // selectedConversationIdRef se actualiza cuando el usuario hace click en una conversación desde window.tsx
-      const conversationId = selectedConversationIdRef.current || currentChatRoom || onRealTime?.chatroom || undefined
+      let conversationId = selectedConversationIdRef.current || currentChatRoom || onRealTime?.chatroom || undefined
 
-      // Si no hay conversationId, esto es un error porque no sabemos a qué conversación guardar
+      // Si no hay conversationId, crear una nueva conversación
       if (!conversationId) {
-        console.error('❌ ERROR: No se pudo determinar conversationId. Se requiere seleccionar un chat antes de enviar un mensaje.')
-        // No continuar si no hay conversationId - el usuario debe seleccionar un chat primero
-        return
+        const newConversation = await onCreateNewConversation(sessionData?.customerId!, currentBotId!, values.content, currentBot?.chatBot?.welcomeMessage!)
+        if (newConversation) {
+          setCurrentChatRoom(newConversation.conversationId)
+          conversationId = newConversation.conversationId
+        }
       }
 
       const response = await onAiChatBotAssistant(currentBotId!, onChats, 'user', values.content, sessionToken || undefined, conversationId)
@@ -276,7 +276,7 @@ export const useChatBot = (companyId?: string) => {
             'user'
           )
         } catch (error) {
-          console.error(`❌ Chatbot: Error al enviar a Pusher:`, error)
+          console.error(`Chatbot: Error al enviar a Pusher:`, error)
         }
       }
 
@@ -360,10 +360,10 @@ export const useChatBot = (companyId?: string) => {
         }
 
       } catch (error) {
-        console.error('❌ Error al actualizar el estado de la conversación:', error)
+        console.error('Error al actualizar el estado de la conversación:', error)
       }
     } else {
-      console.error('❌ No hay chatroom disponible para el toggle')
+      console.error('No hay chatroom disponible para el toggle')
     }
   }
 

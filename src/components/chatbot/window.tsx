@@ -1,5 +1,5 @@
 import { ChatBotMessageProps } from '@/schemas/conversation.schema'
-import React, { forwardRef, useState, useEffect } from 'react'
+import React, { forwardRef, useState, useEffect, useRef } from 'react'
 import { UseFormRegister } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import ChatModeToggle from './chat-mode-toggle'
@@ -47,11 +47,9 @@ type Props = {
       }[]
     >
   >
-  // Nuevos props para el toggle de modo
   onToggleHumanMode: (isHumanMode: boolean) => void
   isHumanMode?: boolean
   isToggleDisabled?: boolean
-  // Props de sesión
   sessionData?: {
     customerId: string
     email: string
@@ -60,7 +58,6 @@ type Props = {
   } | null
   isAuthenticated?: boolean
   onClearSession?: () => void
-  // Props para actualizar cuando se selecciona un chat (opcionales porque solo se usan cuando hay un chat seleccionado)
   setCurrentChatRoom?: (chatRoom: string | undefined) => void
   setSelectedConversationId?: (id: string | undefined) => void
 }
@@ -79,17 +76,13 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       textColor,
       theme,
       help,
-      // Nuevos props
       sessionData,
       isAuthenticated,
       onClearSession,
-      // Props del toggle
       onToggleHumanMode,
       isHumanMode = false,
       isToggleDisabled = false,
-      // Prop para actualizar currentChatRoom
       setCurrentChatRoom,
-      // Prop para actualizar el ref del conversationId seleccionado
       setSelectedConversationId,
     },
     ref
@@ -109,6 +102,9 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
     const [selectedConversation, setSelectedConversation] = useState<{
       id: string
     } | null>(null)
+
+    // Estado para mostrar chat nuevo/vacío (solo mensaje de bienvenida)
+    const [showNewChat, setShowNewChat] = useState(false)
 
     // Estado para búsqueda en soporte
     const [searchQuery, setSearchQuery] = useState('')
@@ -131,6 +127,20 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       }[]
     >([])
     const [loadingConversations, setLoadingConversations] = useState(false)
+
+    const welcomeMessageRef = useRef<{ role: 'assistant'; content: string } | null>(null)
+
+    useEffect(() => {
+      if (!welcomeMessageRef.current && chats.length > 0) {
+        const firstAssistantMsg = chats.find(chat => chat.role === 'assistant')
+        if (firstAssistantMsg) {
+          welcomeMessageRef.current = {
+            role: 'assistant',
+            content: firstAssistantMsg.content
+          }
+        }
+      }
+    }, [chats])
 
     // Filtrar FAQs basado en la búsqueda
     const filteredHelpdesk = helpdesk.filter((faq) =>
@@ -245,6 +255,26 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       }
       setActiveTab(tabMap[nav] as 'inicio' | 'mensajes' | 'soporte')
       setSearchQuery('') // Limpiar búsqueda al cambiar de tab
+    }
+
+    // Función para iniciar un nuevo chat (limpiar y mostrar solo mensaje de bienvenida)
+    const handleStartNewChat = () => {
+      // Cerrar cualquier pantalla abierta
+      setSelectedConversation(null)
+      setSelectedFaq(null)
+
+      let welcomeMsg: { role: 'assistant'; content: string } | null = welcomeMessageRef.current
+
+      setChat([welcomeMsg!])
+
+      if (setCurrentChatRoom) {
+        setCurrentChatRoom(undefined)
+      }
+      if (setSelectedConversationId) {
+        setSelectedConversationId(undefined)
+      }
+
+      setShowNewChat(true)
     }
 
     return (
@@ -381,7 +411,10 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                   </div>
 
                   {/* Ask a question */}
-                  <div className="bg-white rounded-lg border p-4 cursor-pointer border-orange/20 transition-colors shadow-sm">
+                  <div
+                    className="bg-white rounded-lg border p-4 cursor-pointer border-orange/20 transition-colors shadow-sm hover:border-orange/40"
+                    onClick={handleStartNewChat}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <p className="text-xs font-medium text-gravel">Hacer una pregunta</p>
@@ -470,6 +503,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                         <button
                           key={conversation.id}
                           onClick={() => {
+                            // Cerrar chat nuevo si está abierto
+                            setShowNewChat(false)
                             // Actualizar el conversationId de forma síncrona ANTES de actualizar el estado
                             if (setSelectedConversationId) {
                               setSelectedConversationId(conversation.id)
@@ -535,7 +570,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               {/* Botón "Hacer una pregunta" */}
               <div className="px-4 py-4 bg-white flex-shrink-0">
                 <button
-                  onClick={() => setActiveTab('inicio')}
+                  onClick={handleStartNewChat}
                   className="bg-orange hover:bg-orange/90 text-white rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 transition-colors mx-auto"
                 >
                   <span className="text-xs font-medium">Hacer una pregunta</span>
@@ -660,7 +695,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
         )}
 
         {/* PANTALLA COMPLETA DE CONVERSACIÓN - Cubre todo el chat */}
-        {selectedConversation && (
+        {(selectedConversation || showNewChat) && (
           <div className="absolute inset-0 flex flex-col bg-white z-50 rounded-xl">
             {/* Header con información del chat */}
             <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0 rounded-t-xl">
@@ -668,7 +703,10 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   {/* Botón retroceso */}
                   <button
-                    onClick={() => setSelectedConversation(null)}
+                    onClick={() => {
+                      setSelectedConversation(null)
+                      setShowNewChat(false)
+                    }}
                     className="p-1 hover:bg-orange/10 rounded-lg transition-colors flex-shrink-0"
                     aria-label="Volver"
                   >
@@ -699,7 +737,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
                 {/* Botones de acción */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {isAuthenticated && (
+                  {isAuthenticated && selectedConversation && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -723,16 +761,11 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
-                  {!isAuthenticated && (
-                    <button
-                      className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
-                      aria-label="Opciones"
-                    >
-                      <MoreVertical className="w-4 h-4 text-ironside/60" />
-                    </button>
-                  )}
                   <button
-                    onClick={() => setSelectedConversation(null)}
+                    onClick={() => {
+                      setSelectedConversation(null)
+                      setShowNewChat(false)
+                    }}
                     className="p-2 hover:bg-orange/10 rounded-lg transition-colors"
                     aria-label="Cerrar"
                   >
@@ -766,10 +799,9 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                   // Pasar el conversationId directamente si hay una conversación seleccionada
                   if (selectedConversation?.id) {
                     onChat(selectedConversation.id)
-                  } else {
-                    console.warn('⚠️ No hay selectedConversation.id, llamando onChat sin parámetros')
-                    // Si no hay conversación seleccionada, llamar sin parámetros (comportamiento anterior)
-                    onChat()
+                  } else if (showNewChat) {
+                    // Chat nuevo - pasar string vacío para que se cree la conversación
+                    onChat('')
                   }
                 }}
                 className="px-5 py-4 bg-white border-t border-orange/10 flex-shrink-0 rounded-b-xl"
@@ -793,7 +825,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
         )}
 
         {/* NAVEGACIÓN INFERIOR */}
-        {!selectedFaq && !selectedConversation && (
+        {!selectedFaq && !selectedConversation && !showNewChat && (
           <div className="border-t border-orange/10 bg-white px-3 py-2.5 flex-shrink-0">
             <div className="flex items-center justify-around">
               <button
