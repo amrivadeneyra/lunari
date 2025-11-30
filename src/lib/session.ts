@@ -16,7 +16,7 @@ export interface SessionData {
   name?: string
   phone?: string
   companyId: string
-  chatRoomId: string
+  conversationId: string
 }
 
 export interface SessionToken {
@@ -44,7 +44,7 @@ export const generateSessionToken = async (
   customerId: string,
   email: string,
   companyId: string,
-  chatRoomId: string
+  conversationId: string
 ): Promise<SessionToken> => {
   try {
     // Obtener datos completos del cliente
@@ -69,7 +69,7 @@ export const generateSessionToken = async (
       name: customer.name || undefined,
       phone: customer.phone || undefined,
       companyId,
-      chatRoomId,
+      conversationId,
     }
 
     // Generar token JWT
@@ -135,7 +135,7 @@ export const validateSessionToken = async (
       name: customer.name || decoded.name,
       phone: customer.phone || decoded.phone,
       companyId: decoded.companyId,
-      chatRoomId: decoded.chatRoomId,
+      conversationId: decoded.conversationId,
     }
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -175,7 +175,7 @@ export const getCustomerFromToken = async (
         status: true,
         totalInteractions: true,
         lastActiveAt: true,
-        chatRoom: {
+          conversations: {
           where: {
             Customer: {
               companyId: companyId
@@ -246,7 +246,7 @@ export const refreshTokenIfNeeded = async (
       sessionData.customerId,
       sessionData.email,
       sessionData.companyId,
-      sessionData.chatRoomId
+      sessionData.conversationId
     )
 
     return newToken

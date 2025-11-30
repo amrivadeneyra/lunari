@@ -7,7 +7,7 @@ type Props = {
     isHumanMode: boolean
     onToggle: (isHumanMode: boolean) => void
     disabled?: boolean
-    chatRoomId?: string
+    conversationId?: string
     setChats?: React.Dispatch<React.SetStateAction<{
         role: 'user' | 'assistant'
         content: string
@@ -15,8 +15,8 @@ type Props = {
     }[]>>
 }
 
-const ChatModeToggle = ({ isHumanMode, onToggle, disabled = false, chatRoomId, setChats }: Props) => {
-    useRealTime(chatRoomId || '', setChats || (() => { }))
+const ChatModeToggle = ({ isHumanMode, onToggle, disabled = false, conversationId, setChats }: Props) => {
+    useRealTime(conversationId || '', setChats || (() => { }))
 
     return (
         <div className="flex bg-peach/50 border border-orange/20 rounded-lg p-0.5 w-fit shadow-sm">

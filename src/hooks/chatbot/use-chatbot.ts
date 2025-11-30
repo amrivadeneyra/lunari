@@ -122,8 +122,8 @@ export const useChatBot = (companyId?: string) => {
       // CARGAR ESTADO INICIAL DE LA CONVERSACIÓN
       if (chatbot.customer && chatbot.customer.length > 0) {
         const customer = chatbot.customer[0]
-        if (customer.chatRoom && customer.chatRoom.length > 0) {
-          const chatRoom = customer.chatRoom[0]
+        if (customer.conversations && customer.conversations.length > 0) {
+          const chatRoom = customer.conversations[0]
 
           // Almacenar chatroom actual
           setCurrentChatRoom(chatRoom.id)

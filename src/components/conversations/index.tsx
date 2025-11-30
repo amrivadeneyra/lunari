@@ -46,15 +46,15 @@ const ConversationMenu = ({ company }: Props) => {
                 {chatRooms.length ? (
                   chatRooms.map((room) => (
                     <ChatCard
-                      seen={room.chatRoom[0].message[0]?.seen}
-                      id={room.chatRoom[0].id}
-                      onChat={() => onGetActiveChatMessages(room.chatRoom[0].id)}
-                      createdAt={room.chatRoom[0].message[0]?.createdAt}
-                      key={room.chatRoom[0].id}
+                      seen={room.conversations[0].message[0]?.seen}
+                      id={room.conversations[0].id}
+                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
+                      createdAt={room.conversations[0].message[0]?.createdAt}
+                      key={room.conversations[0].id}
                       title={room.email!}
-                      description={room.chatRoom[0].message[0]?.message}
-                      isFavorite={room.chatRoom[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.chatRoom[0].id, isFavorite)}
+                      description={room.conversations[0].message[0]?.message}
+                      isFavorite={room.conversations[0].isFavorite}
+                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
                     />
                   ))
                 ) : (
@@ -86,15 +86,15 @@ const ConversationMenu = ({ company }: Props) => {
                 {chatRooms.length ? (
                   chatRooms.map((room) => (
                     <ChatCard
-                      seen={room.chatRoom[0].message[0]?.seen}
-                      id={room.chatRoom[0].id}
-                      onChat={() => onGetActiveChatMessages(room.chatRoom[0].id)}
-                      createdAt={room.chatRoom[0].message[0]?.createdAt}
-                      key={room.chatRoom[0].id}
+                      seen={room.conversations[0].message[0]?.seen}
+                      id={room.conversations[0].id}
+                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
+                      createdAt={room.conversations[0].message[0]?.createdAt}
+                      key={room.conversations[0].id}
                       title={room.email!}
-                      description={room.chatRoom[0].message[0]?.message}
-                      isFavorite={room.chatRoom[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.chatRoom[0].id, isFavorite)}
+                      description={room.conversations[0].message[0]?.message}
+                      isFavorite={room.conversations[0].isFavorite}
+                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
                     />
                   ))
                 ) : (
@@ -126,15 +126,15 @@ const ConversationMenu = ({ company }: Props) => {
                 {chatRooms.length ? (
                   chatRooms.map((room) => (
                     <ChatCard
-                      seen={room.chatRoom[0].message[0]?.seen}
-                      id={room.chatRoom[0].id}
-                      onChat={() => onGetActiveChatMessages(room.chatRoom[0].id)}
-                      createdAt={room.chatRoom[0].message[0]?.createdAt}
-                      key={room.chatRoom[0].id}
+                      seen={room.conversations[0].message[0]?.seen}
+                      id={room.conversations[0].id}
+                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
+                      createdAt={room.conversations[0].message[0]?.createdAt}
+                      key={room.conversations[0].id}
                       title={room.email!}
-                      description={room.chatRoom[0].message[0]?.message}
-                      isFavorite={room.chatRoom[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.chatRoom[0].id, isFavorite)}
+                      description={room.conversations[0].message[0]?.message}
+                      isFavorite={room.conversations[0].isFavorite}
+                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
                     />
                   ))
                 ) : (
@@ -166,15 +166,15 @@ const ConversationMenu = ({ company }: Props) => {
                 {chatRooms.length ? (
                   chatRooms.map((room) => (
                     <ChatCard
-                      seen={room.chatRoom[0].message[0]?.seen}
-                      id={room.chatRoom[0].id}
-                      onChat={() => onGetActiveChatMessages(room.chatRoom[0].id)}
-                      createdAt={room.chatRoom[0].message[0]?.createdAt}
-                      key={room.chatRoom[0].id}
+                      seen={room.conversations[0].message[0]?.seen}
+                      id={room.conversations[0].id}
+                      onChat={() => onGetActiveChatMessages(room.conversations[0].id)}
+                      createdAt={room.conversations[0].message[0]?.createdAt}
+                      key={room.conversations[0].id}
                       title={room.email!}
-                      description={room.chatRoom[0].message[0]?.message}
-                      isFavorite={room.chatRoom[0].isFavorite}
-                      onToggleFavorite={(isFavorite) => toggleFavorite(room.chatRoom[0].id, isFavorite)}
+                      description={room.conversations[0].message[0]?.message}
+                      isFavorite={room.conversations[0].isFavorite}
+                      onToggleFavorite={(isFavorite) => toggleFavorite(room.conversations[0].id, isFavorite)}
                     />
                   ))
                 ) : (

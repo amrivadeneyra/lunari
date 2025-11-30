@@ -11,7 +11,7 @@ import { onMailer } from '../mailer';
 
 export const onToggleRealtime = async (id: string, state: boolean) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
         id,
       },
@@ -39,11 +39,11 @@ export const onToggleRealtime = async (id: string, state: boolean) => {
 };
 
 // Nueva función para actualizar el estado de la conversación
-export const onUpdateConversationState = async (chatRoomId: string, state: ConversationState) => {
+export const onUpdateConversationState = async (conversationId: string, state: ConversationState) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
-        id: chatRoomId,
+        id: conversationId,
       },
       data: {
         conversationState: state,
@@ -106,7 +106,7 @@ export const onUpdateConversationState = async (chatRoomId: string, state: Conve
 
 export const onGetConversationMode = async (id: string) => {
   try {
-    const mode = await client.chatRoom.findUnique({
+    const mode = await client.conversation.findUnique({
       where: {
         id,
       },
@@ -135,7 +135,7 @@ export const onGetCompanyChatRooms = async (id: string) => {
             id: true,
             email: true,
             name: true,
-            chatRoom: {
+            conversations: {
               select: {
                 createdAt: true,
                 id: true,
@@ -147,7 +147,7 @@ export const onGetCompanyChatRooms = async (id: string) => {
                 conversationState: true,
                 // @ts-ignore
                 lastUserActivityAt: true,
-                message: {
+                messages: {
                   select: {
                     message: true,
                     createdAt: true,
@@ -177,14 +177,14 @@ export const onGetCompanyChatRooms = async (id: string) => {
 
 export const onGetChatMessages = async (id: string) => {
   try {
-    const messages = await client.chatRoom.findUnique({
+    const messages = await client.conversation.findUnique({
       where: {
         id,
       },
       select: {
         id: true,
         live: true,
-        message: {
+        messages: {
           select: {
             id: true,
             role: true,
@@ -211,7 +211,7 @@ export const onViewUnReadMessages = async (id: string) => {
   try {
     await client.chatMessage.updateMany({
       where: {
-        chatRoomId: id,
+        conversationId: id,
       },
       data: {
         seen: true,
@@ -243,13 +243,13 @@ export const onOwnerSendMessage = async (
   role: 'user' | 'assistant'
 ) => {
   try {
-    const chat = await client.chatRoom.update({
+    const chat = await client.conversation.update({
       where: {
         id: chatroom,
       },
       data: {
         live: true, // Activar modo live
-        message: {
+        messages: {
           create: {
             message,
             role: role,
@@ -257,7 +257,7 @@ export const onOwnerSendMessage = async (
         },
       },
       select: {
-        message: {
+        messages: {
           select: {
             id: true,
             role: true,
@@ -275,7 +275,7 @@ export const onOwnerSendMessage = async (
 
     if (chat) {
 
-      const newMessage = chat.message[0]
+      const newMessage = chat.messages[0]
       if (newMessage) {
         await socketServer.trigger(chatroom, 'realtime-mode', {
           chat: {
@@ -293,11 +293,11 @@ export const onOwnerSendMessage = async (
   } catch (error) { }
 }
 
-export const onToggleFavorite = async (chatRoomId: string, isFavorite: boolean) => {
+export const onToggleFavorite = async (conversationId: string, isFavorite: boolean) => {
   try {
-    const chatRoom = await client.chatRoom.update({
+    const chatRoom = await client.conversation.update({
       where: {
-        id: chatRoomId,
+        id: conversationId,
       },
       data: {
         // @ts-ignore
@@ -331,7 +331,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
   try {
 
     // Obtener todas las conversaciones del dominio
-    const allChatRooms = await client.chatRoom.findMany({
+    const allChatRooms = await client.conversation.findMany({
       where: {
         Customer: {
           companyId: id
@@ -355,7 +355,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
             name: true,
           }
         },
-        message: {
+        messages: {
           select: {
             message: true,
             createdAt: true,
@@ -384,7 +384,7 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
           id: (chatRoom as any).Customer?.id,
           email: (chatRoom as any).Customer?.email,
           name: (chatRoom as any).Customer?.name,
-          chatRoom: [{
+          conversations: [{
             id: chatRoom.id,
             createdAt: chatRoom.createdAt,
             updatedAt: chatRoom.updatedAt,

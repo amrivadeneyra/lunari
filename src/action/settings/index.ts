@@ -88,7 +88,7 @@ export const onGetAccountCompany = async () => {
             icon: true,
             customer: {
               select: {
-                chatRoom: {
+                conversations: {
                   select: {
                     id: true,
                     live: true,
@@ -251,8 +251,11 @@ export const onChatBotImageUpdate = async (id: string, icon: string) => {
       },
       data: {
         chatBot: {
-          update: {
-            data: {
+          upsert: {
+            create: {
+              icon,
+            },
+            update: {
               icon,
             },
           },
@@ -287,8 +290,11 @@ export const onUpdateWelcomeMessage = async (
       },
       data: {
         chatBot: {
-          update: {
-            data: {
+          upsert: {
+            create: {
+              welcomeMessage: message,
+            },
+            update: {
               welcomeMessage: message,
             },
           },
@@ -645,7 +651,7 @@ export const onCreateNewCompanyProduct = async (
   try {
     // Separar featureIds del resto de productData
     const { featureIds, ...restProductData } = productData || {}
-    
+
     const product = await client.company.update({
       where: {
         id,
@@ -733,7 +739,7 @@ export const onUpdateCompanyProduct = async (
   try {
     // Separar featureIds del resto de productData
     const { featureIds, ...restProductData } = productData || {}
-    
+
     const updateData: any = {
       name,
       price: parseInt(price),
@@ -752,7 +758,7 @@ export const onUpdateCompanyProduct = async (
           productId: productId
         }
       })
-      
+
       // Luego crear las nuevas si hay alguna seleccionada
       if (featureIds.length > 0) {
         await client.productFeature.createMany({
@@ -1325,7 +1331,7 @@ export const onToggleFeature = async (id: string) => {
 // Eliminar cuenta completa del usuario y todos los datos asociados
 export const onDeleteAccount = async () => {
   const user = await currentUser()
-  
+
   if (!user) {
     return {
       status: 401,

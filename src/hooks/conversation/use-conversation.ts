@@ -14,7 +14,7 @@ export const useConversation = () => {
   const { setLoading: loadMessages, setChats, setChatRoom } = useChatContext()
   const [chatRooms, setChatRooms] = useState<
     {
-      chatRoom: {
+      conversations: {
         id: string
         createdAt: Date
         isFavorite: boolean
@@ -76,7 +76,7 @@ export const useConversation = () => {
       if (messages) {
         setChatRoom(id)
         loadMessages(false)
-        setChats(messages.message)
+        setChats(messages.messages)
       }
     } catch (error) {
       console.log(error)
@@ -88,11 +88,11 @@ export const useConversation = () => {
   const getFilteredChatRooms = () => {
     if (!chatRooms.length) return []
 
-    return chatRooms.filter((room) => {
-      const chatRoom = room.chatRoom[0]
-      if (!chatRoom) return false
+      return chatRooms.filter((room) => {
+        const chatRoom = room.conversations[0]
+        if (!chatRoom) return false
 
-      const lastMessage = chatRoom.message[0]
+        const lastMessage = chatRoom.message[0]
       const now = new Date()
       const lastActivity = new Date(chatRoom.lastUserActivityAt)
       const hoursSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60)
@@ -118,16 +118,16 @@ export const useConversation = () => {
   }
 
   // Función para marcar/desmarcar como favorito
-  const toggleFavorite = async (chatRoomId: string, isFavorite: boolean) => {
+  const toggleFavorite = async (conversationId: string, isFavorite: boolean) => {
     try {
-      const result = await onToggleFavorite(chatRoomId, isFavorite)
+      const result = await onToggleFavorite(conversationId, isFavorite)
       if (result?.status === 200) {
         // Actualizar el estado local
         setChatRooms(prev =>
           prev.map(room => ({
             ...room,
-            chatRoom: room.chatRoom.map(chat =>
-              chat.id === chatRoomId
+            conversations: room.conversations.map(chat =>
+              chat.id === conversationId
                 ? { ...chat, isFavorite }
                 : chat
             )

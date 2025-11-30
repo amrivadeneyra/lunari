@@ -3,7 +3,7 @@ import { Card } from '../ui/card'
 import { useRealTime } from '@/hooks/chatbot/use-chatbot'
 
 type Props = {
-  chatRoomId: string
+  conversationId: string
   setChats: React.Dispatch<
     React.SetStateAction<
       {
@@ -15,9 +15,9 @@ type Props = {
   >
 }
 
-const RealTimeMode = ({ chatRoomId, setChats }: Props) => {
+const RealTimeMode = ({ conversationId, setChats }: Props) => {
   // Descomentado: Activar tiempo real
-  useRealTime(chatRoomId, setChats)
+  useRealTime(conversationId, setChats)
 
   return (
     <Card className="px-3 rounded-full py-1 bg-orange font-bold text-white text-sm">

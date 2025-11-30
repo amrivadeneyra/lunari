@@ -153,32 +153,32 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Avatar className="w-8 h-8">
-                  <AvatarImage
-                    src="https://github.com/shadcn.png"
-                    alt="@shadcn"
-                  />
+              <AvatarImage
+                src="https://github.com/shadcn.png"
+                alt="@shadcn"
+              />
                   <AvatarFallback className="bg-orange/10 text-orange font-medium text-xs">
                     {companyName.charAt(0).toUpperCase()}
                   </AvatarFallback>
-                </Avatar>
+            </Avatar>
                 <div className="flex flex-col flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-gravel leading-tight truncate">
-                    {isHumanMode ? 'Agente Humano' : 'Asistente Virtual'}
-                  </h3>
+                {isHumanMode ? 'Agente Humano' : 'Asistente Virtual'}
+              </h3>
                   <p className="text-[10px] text-ironside/60 truncate">
                     {isAuthenticated && sessionData ? (sessionData.name || sessionData.email) : 'El equipo también puede ayudar'}
                   </p>
                 </div>
-              </div>
+            </div>
 
               {isAuthenticated && (
-                <ChatModeToggle
-                  isHumanMode={isHumanMode}
-                  onToggle={onToggleHumanMode}
-                  disabled={isToggleDisabled}
-                  chatRoomId={realtimeMode?.chatroom}
-                  setChats={setChat}
-                />
+                  <ChatModeToggle
+                    isHumanMode={isHumanMode}
+                    onToggle={onToggleHumanMode}
+                    disabled={isToggleDisabled}
+                  conversationId={realtimeMode?.chatroom}
+                    setChats={setChat}
+                  />
               )}
             </div>
           </div>
@@ -256,8 +256,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange" />
                       <div className="w-full border border-ironside/20 bg-ironside/5 hover:bg-orange/10 hover:border-orange/30 hover:text-orange rounded-lg px-3 py-2 text-xs text-ironside/70 cursor-pointer transition-colors">
                         Buscar ayuda
-                      </div>
-                    </div>
+          </div>
+        </div>
 
                     {/* Lista de temas de ayuda */}
                     {helpdesk.length > 0 && (
@@ -380,7 +380,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                   <div className="space-y-1">
                     {filteredHelpdesk.map((desk) => (
                       <button
-                        key={desk.id}
+                    key={desk.id}
                         onClick={() => setSelectedFaq(desk)}
                         className="w-full bg-white hover:bg-orange/5 rounded-lg px-6 py-4 transition-colors group"
                       >
@@ -486,7 +486,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                 <span className="text-[10px] font-medium">Ayuda</span>
               </button>
             </div>
-          </div>
+        </div>
         )}
       </div>
     )

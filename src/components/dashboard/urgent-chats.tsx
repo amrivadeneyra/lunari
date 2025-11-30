@@ -16,7 +16,7 @@ type Props = {
       name: string | null
       email: string | null
     } | null
-    message: Array<{
+    messages: Array<{
       message: string
       createdAt: Date
       role: 'user' | 'assistant' | null
@@ -74,11 +74,11 @@ const UrgentChats = ({ urgentChats }: Props) => {
                     </div>
                   </div>
 
-                  {chat.message[0] && (
+                  {chat.messages[0] && (
                     <div className="flex items-start gap-2 mb-3">
                       <MessageCircle className="w-4 h-4 text-ironside flex-shrink-0 mt-0.5" />
                       <p className="text-xs text-gravel line-clamp-2">
-                        {chat.message[0].message}
+                        {chat.messages[0].message}
                       </p>
                     </div>
                   )}
