@@ -188,11 +188,10 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               // Actualizar los chats
               setChat(formattedMessages)
 
-              // Si la conversación está en modo live, significa que está escalada a humano
-              if (conversationData.live && !isHumanMode) {
+              // Sincronizar el modo humano solo una vez al cargar, sin depender de isHumanMode
+              if (conversationData.live) {
                 onToggleHumanMode(true)
-              } else if (!conversationData.live && isHumanMode) {
-                // Si no está en modo live pero el estado local dice que está en modo humano, sincronizar
+              } else {
                 onToggleHumanMode(false)
               }
             }
@@ -203,7 +202,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       }
 
       loadConversationMessages()
-    }, [selectedConversation?.id, isHumanMode, onToggleHumanMode])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedConversation?.id])
 
     // Función para resaltar palabras completas que contienen la búsqueda
     const highlightText = (text: string, query: string) => {
