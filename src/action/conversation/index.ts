@@ -408,3 +408,46 @@ export const onGetAllCompanyChatRooms = async (id: string) => {
     return null
   }
 }
+
+/**
+ * Función para obtener las conversaciones de un cliente específico
+ * @param customerId - El ID del cliente
+ * @returns Las conversaciones del cliente
+ */
+export const onGetCustomerConversations = async (customerId: string) => {
+  try {
+    const conversations = await client.conversation.findMany({
+      where: {
+        customerId,
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        live: true,
+        conversationState: true,
+        messages: {
+          select: {
+            message: true,
+            createdAt: true,
+            role: true,
+            seen: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    })
+
+    return conversations
+  } catch (error) {
+    console.log('❌ Error en onGetCustomerConversations:', error)
+    return null
+  }
+}

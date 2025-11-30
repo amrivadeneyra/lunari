@@ -1,5 +1,5 @@
 import { ChatBotMessageProps } from '@/schemas/conversation.schema'
-import React, { forwardRef, useState } from 'react'
+import React, { forwardRef, useState, useEffect } from 'react'
 import { UseFormRegister } from 'react-hook-form'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import ChatModeToggle from './chat-mode-toggle'
@@ -9,6 +9,7 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, ArrowRight, ChevronLeft, X, Maximize2 } from 'lucide-react'
 import Image from 'next/image'
+import { onGetCustomerConversations } from '@/action/conversation'
 
 type Props = {
   errors: any
@@ -95,10 +96,69 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
     // Estado para búsqueda en soporte
     const [searchQuery, setSearchQuery] = useState('')
 
+    // Estado para conversaciones del cliente
+    const [customerConversations, setCustomerConversations] = useState<
+      {
+        id: string
+        title: string | null
+        createdAt: Date
+        updatedAt: Date
+        live: boolean
+        conversationState: string
+        messages: {
+          message: string
+          createdAt: Date
+          role: string | null
+          seen: boolean
+        }[]
+      }[]
+    >([])
+    const [loadingConversations, setLoadingConversations] = useState(false)
+
     // Filtrar FAQs basado en la búsqueda
     const filteredHelpdesk = helpdesk.filter((faq) =>
       faq.question.toLowerCase().includes(searchQuery.toLowerCase())
     )
+
+    // Función para formatear tiempo relativo (ej: "5h", "2d")
+    const formatTimeAgo = (date: Date): string => {
+      const now = new Date()
+      const diffMs = now.getTime() - new Date(date).getTime()
+      const diffMins = Math.floor(diffMs / (1000 * 60))
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+      if (diffMins < 60) {
+        return diffMins <= 1 ? 'Ahora' : `${diffMins}m`
+      } else if (diffHours < 24) {
+        return `${diffHours}h`
+      } else if (diffDays < 7) {
+        return `${diffDays}d`
+      } else {
+        return new Date(date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      }
+    }
+
+    // Cargar conversaciones cuando se active el tab de mensajes
+    useEffect(() => {
+      const loadConversations = async () => {
+        if (activeTab === 'mensajes' && isAuthenticated && sessionData?.customerId) {
+          setLoadingConversations(true)
+          try {
+            const conversations = await onGetCustomerConversations(sessionData.customerId)
+            if (conversations) {
+              setCustomerConversations(conversations)
+            }
+          } catch (error) {
+            console.error('Error al cargar conversaciones:', error)
+          } finally {
+            setLoadingConversations(false)
+          }
+        }
+      }
+
+      loadConversations()
+    }, [activeTab, isAuthenticated, sessionData?.customerId])
 
     // Función para resaltar palabras completas que contienen la búsqueda
     const highlightText = (text: string, query: string) => {
@@ -342,7 +402,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               <div className="px-4 py-3 bg-white border-b border-orange/10 flex-shrink-0 flex items-center justify-center relative">
                 <h2 className="text-base font-semibold text-gravel">Mensajes</h2>
                 <button
-                  onClick={() => setActiveTab('mensajes')}
+                  onClick={() => setActiveTab('inicio')}
                   className="absolute right-4 p-1 hover:bg-orange/10 rounded-lg transition-colors"
                   aria-label="Cerrar"
                 >
@@ -350,7 +410,84 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                 </button>
               </div>
 
-              
+              {/* Lista de conversaciones */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-custom">
+                {loadingConversations ? (
+                  <div className="flex items-center justify-center py-12">
+                    <p className="text-sm text-ironside/60">Cargando conversaciones...</p>
+                  </div>
+                ) : customerConversations.length > 0 ? (
+                  <div className="space-y-0">
+                    {customerConversations.map((conversation) => {
+                      const title = conversation.title || 'Sin título'
+
+                      return (
+                        <button
+                          key={conversation.id}
+                          className="w-full bg-white hover:bg-orange/5 border-b border-orange/10 px-4 py-4 transition-colors group"
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Icono */}
+                            <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center overflow-hidden">
+                              <div className="w-full h-full rounded-full flex items-center justify-center">
+                                <Image
+                                  src="/images/lunari-avatar.png"
+                                  alt="Lunari"
+                                  width={45}
+                                  height={50}
+                                  className="object-cover"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Contenido del mensaje */}
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-xs text-gravel font-normal line-clamp-2 mb-1">
+                                {title}
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <p className="text-[10px] text-ironside/60">
+                                  Lunari
+                                </p>
+                                <span className="text-[10px] text-ironside/40">•</span>
+                                <p className="text-[10px] text-ironside/60">
+                                  {formatTimeAgo(conversation.updatedAt)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Flecha */}
+                            <ChevronRight className="w-4 h-4 text-orange flex-shrink-0 self-center" />
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 h-full">
+                    <MessageCircle className="w-12 h-12 text-ironside/40 mb-4" />
+                    <p className="text-sm font-semibold text-gravel mb-1">
+                      No tienes conversaciones aún
+                    </p>
+                    <p className="text-xs text-ironside/60">
+                      Los mensajes se mostrarán aquí
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Botón "Hacer una pregunta" */}
+              <div className="px-4 py-4 bg-white flex-shrink-0">
+                <button
+                  onClick={() => setActiveTab('inicio')}
+                  className="bg-orange hover:bg-orange/90 text-white rounded-lg px-4 py-2.5 flex items-center justify-center gap-2 transition-colors mx-auto"
+                >
+                  <span className="text-xs font-medium">Hacer una pregunta</span>
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    <HelpCircle className="w-3 h-3 text-white" />
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 
