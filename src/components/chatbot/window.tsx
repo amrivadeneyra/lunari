@@ -9,7 +9,7 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Send, Home, MessageCircle, HelpCircle, ChevronRight, Search, ArrowRight, ChevronLeft, X, Maximize2, MoreVertical } from 'lucide-react'
 import Image from 'next/image'
-import { onGetCustomerConversations } from '@/action/conversation'
+import { onGetCustomerConversations, onGetChatMessages } from '@/action/conversation'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -170,6 +170,40 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
       loadConversations()
     }, [activeTab, isAuthenticated, sessionData?.customerId])
+
+    // Cargar mensajes cuando se selecciona una conversación
+    useEffect(() => {
+      const loadConversationMessages = async () => {
+        if (selectedConversation?.id) {
+          try {
+            const conversationData = await onGetChatMessages(selectedConversation.id)
+            if (conversationData && conversationData.messages) {
+              // Convertir los mensajes al formato esperado por el componente
+              const formattedMessages = conversationData.messages.map((msg: any) => ({
+                role: msg.role || 'assistant',
+                content: msg.message || '',
+                link: undefined
+              }))
+
+              // Actualizar los chats
+              setChat(formattedMessages)
+
+              // Si la conversación está en modo live, significa que está escalada a humano
+              if (conversationData.live && !isHumanMode) {
+                onToggleHumanMode(true)
+              } else if (!conversationData.live && isHumanMode) {
+                // Si no está en modo live pero el estado local dice que está en modo humano, sincronizar
+                onToggleHumanMode(false)
+              }
+            }
+          } catch (error) {
+            console.error('Error al cargar mensajes de la conversación:', error)
+          }
+        }
+      }
+
+      loadConversationMessages()
+    }, [selectedConversation?.id, isHumanMode, onToggleHumanMode])
 
     // Función para resaltar palabras completas que contienen la búsqueda
     const highlightText = (text: string, query: string) => {
