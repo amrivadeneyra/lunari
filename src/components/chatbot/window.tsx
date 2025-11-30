@@ -14,14 +14,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '../ui/dropdown-menu'
 
 type Props = {
   errors: any
   register: UseFormRegister<ChatBotMessageProps>
   chats: { role: 'user' | 'assistant'; content: string; link?: string }[]
-  onChat(): void
+  onChat(conversationId?: string): void
   onResponding: boolean
   companyName: string
   theme?: string | null
@@ -61,6 +60,9 @@ type Props = {
   } | null
   isAuthenticated?: boolean
   onClearSession?: () => void
+  // Props para actualizar cuando se selecciona un chat (opcionales porque solo se usan cuando hay un chat seleccionado)
+  setCurrentChatRoom?: (chatRoom: string | undefined) => void
+  setSelectedConversationId?: (id: string | undefined) => void
 }
 
 export const BotWindow = forwardRef<HTMLDivElement, Props>(
@@ -85,6 +87,10 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       onToggleHumanMode,
       isHumanMode = false,
       isToggleDisabled = false,
+      // Prop para actualizar currentChatRoom
+      setCurrentChatRoom,
+      // Prop para actualizar el ref del conversationId seleccionado
+      setSelectedConversationId,
     },
     ref
   ) => {
@@ -176,6 +182,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       const loadConversationMessages = async () => {
         if (selectedConversation?.id) {
           try {
+            // El conversationId ya se actualizó de forma síncrona en el onClick
+            // Solo cargar los mensajes aquí
             const conversationData = await onGetChatMessages(selectedConversation.id)
             if (conversationData && conversationData.messages) {
               // Convertir los mensajes al formato esperado por el componente
@@ -187,13 +195,6 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
 
               // Actualizar los chats
               setChat(formattedMessages)
-
-              // Sincronizar el modo humano solo una vez al cargar, sin depender de isHumanMode
-              if (conversationData.live) {
-                onToggleHumanMode(true)
-              } else {
-                onToggleHumanMode(false)
-              }
             }
           } catch (error) {
             console.error('Error al cargar mensajes de la conversación:', error)
@@ -202,8 +203,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
       }
 
       loadConversationMessages()
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedConversation?.id])
+    }, [selectedConversation?.id, setChat])
 
     // Función para resaltar palabras completas que contienen la búsqueda
     const highlightText = (text: string, query: string) => {
@@ -469,7 +469,17 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                       return (
                         <button
                           key={conversation.id}
-                          onClick={() => setSelectedConversation({ id: conversation.id })}
+                          onClick={() => {
+                            // Actualizar el conversationId de forma síncrona ANTES de actualizar el estado
+                            if (setSelectedConversationId) {
+                              setSelectedConversationId(conversation.id)
+                            }
+                            if (setCurrentChatRoom) {
+                              setCurrentChatRoom(conversation.id)
+                            }
+                            // Luego actualizar el estado para cargar los mensajes
+                            setSelectedConversation({ id: conversation.id })
+                          }}
                           className="w-full bg-white hover:bg-orange/5 border-b border-orange/10 px-4 py-4 transition-colors group"
                         >
                           <div className="flex items-start gap-3">
@@ -751,7 +761,17 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
                 {onResponding && <Responding />}
               </div>
               <form
-                onSubmit={onChat}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  // Pasar el conversationId directamente si hay una conversación seleccionada
+                  if (selectedConversation?.id) {
+                    onChat(selectedConversation.id)
+                  } else {
+                    console.warn('⚠️ No hay selectedConversation.id, llamando onChat sin parámetros')
+                    // Si no hay conversación seleccionada, llamar sin parámetros (comportamiento anterior)
+                    onChat()
+                  }
+                }}
                 className="px-5 py-4 bg-white border-t border-orange/10 flex-shrink-0 rounded-b-xl"
               >
                 <div className="flex items-center gap-2 w-full">

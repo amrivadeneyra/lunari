@@ -38,6 +38,84 @@ const getRelevantChatHistory = (
   return [firstMessage, ...recentMessages]
 }
 
+/**
+ * Helper function para obtener y validar el conversationId correcto
+ * Prioridad: conversationId proporcionado > realtimeMode.chatroom > conversación única
+ * 
+ * IMPORTANTE: NO usa conversations[0].id como fallback si hay múltiples conversaciones
+ * para evitar guardar mensajes en la conversación incorrecta.
+ * 
+ * @param conversationId - ID de conversación proporcionado explícitamente
+ * @param customerInfo - Información del cliente con sus conversaciones
+ * @param realtimeMode - Modo tiempo real con chatroom
+ * @returns El conversationId válido o null si no se puede determinar
+ * @throws Error si hay múltiples conversaciones y no se proporciona conversationId
+ */
+const getValidConversationId = (
+  conversationId: string | undefined | null,
+  customerInfo: any,
+  realtimeMode?: { chatroom: string; mode: boolean } | undefined
+): string | null => {
+  const conversations = customerInfo?.conversations || []
+  const hasMultipleConversations = conversations.length > 1
+
+  // 1. Si se proporciona conversationId explícitamente, validar que pertenezca al customer
+  if (conversationId) {
+    const isValid = conversations.some(
+      (conv: any) => conv.id === conversationId
+    )
+    if (isValid) {
+      return conversationId
+    }
+    console.warn(`⚠️ ConversationId ${conversationId} no pertenece al customer`)
+    // Si el conversationId no es válido, no usar fallback - lanzar error
+    if (hasMultipleConversations) {
+      throw new Error(
+        `ConversationId ${conversationId} no pertenece al customer. ` +
+        `Hay ${conversations.length} conversaciones disponibles. ` +
+        `Se requiere un conversationId válido cuando hay múltiples conversaciones.`
+      )
+    }
+  }
+
+  // 2. Si hay realtimeMode con chatroom, validar que pertenezca al customer
+  if (realtimeMode?.chatroom) {
+    const isValid = conversations.some(
+      (conv: any) => conv.id === realtimeMode.chatroom
+    )
+    if (isValid) {
+      return realtimeMode.chatroom
+    }
+    console.warn(`⚠️ RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer`)
+    // Si el chatroom no es válido y hay múltiples conversaciones, lanzar error
+    if (hasMultipleConversations) {
+      throw new Error(
+        `RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer. ` +
+        `Hay ${conversations.length} conversaciones disponibles. ` +
+        `Se requiere un conversationId válido cuando hay múltiples conversaciones.`
+      )
+    }
+  }
+
+  // 3. Fallback SEGURO: Solo usar si hay UNA sola conversación
+  // Esto es seguro porque no hay ambigüedad sobre qué conversación usar
+  if (conversations.length === 1) {
+    return conversations[0].id
+  }
+
+  // 4. Si hay múltiples conversaciones y no se proporcionó conversationId válido, lanzar error
+  if (hasMultipleConversations) {
+    throw new Error(
+      `No se puede determinar el conversationId. ` +
+      `El customer tiene ${conversations.length} conversaciones y no se proporcionó un conversationId explícito. ` +
+      `Se requiere especificar el conversationId cuando hay múltiples conversaciones para evitar guardar mensajes en la conversación incorrecta.`
+    )
+  }
+
+  // 5. Si no hay conversaciones, retornar null
+  return null
+}
+
 export const onStoreConversations = async (
   id: string,
   message: string,
@@ -135,7 +213,6 @@ export const onGetCurrentChatBot = async (idOrName: string) => {
             helpdesk: true,
           },
         },
-        // AGREGAR INFORMACIÓN DE CHATROOM PARA EL TOGGLE
         customer: {
           select: {
             conversations: {
@@ -145,9 +222,8 @@ export const onGetCurrentChatBot = async (idOrName: string) => {
                 live: true,
               },
               orderBy: {
-                createdAt: 'desc'
-              },
-              take: 1
+                updatedAt: 'desc' // Ordenar por última actualización para mostrar las más recientes primero
+              }
             }
           }
         }
@@ -282,17 +358,35 @@ const handleAuthenticatedUser = async (
   chat: { role: 'user' | 'assistant'; content: string }[],
   companyId: string,
   chatBotCompany: any,
-  sessionToken: string
+  sessionToken: string,
+  conversationId?: string | null
 ) => {
+  console.log("🚀 ~ conversationId:", conversationId)
+  // Obtener el conversationId válido usando la función helper
+  const validConversationId = getValidConversationId(
+    conversationId,
+    customerInfo,
+    undefined // realtimeMode se puede pasar si es necesario
+  )
+
+  if (!validConversationId) {
+    throw new Error('No se pudo determinar un conversationId válido')
+  }
+
+  // Encontrar la conversación específica
+  const currentConversation = customerInfo.conversations.find(
+    (conv: any) => conv.id === validConversationId
+  ) || customerInfo.conversations[0]
 
   // SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
-  if (!customerInfo.conversations[0].live) {
+  console.log("Usando conversationId: ", validConversationId)
+  if (!currentConversation.live) {
     // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
 
     if (shouldEndConversation) {
       // Guardar mensaje del usuario
-      await onStoreConversations(customerInfo.conversations[0].id, message, 'user')
+      await onStoreConversations(validConversationId, message, 'user')
 
       // Solicitar calificación de forma simple
       const ratingMessage = `¡Perfecto! Me alegra haberte ayudado. 😊
@@ -305,11 +399,11 @@ Antes de que te vayas, ¿podrías calificar tu experiencia del 1 al 5?
 Tu opinión nos ayuda a mejorar.`
 
       // Guardar solicitud de feedback
-      await onStoreConversations(customerInfo.conversations[0].id, ratingMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, ratingMessage, 'assistant', message)
 
       // Marcar como esperando calificación
       await client.conversation.update({
-        where: { id: customerInfo.conversations[0].id },
+        where: { id: validConversationId },
         data: {
           conversationState: 'AWAITING_RATING',
           resolved: true
@@ -327,11 +421,11 @@ Tu opinión nos ayuda a mejorar.`
   }
 
   // 0.1 Actualizar última actividad del usuario
-  await updateUserActivity(customerInfo.conversations[0].id)
+  await updateUserActivity(validConversationId)
 
   // 0.2 Verificar estado de la conversación (SIN crear nuevas conversaciones)
   const conversationState = await handleConversationState(
-    customerInfo.conversations[0].id,
+    validConversationId,
     customerInfo.id,
     chatBotCompany.chatBot?.welcomeMessage || '¡Hola! ¿En qué puedo ayudarte?'
   )
@@ -341,7 +435,7 @@ Tu opinión nos ayuda a mejorar.`
   if (conversationState.shouldStartNew) {
     // Reactivar la conversación existente en lugar de crear una nueva
     await client.conversation.update({
-      where: { id: customerInfo.conversations[0].id },
+      where: { id: validConversationId },
       data: {
         conversationState: 'ACTIVE',
         lastUserActivityAt: new Date(),
@@ -365,12 +459,12 @@ Tu opinión nos ayuda a mejorar.`
   const satisfactionRating = detectSatisfactionRating(message)
   if (satisfactionRating) {
     // Guardar mensaje de calificación del usuario
-    await onStoreConversations(customerInfo.conversations[0].id, message, 'user')
+    await onStoreConversations(validConversationId, message, 'user')
 
     // ENVIAR MENSAJE DEL USUARIO INMEDIATAMENTE (ANTES DEL PROCESAMIENTO)
-    if (customerInfo.conversations[0].live) {
+    if (currentConversation.live) {
       await onRealTimeChat(
-        customerInfo.conversations[0].id,
+        validConversationId,
         message,
         `user-${Date.now()}`,
         'user'
@@ -378,7 +472,7 @@ Tu opinión nos ayuda a mejorar.`
     }
 
     await saveSatisfactionRating(
-      customerInfo.conversations[0].id,
+      validConversationId,
       customerInfo.id,
       companyId,
       satisfactionRating,
@@ -387,14 +481,14 @@ Tu opinión nos ayuda a mejorar.`
 
     // VERIFICAR SI ESTABA ESPERANDO CALIFICACIÓN PARA ESCALAR
     const chatRoom = await client.conversation.findUnique({
-      where: { id: customerInfo.conversations[0].id },
+      where: { id: validConversationId },
       select: { conversationState: true }
     })
 
     if (chatRoom?.conversationState === 'AWAITING_RATING') {
       // ESCALAR A HUMANO DESPUÉS DE LA CALIFICACIÓN
       await client.conversation.update({
-        where: { id: customerInfo.conversations[0].id },
+        where: { id: validConversationId },
         data: {
           live: true,
           conversationState: 'ESCALATED' as any
@@ -430,7 +524,7 @@ Tu opinión nos ayuda a mejorar.`
 
 Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nuestro equipo se pondrá en contacto contigo en breve. 👨‍💼`
 
-      await onStoreConversations(customerInfo.conversations[0].id, transferMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, transferMessage, 'assistant', message)
 
       return {
         response: {
@@ -438,18 +532,18 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
           content: transferMessage
         },
         live: true,
-        chatRoom: customerInfo.conversations[0].id,
+        chatRoom: validConversationId,
         sessionToken
       }
     } else {
       // CALIFICACIÓN NORMAL (terminar conversación)
-      await markConversationAsEnded(customerInfo.conversations[0].id)
+      await markConversationAsEnded(validConversationId)
 
       const thankYouMessage = `¡Muchas gracias por tu calificación de ${satisfactionRating}/5! Tu opinión es muy importante para nosotros y nos ayuda a mejorar nuestro servicio. 😊
 
 ¿Tienes alguna otra consulta o necesitas ayuda con algo más?`
 
-      await onStoreConversations(customerInfo.conversations[0].id, thankYouMessage, 'assistant', message)
+      await onStoreConversations(validConversationId, thankYouMessage, 'assistant', message)
 
       return {
         response: {
@@ -462,12 +556,12 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
   }
 
   // 2. Manejar modo tiempo real si está activo
-  if (customerInfo.conversations[0].live) {
-    await onStoreConversations(customerInfo.conversations[0].id, message, author)
+  if (currentConversation.live) {
+    await onStoreConversations(validConversationId, message, author)
 
     return {
       live: true,
-      chatRoom: customerInfo.conversations[0].id,
+      chatRoom: validConversationId,
       sessionToken // Mantener token
     }
   }
@@ -498,7 +592,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
       data: {
         message,
         role: 'user',
-        conversationId: customerInfo.conversations[0].id,
+        conversationId: validConversationId,
         responseTime: 0,
         respondedWithin2Hours: true
       }
@@ -519,7 +613,7 @@ Tu opinión me ayuda a mejorar.`
       data: {
         message: transferMessage,
         role: 'assistant',
-        conversationId: customerInfo.conversations[0].id,
+        conversationId: validConversationId,
         responseTime: 0,
         respondedWithin2Hours: true
       }
@@ -554,13 +648,13 @@ Tu opinión me ayuda a mejorar.`
 
     // Marcar como esperando calificación antes de escalar
     await client.conversation.update({
-      where: { id: customerInfo.conversations[0].id },
+      where: { id: validConversationId },
       data: {
         conversationState: 'AWAITING_RATING' as any // Esperar calificación antes de escalar
       }
     })
 
-    console.log(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${customerInfo.conversations[0].id} - Cliente: ${customerInfo.email}`)
+    console.log(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
@@ -592,12 +686,12 @@ Tu opinión me ayuda a mejorar.`
     // NUEVO: Guardar chat completo
     await saveCompleteChatSession(
       customerInfo.id,
-      customerInfo.conversations[0].id,
+      validConversationId,
       companyId,
       messagesToSave
     )
 
-    await updateResolutionType(customerInfo.conversations[0].id, false)
+    await updateResolutionType(validConversationId, false)
 
     return {
       response: {
@@ -652,7 +746,7 @@ Tu opinión me ayuda a mejorar.`
     throw new Error('OpenAI no retornó una respuesta válida')
   }
 
-  const result = await handleOpenAIResponse(response, customerInfo, chat, message)
+  const result = await handleOpenAIResponse(response, customerInfo, chat, message, validConversationId)
 
   // SIMPLIFICADO: Agregar "¿Hay algo más en que te pueda ayudar?" a todas las respuestas
   const finalContent = addHelpOffer(result.response.content)
@@ -669,13 +763,13 @@ Tu opinión me ayuda a mejorar.`
   // 10. NUEVO: Guardar chat completo con respuesta de OpenAI
   await saveCompleteChatSession(
     customerInfo.id,
-    customerInfo.conversations[0].id,
+    validConversationId,
     companyId,
     messagesToSave
   )
 
   // 10. Actualizar tipo de resolución
-  await updateResolutionType(customerInfo.conversations[0].id, false)
+  await updateResolutionType(validConversationId, false)
 
   return {
     ...result,
@@ -1856,15 +1950,22 @@ const handleOpenAIResponse = async (
   response: string,
   customerInfo: CustomerInfo,
   chatHistory: any[],
-  userMessage?: string
+  userMessage?: string,
+  conversationId?: string | null
 ) => {
+  // Obtener el conversationId válido
+  const validConversationId = conversationId || (customerInfo.conversations?.[0]?.id || null)
+
+  if (!validConversationId) {
+    throw new Error('No se pudo determinar un conversationId válido en handleOpenAIResponse')
+  }
   // Manejar solicitudes iniciales de compra
   const initialPurchase = detectInitialPurchaseRequest(userMessage || '')
   if (initialPurchase.isInitialPurchase) {
     try {
       // Buscar productos que coincidan con el material mencionado
       const chatRoom = await client.conversation.findUnique({
-        where: { id: customerInfo.conversations[0].id },
+        where: { id: validConversationId },
         select: {
           Customer: {
             select: { companyId: true }
@@ -1937,7 +2038,7 @@ Por ejemplo: "quiero comprar tela de algodón" o "necesito gabardina"`
     try {
       // Buscar el producto por nombre
       const chatRoom = await client.conversation.findUnique({
-        where: { id: customerInfo.conversations[0].id },
+        where: { id: validConversationId },
         select: {
           Customer: {
             select: { companyId: true }
@@ -2041,7 +2142,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
   // Manejar modo tiempo real (escalado a humano)
   if (response.includes('(realtime)')) {
     await client.conversation.update({
-      where: { id: customerInfo.conversations[0].id },
+      where: { id: validConversationId },
       data: {
         live: true,
         conversationState: 'ESCALATED' as any // Marcar como escalado as any // Marcar como escalado
@@ -2049,7 +2150,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     })
 
     // Notificar al equipo humano sobre la escalación
-    console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${customerInfo.conversations[0].id} - Cliente: ${customerInfo.email}`)
+    console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
@@ -2057,7 +2158,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
         content: response.replace('(realtime)', '')
       },
       live: true, // Indicar que está en modo live
-      chatRoom: customerInfo.conversations[0].id // ID del chatRoom para Pusher
+      chatRoom: validConversationId // ID del chatRoom para Pusher
     }
   }
 
@@ -2070,7 +2171,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
       try {
         // Buscar el producto por nombre - obtener companyId del chatRoom
         const chatRoom = await client.conversation.findUnique({
-          where: { id: customerInfo.conversations[0].id },
+          where: { id: validConversationId },
           select: {
             Customer: {
               select: { companyId: true }
@@ -2218,7 +2319,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
       try {
         // Buscar el producto por nombre
         const chatRoom = await client.conversation.findUnique({
-          where: { id: customerInfo.conversations[0].id },
+          where: { id: validConversationId },
           select: {
             Customer: {
               select: { companyId: true }
@@ -2912,7 +3013,8 @@ export const onAiChatBotAssistant = async (
   chat: { role: 'user' | 'assistant'; content: string }[],
   author: 'user',
   message: string,
-  sessionToken?: string
+  sessionToken?: string,
+  conversationId?: string | null
 ) => {
   try {
     const chatBotCompany = await client.company.findUnique({
@@ -3003,7 +3105,8 @@ export const onAiChatBotAssistant = async (
           chat,
           id, // Pasar el companyId
           chatBotCompany,
-          sessionToken
+          sessionToken,
+          conversationId // Pasar el conversationId si está disponible
         )
       }
     }
@@ -3333,7 +3436,9 @@ export const onAiChatBotAssistant = async (
         throw new Error('OpenAI no retornó una respuesta válida')
       }
 
-      const result = await handleOpenAIResponse(response, customerInfo, chat, message)
+      // Para usuarios no autenticados, usar la primera conversación
+      const conversationIdForUnauthenticated = customerInfo?.conversations?.[0]?.id || null
+      const result = await handleOpenAIResponse(response, customerInfo, chat, message, conversationIdForUnauthenticated)
       const finalContentMain = addHelpOffer(result.response.content)
 
       const messagesToSave = [

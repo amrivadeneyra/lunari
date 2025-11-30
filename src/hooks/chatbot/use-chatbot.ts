@@ -73,6 +73,8 @@ export const useChatBot = (companyId?: string) => {
   // Almacenar chatroom actual para el toggle
   const [currentChatRoom, setCurrentChatRoom] = useState<string | undefined>(undefined)
 
+  const selectedConversationIdRef = useRef<string | undefined>(undefined)
+
   const onScrollToBottom = () => {
     messageWindowRef.current?.scroll({
       top: messageWindowRef.current.scrollHeight,
@@ -118,21 +120,17 @@ export const useChatBot = (companyId?: string) => {
       ])
       setCurrentBot(chatbot)
       setLoading(false)
-
-      // CARGAR ESTADO INICIAL DE LA CONVERSACIÓN
       if (chatbot.customer && chatbot.customer.length > 0) {
         const customer = chatbot.customer[0]
         if (customer.conversations && customer.conversations.length > 0) {
           const chatRoom = customer.conversations[0]
 
-          // Almacenar chatroom actual
-          setCurrentChatRoom(chatRoom.id)
-
-          // Determinar modo inicial basado en conversationState
+          // Determinar modo inicial basado en conversationState (solo para UI)
+          // PERO NO establecer currentChatRoom - eso se hace cuando el usuario selecciona un chat
           const isInitiallyHumanMode = chatRoom.conversationState === 'ESCALATED'
           setIsHumanMode(isInitiallyHumanMode)
 
-          // Configurar tiempo real si está en modo humano
+          // Configurar tiempo real si está en modo humano (solo para UI)
           if (isInitiallyHumanMode) {
             setOnRealTime({
               chatroom: chatRoom.id,
@@ -184,7 +182,9 @@ export const useChatBot = (companyId?: string) => {
 
       console.log('142')
 
-      const response = await onAiChatBotAssistant(currentBotId!, onChats, 'user', uploaded.uuid, sessionToken || undefined)
+      // Usar currentChatRoom o realtimeMode?.chatroom si está disponible
+      const conversationId = currentChatRoom || onRealTime?.chatroom || undefined
+      const response = await onAiChatBotAssistant(currentBotId!, onChats, 'user', uploaded.uuid, sessionToken || undefined, conversationId)
 
       // ENVIAR IMAGEN DEL CLIENTE A PUSHER SI ESTÁ EN MODO LIVE
       if (response && 'live' in response && response.live && 'chatRoom' in response && response.chatRoom) {
@@ -250,8 +250,20 @@ export const useChatBot = (companyId?: string) => {
         setOnAiTyping(true)
       }
 
-      console.log('187')
-      const response = await onAiChatBotAssistant(currentBotId!, onChats, 'user', values.content, sessionToken || undefined)
+      console.log('187 - Enviando mensaje de texto')
+
+      // Prioridad: selectedConversationIdRef (seleccionado explícitamente) > currentChatRoom > realtimeMode?.chatroom
+      // selectedConversationIdRef se actualiza cuando el usuario hace click en una conversación desde window.tsx
+      const conversationId = selectedConversationIdRef.current || currentChatRoom || onRealTime?.chatroom || undefined
+
+      // Si no hay conversationId, esto es un error porque no sabemos a qué conversación guardar
+      if (!conversationId) {
+        console.error('❌ ERROR: No se pudo determinar conversationId. Se requiere seleccionar un chat antes de enviar un mensaje.')
+        // No continuar si no hay conversationId - el usuario debe seleccionar un chat primero
+        return
+      }
+
+      const response = await onAiChatBotAssistant(currentBotId!, onChats, 'user', values.content, sessionToken || undefined, conversationId)
 
       // ENVIAR MENSAJE DEL CLIENTE A PUSHER SI ESTÁ EN MODO LIVE
       if (response && 'live' in response && response.live && 'chatRoom' in response && response.chatRoom) {
@@ -321,23 +333,31 @@ export const useChatBot = (companyId?: string) => {
   const handleToggleHumanMode = async (newIsHumanMode: boolean) => {
     setIsHumanMode(newIsHumanMode)
 
+    // Usar el ref del conversationId seleccionado (síncrono) o currentChatRoom como fallback
+    const conversationId = selectedConversationIdRef.current || currentChatRoom
+
     // Actualizar el estado de la conversación y el modo live en la base de datos
-    if (currentChatRoom) {
+    if (conversationId) {
       try {
         const newState = newIsHumanMode ? ConversationState.ESCALATED : ConversationState.ACTIVE
         const newLiveMode = newIsHumanMode // true para humano, false para bot
 
         // Actualizar conversationState
-        await onUpdateConversationState(currentChatRoom, newState)
+        await onUpdateConversationState(conversationId, newState)
 
         // Actualizar live mode
-        await onToggleRealtime(currentChatRoom, newLiveMode)
+        await onToggleRealtime(conversationId, newLiveMode)
 
         // Actualizar estado local para mantener sincronización
         setOnRealTime({
-          chatroom: currentChatRoom,
+          chatroom: conversationId,
           mode: newIsHumanMode
         })
+
+        // Actualizar currentChatRoom si no está actualizado
+        if (!currentChatRoom) {
+          setCurrentChatRoom(conversationId)
+        }
 
       } catch (error) {
         console.error('❌ Error al actualizar el estado de la conversación:', error)
@@ -347,10 +367,24 @@ export const useChatBot = (companyId?: string) => {
     }
   }
 
+  // Función wrapper para enviar mensaje con conversationId explícito
+  const onStartChattingWithConversationId = (conversationId?: string) => {
+    // Actualizar el ref antes de llamar a onStartChatting (síncrono)
+    if (conversationId) {
+      selectedConversationIdRef.current = conversationId
+      setCurrentChatRoom(conversationId)
+    } else {
+      console.warn('⚠️ No se recibió conversationId en onStartChattingWithConversationId')
+    }
+    // Llamar a onStartChatting que usará el ref actualizado
+    onStartChatting()
+  }
+
   return {
     botOpened,
     onOpenChatBot,
     onStartChatting,
+    onStartChattingWithConversationId, // Nueva función que acepta conversationId
     onChats,
     register,
     onAiTyping,
@@ -367,7 +401,13 @@ export const useChatBot = (companyId?: string) => {
     // Exportar props del toggle
     isHumanMode,
     onToggleHumanMode: handleToggleHumanMode,
-    isToggleDisabled: loading // Solo deshabilitar durante carga inicial
+    isToggleDisabled: loading, // Solo deshabilitar durante carga inicial
+    // Exportar setCurrentChatRoom para actualizar cuando se selecciona una conversación
+    setCurrentChatRoom,
+    // Exportar función para actualizar el ref del conversationId seleccionado
+    setSelectedConversationId: (id: string | undefined) => {
+      selectedConversationIdRef.current = id
+    }
   }
 }
 

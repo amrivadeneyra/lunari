@@ -175,7 +175,7 @@ export const getCustomerFromToken = async (
         status: true,
         totalInteractions: true,
         lastActiveAt: true,
-          conversations: {
+        conversations: {
           where: {
             Customer: {
               companyId: companyId
@@ -191,8 +191,7 @@ export const getCustomerFromToken = async (
           },
           orderBy: {
             updatedAt: 'desc'
-          },
-          take: 1
+          }
         }
       }
     })
@@ -219,7 +218,7 @@ export const refreshTokenIfNeeded = async (
 ): Promise<SessionToken | null> => {
   try {
     const decoded = jwt.decode(token) as any
-    
+
     if (!decoded || !decoded.exp) {
       return null
     }
@@ -264,9 +263,8 @@ export const refreshTokenIfNeeded = async (
 export const invalidateSession = async (customerId: string): Promise<void> => {
   try {
     // En una implementación completa, aquí se agregaría el token a una blacklist
-    // Por ahora, solo registramos el evento
     console.log(`🚪 Sesión invalidada para cliente: ${customerId}`)
-    
+
     // Opcional: Actualizar última actividad
     await client.customer.update({
       where: { id: customerId },
