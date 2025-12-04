@@ -584,30 +584,30 @@ export const deleteReservation = async (reservationId: string, customerId: strin
  * Verifica si un cliente existe por email
  */
 export const checkCustomerExists = async (companyId: string, email: string) => {
-  try {
-    const customer = await client.customer.findFirst({
-      where: {
-        email,
-        companyId
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true
-      }
-    })
+    try {
+        const customer = await client.customer.findFirst({
+            where: {
+                email,
+                companyId
+            },
+            select: {
+                id: true,
+                email: true,
+                name: true
+            }
+        })
 
-    return {
-      exists: !!customer,
-      customer: customer || null
+        return {
+            exists: !!customer,
+            customer: customer || null
+        }
+    } catch (error) {
+        console.error('Error checking customer:', error)
+        return {
+            exists: false,
+            customer: null
+        }
     }
-  } catch (error) {
-    console.error('Error checking customer:', error)
-    return {
-      exists: false,
-      customer: null
-    }
-  }
 }
 
 /**
@@ -654,14 +654,14 @@ export const createCustomerSession = async (
 
         // Buscar o crear chatRoom
         // Nota: ChatRoom no tiene companyId directamente, se obtiene a través de Customer
-        let chatRoom = await client.chatRoom.findFirst({
+        let chatRoom = await client.conversation.findFirst({
             where: {
                 customerId: customer.id
             }
         })
 
         if (!chatRoom) {
-            chatRoom = await client.chatRoom.create({
+            chatRoom = await client.conversation.create({
                 data: {
                     customerId: customer.id
                 }

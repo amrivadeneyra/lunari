@@ -2,11 +2,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// generator erd {
-//   provider = "prisma-erd-generator"
-//   output   = "./ERD.svg"
-// }
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -20,7 +15,7 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   campaign  Campaign[]
-  company   Company?   // Una sola empresa por usuario
+  company   Company? // Una sola empresa por usuario
 }
 
 model Company {
@@ -48,30 +43,30 @@ model Company {
 }
 
 model ChatBot {
-  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   welcomeMessage String?
   icon           String?
   background     String?
   textColor      String?
-  helpdesk       Boolean @default(false)
-  companyId      String? @unique @db.Uuid
+  helpdesk       Boolean  @default(false)
+  companyId      String?  @unique @db.Uuid
   Company        Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model HelpDesk {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  question String
-  answer   String
-  companyId String? @db.Uuid
-  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question  String
+  answer    String
+  companyId String?  @db.Uuid
+  Company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model FilterQuestions {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  question String
-  answered String?
-  companyId String? @db.Uuid
-  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question  String
+  answered  String?
+  companyId String?  @db.Uuid
+  Company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model CustomerResponses {
@@ -94,22 +89,26 @@ model Customer {
   updatedAt         DateTime  @updatedAt
 
   questions           CustomerResponses[]
-  chatRoom            ChatRoom[]
+  conversations       Conversation[]
   booking             Bookings[]
   satisfactionRecords CustomerSatisfaction[]
   reservations        ProductReservation[] // Reservas de productos del cliente
 
-  Company  Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  companyId String? @db.Uuid
+  Company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId String?  @db.Uuid
+
+  @@index([companyId])
+  @@index([email])
 }
 
-model ChatRoom {
+model Conversation {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  live       Boolean  @default(false)
-  mailed     Boolean  @default(false)
+  customerId String   @db.Uuid
+  title      String? // Título auto-generado por IA (ej: "Consulta sobre telas de algodón")
+  live       Boolean  @default(false) // Modo tiempo real (escalado a humano)
+  mailed     Boolean  @default(false) // Si se envió email  
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  customerId String?  @db.Uuid
 
   // Sistema de favoritos
   isFavorite Boolean @default(false)
@@ -125,28 +124,34 @@ model ChatRoom {
   // Estado de conversación y gestión de ciclo de vida
   conversationState  ConversationState @default(ACTIVE)
   lastUserActivityAt DateTime          @default(now())
-  conversationNumber Int               @default(1) // Número de conversación con este cliente
 
-  message             ChatMessage[]
+  messages            ChatMessage[]
   metrics             ConversationMetrics[]
   satisfactionRecords CustomerSatisfaction[]
-  Customer            Customer?              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Customer            Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([conversationState])
+  @@index([createdAt])
 }
 
 model ChatMessage {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message    String
-  role       Role?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  chatRoomId String?  @db.Uuid
-  seen       Boolean  @default(false)
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message        String
+  role           Role?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  conversationId String   @db.Uuid
+  seen           Boolean  @default(false)
 
   // Métricas para la tesis - FR1 y FR2
   responseTime          Int? // Tiempo en segundos desde mensaje user hasta respuesta assistant
   respondedWithin2Hours Boolean? // True si fue respondido en menos de 2 horas
 
-  ChatRoom ChatRoom? @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  Conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 model Bookings {
@@ -157,7 +162,7 @@ model Bookings {
   customerId      String?              @db.Uuid
   companyId       String?              @db.Uuid
   createdAt       DateTime             @default(now())
-  // ✅ NUEVO: Tipo de cita y propósito
+  // NUEVO: Tipo de cita y propósito
   appointmentType AppointmentType      @default(STORE_VISIT)
   purpose         String? // Propósito específico de la cita
   notes           String? // Notas adicionales del cliente
@@ -165,13 +170,13 @@ model Bookings {
   reservations    ProductReservation[] // Relación con reservas de productos
 }
 
-// ✅ SIMPLIFICADO: Enum para tipos de citas (100% presencial)
+// SIMPLIFICADO: Enum para tipos de citas (100% presencial)
 enum AppointmentType {
   STORE_VISIT // Visita a la tienda (ver productos, asesoría)
   PURCHASE // Compra en tienda (con o sin reserva previa)
 }
 
-// ✅ MEJORADO: Modelo para reservas de productos con detalles de compra
+// MEJORADO: Modelo para reservas de productos con detalles de compra
 model ProductReservation {
   id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   productId  String            @db.Uuid
@@ -184,7 +189,7 @@ model ProductReservation {
   updatedAt  DateTime          @updatedAt
   expiresAt  DateTime? // Fecha de expiración de la reserva
 
-  // ✅ NUEVOS CAMPOS: Detalles específicos de compra
+  // NUEVOS CAMPOS: Detalles específicos de compra
   unitPrice  Int? // Precio por unidad al momento de la reserva
   totalPrice Int? // Precio total calculado (quantity * unitPrice)
   unit       String? // Unidad específica: metro, rollo, kg, etc.
@@ -204,7 +209,7 @@ model ProductReservation {
   @@index([status])
 }
 
-// ✅ NUEVO: Enum para estados de reserva
+// NUEVO: Enum para estados de reserva
 enum ReservationStatus {
   PENDING // Pendiente de confirmación
   CONFIRMED // Confirmada
@@ -214,13 +219,13 @@ enum ReservationStatus {
 }
 
 model Campaign {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String
   customers String[]
   template  String?
-  userId    String?  @db.Uuid
-  createdAt DateTime @default(now())
-  User      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?   @db.Uuid
+  createdAt DateTime  @default(now())
+  User      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   company   Company[]
 }
 
@@ -395,9 +400,9 @@ model AvailabilitySchedule {
 
 // Nuevos modelos para métricas de tesis
 model ConversationMetrics {
-  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  chatRoomId String @db.Uuid
-  companyId  String @db.Uuid
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String @db.Uuid
+  companyId      String @db.Uuid
 
   // FR1: Tiempo promedio de respuesta
   averageResponseTime Int // En segundos
@@ -412,24 +417,28 @@ model ConversationMetrics {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([companyId])
 }
 
 // FR4: Satisfacción del cliente
 model CustomerSatisfaction {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rating     Int // 1-5
-  comment    String? // Comentario opcional del cliente
-  chatRoomId String   @db.Uuid
-  customerId String   @db.Uuid
-  companyId  String   @db.Uuid
-  createdAt  DateTime @default(now())
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rating         Int // 1-5
+  comment        String? // Comentario opcional del cliente
+  conversationId String   @db.Uuid
+  customerId     String   @db.Uuid
+  companyId      String   @db.Uuid
+  createdAt      DateTime @default(now())
 
-  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
   @@index([createdAt])
+  @@index([conversationId])
 }
 
 enum Role {

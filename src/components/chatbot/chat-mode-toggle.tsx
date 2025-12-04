@@ -7,7 +7,7 @@ type Props = {
     isHumanMode: boolean
     onToggle: (isHumanMode: boolean) => void
     disabled?: boolean
-    chatRoomId?: string
+    conversationId?: string
     setChats?: React.Dispatch<React.SetStateAction<{
         role: 'user' | 'assistant'
         content: string
@@ -15,21 +15,20 @@ type Props = {
     }[]>>
 }
 
-const ChatModeToggle = ({ isHumanMode, onToggle, disabled = false, chatRoomId, setChats }: Props) => {
-    // ✅ Siempre llamar el hook, pero solo activar si hay chatRoomId
-    useRealTime(chatRoomId || '', setChats || (() => {}))
+const ChatModeToggle = ({ isHumanMode, onToggle, disabled = false, conversationId, setChats }: Props) => {
+    useRealTime(conversationId || '', setChats || (() => { }))
 
     return (
-        <div className="flex bg-gray-100 rounded-lg p-0.5 w-fit">
+        <div className="flex bg-peach/50 border border-orange/20 rounded-lg p-0.5 w-fit shadow-sm">
             <button
                 onClick={() => {
                     onToggle(false)
                 }}
                 disabled={disabled}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${!isHumanMode
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                    } ${disabled ? 'opacity-50' : ''}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${!isHumanMode
+                    ? 'bg-orange text-white shadow-md'
+                    : 'text-ironside hover:text-gravel'
+                    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
                 Asistente
             </button>
@@ -39,10 +38,10 @@ const ChatModeToggle = ({ isHumanMode, onToggle, disabled = false, chatRoomId, s
                     onToggle(true)
                 }}
                 disabled={disabled}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${isHumanMode
-                    ? 'bg-white text-green-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                    } ${disabled ? 'opacity-50' : ''}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${isHumanMode
+                    ? 'bg-green-500 text-white shadow-md'
+                    : 'text-ironside hover:text-gravel'
+                    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
                 Humano
             </button>

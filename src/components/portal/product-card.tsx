@@ -106,7 +106,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {/* Stock */}
           {product.stock > 0 ? (
             <span className="text-[10px] text-green-600 font-medium">
-              {product.stock} {product.unit || 'unidades'} disponibles
+              {product.stock} unidades disponibles
             </span>
           ) : (
             <span className="text-[10px] text-red-600 font-medium">Agotado</span>

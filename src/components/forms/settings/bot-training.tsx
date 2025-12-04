@@ -3,15 +3,13 @@ import { TabsContent } from '@/components/ui/tabs'
 import { HELP_DESK_TABS_MENU } from '@/constants/menu'
 import React from 'react'
 import HelpDesk from './help-desk'
-import FilterQuestions from './filter-questions'
 
 type Props = {
   id: string
   helpdesk: Array<{ id: string; question: string; answer: string }>
-  filterQuestions: Array<{ id: string; question: string }>
 }
 
-const BotTrainingForm = ({ id, helpdesk, filterQuestions }: Props) => {
+const BotTrainingForm = ({ id, helpdesk }: Props) => {
   return (
     <div className="w-full px-4 md:px-8 pb-6 md:pb-10">
       <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm">
@@ -29,9 +27,6 @@ const BotTrainingForm = ({ id, helpdesk, filterQuestions }: Props) => {
               className="w-full"
             >
               <HelpDesk id={id} initialQuestions={helpdesk} />
-            </TabsContent>
-            <TabsContent value="preguntas">
-              <FilterQuestions id={id} initialQuestions={filterQuestions} />
             </TabsContent>
           </TabsMenu>
         </div>

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
     onIntegrateCompany,
-    onGetAllAccountCompanies,
+    onGetAccountCompany,
     onUpdatePassword,
     onGetCurrentCompanyInfo,
     onUpdateCompany,
@@ -118,7 +118,7 @@ describe('Settings Actions', () => {
 
             mockPrismaClient.user.findUnique.mockResolvedValue(mockUser)
 
-            const result = await onGetAllAccountCompanies()
+            const result = await onGetAccountCompany()
 
             expect(result).toEqual(mockUser)
         })
@@ -126,22 +126,22 @@ describe('Settings Actions', () => {
         it('debe retornar estructura vacía si no hay usuario', async () => {
             mockCurrentUser.mockResolvedValue(null)
 
-            const result = await onGetAllAccountCompanies()
+            const result = await onGetAccountCompany()
 
             expect(result).toEqual({
                 id: '',
-                companies: [],
+                company: null,
             })
         })
 
         it('debe retornar estructura vacía en caso de error', async () => {
             mockPrismaClient.user.findUnique.mockRejectedValue(new Error('Error'))
 
-            const result = await onGetAllAccountCompanies()
+            const result = await onGetAccountCompany()
 
             expect(result).toEqual({
                 id: '',
-                companies: [],
+                company: null,
             })
         })
     })

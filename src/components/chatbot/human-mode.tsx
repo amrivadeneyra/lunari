@@ -5,7 +5,7 @@ import { Card } from '../ui/card'
 import { Users, Clock, MessageCircle } from 'lucide-react'
 
 type Props = {
-  chatRoomId: string
+  conversationId: string
   setChats: React.Dispatch<
     React.SetStateAction<
       {
@@ -17,7 +17,7 @@ type Props = {
   >
 }
 
-const HumanMode = ({ chatRoomId, setChats }: Props) => {
+const HumanMode = ({ conversationId, setChats }: Props) => {
   return (
     <Card className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg">
       <div className="flex items-center gap-3">

@@ -80,7 +80,7 @@ export const onBookNewAppointment = async (
             return { status: 404, message: 'Cliente no encontrado' }
         }
 
-        // ✅ Crear la cita
+        // Crear la cita
         const booking = await client.bookings.create({
             data: {
                 customerId,
@@ -92,7 +92,7 @@ export const onBookNewAppointment = async (
         })
 
         if (booking) {
-            // ✅ Enviar email de confirmación
+            // Enviar email de confirmación
             try {
                 // Obtener email del propietario del dominio
                 let companyOwnerEmail: string | undefined
@@ -118,9 +118,9 @@ export const onBookNewAppointment = async (
                     companyOwnerEmail
                 )
 
-                console.log('✅ Email de confirmación de cita enviado exitosamente')
+                console.log('Email de confirmación de cita enviado exitosamente')
             } catch (emailError) {
-                console.error('❌ Error al enviar email de confirmación:', emailError)
+                console.error('Error al enviar email de confirmación:', emailError)
             }
 
             return {
@@ -130,7 +130,7 @@ export const onBookNewAppointment = async (
             }
         }
     } catch (error) {
-        console.error('❌ Error al reservar cita:', error)
+        console.error('Error al reservar cita:', error)
         return { status: 500, message: 'Error al reservar la cita' }
     }
 }
