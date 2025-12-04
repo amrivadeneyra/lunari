@@ -1,9 +1,5 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-// COMENTADO: Pusher (plan agotado)
-// import PusherClient from 'pusher-js'
-// import PusherServer from 'pusher'
-// NUEVO: Socket.io
 import { io, Socket } from 'socket.io-client'
 
 export function cn(...inputs: ClassValue[]) {
@@ -16,24 +12,7 @@ export const extractUUIDFromString = (url: string) => {
   )
 }
 
-// COMENTADO: Pusher Server (plan agotado)
-// export const pusherServer = new PusherServer({
-//   appId: process.env.NEXT_PUBLIC_PUSHER_APP_ID,
-//   key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
-//   secret: process.env.NEXT_PUBLIC_PUSHER_APP_SECRET,
-//   cluster: process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTOR,
-//   useTLS: true,
-// })
-
-// COMENTADO: Pusher Client (plan agotado)
-// export const pusherClient = new PusherClient(
-//   process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
-//   {
-//     cluster: process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTOR,
-//   }
-// )
-
-// NUEVO: Socket.io Client
+//  Socket.io Client
 let socketClient: Socket | null = null
 
 export const getSocketClient = () => {
@@ -62,7 +41,7 @@ export const getSocketClient = () => {
   return socketClient
 }
 
-// NUEVO: Socket.io Server (para server actions)
+// Socket.io Server (para server actions)
 export const socketServer = {
   // Simular el comportamiento de pusherServer.trigger
   trigger: async (channel: string, event: string, data: any) => {
@@ -96,7 +75,7 @@ export const socketServer = {
   }
 }
 
-// NUEVO: Funciones de utilidad para Socket.io
+// Funciones de utilidad para Socket.io
 export const socketClientUtils = {
   subscribe: (channel: string) => {
     const socket = getSocketClient()
