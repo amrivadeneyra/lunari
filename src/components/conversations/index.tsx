@@ -24,6 +24,13 @@ const ConversationMenu = ({ company }: Props) => {
   const { register, setValue, chatRooms, loading, activeTab, onGetActiveChatMessages, changeActiveTab, toggleFavorite } =
     useConversation()
 
+  // Inicializar el companyId cuando el componente se monta o cuando cambia company
+  React.useEffect(() => {
+    if (company?.id) {
+      setValue('company', company.id)
+    }
+  }, [company?.id, setValue])
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="p-3 md:p-4 lg:p-6 border-b border-gray-200 bg-white">
