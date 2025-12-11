@@ -27,7 +27,7 @@ const OwnerLayout = async ({ children }: Props) => {
       <CompanyRequiredGuard company={authenticated.company}>
         <div className='flex h-screen w-full'>
           <SideBar company={authenticated.company} />
-          <div className='w-full h-screen flex flex-col pl-20 md:pl-4'>
+          <div className='w-full h-screen flex flex-col ml-[60px] md:ml-0'>
             {children}
           </div>
         </div>

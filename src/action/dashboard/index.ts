@@ -98,222 +98,68 @@ export const onGetDashboardMetrics = async () => {
             }
         })
 
+        // Calcular tasa de conversión: conversaciones que resultaron en citas
+        // Buscar clientes que tienen conversaciones Y citas agendadas
+        const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const totalConversationsLastMonth = await client.conversation.count({
+            where: {
+                Customer: { companyId },
+                createdAt: { gte: oneMonthAgo }
+            }
+        })
+
+        const customersWithBookings = await client.customer.findMany({
+            where: {
+                companyId,
+                booking: {
+                    some: {
+                        createdAt: { gte: oneMonthAgo }
+                    }
+                }
+            },
+            select: { id: true }
+        })
+
+        const conversionRate = totalConversationsLastMonth > 0
+            ? (customersWithBookings.length / totalConversationsLastMonth) * 100
+            : 0
+
+        // Calcular eficiencia del asistente: % resuelto por IA vs escalado
+        const totalResolvedByAI = await client.conversation.count({
+            where: {
+                Customer: { companyId },
+                resolutionType: { in: ['FIRST_INTERACTION', 'FOLLOW_UP'] },
+                createdAt: { gte: oneMonthAgo }
+            }
+        })
+
+        const totalEscalated = await client.conversation.count({
+            where: {
+                Customer: { companyId },
+                resolutionType: 'ESCALATED',
+                createdAt: { gte: oneMonthAgo }
+            }
+        })
+
+        const totalResolved = totalResolvedByAI + totalEscalated
+        const aiEfficiency = totalResolved > 0
+            ? (totalResolvedByAI / totalResolved) * 100
+            : 0
+
         return {
             totalCustomers,
             activeConversations,
             todayAppointments,
             urgentChats,
-            newCustomersThisWeek
+            newCustomersThisWeek,
+            conversionRate: Math.round(conversionRate * 100) / 100,
+            aiEfficiency: Math.round(aiEfficiency * 100) / 100,
+            totalConversationsLastMonth,
+            customersWithBookings: customersWithBookings.length
         }
     } catch (error) {
         console.log('Error en onGetDashboardMetrics:', error)
         return null
-    }
-}
-
-// Obtener chats en tiempo real (urgentes)
-export const onGetUrgentChats = async () => {
-    try {
-        const user = await currentUser()
-        if (!user) return []
-
-        const userCompany = await client.user.findUnique({
-            where: { clerkId: user.id },
-            select: {
-                company: {
-                    select: { id: true },
-                }
-            }
-        })
-
-        if (!userCompany?.company) return []
-
-        const companyId = userCompany.company.id
-
-        const urgentChats = await client.conversation.findMany({
-            where: {
-                Customer: { companyId },
-                live: true
-            },
-            select: {
-                id: true,
-                createdAt: true,
-                updatedAt: true,
-                Customer: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true
-                    }
-                },
-                messages: {
-                    select: {
-                        message: true,
-                        createdAt: true,
-                        role: true
-                    },
-                    orderBy: {
-                        createdAt: 'desc'
-                    },
-                }
-            },
-            orderBy: {
-                updatedAt: 'desc'
-            },
-            take: 5
-        })
-
-        return urgentChats
-    } catch (error) {
-        console.log('Error en onGetUrgentChats:', error)
-        return []
-    }
-}
-
-// Obtener próximas citas
-export const onGetUpcomingAppointments = async () => {
-    try {
-        const user = await currentUser()
-        if (!user) return []
-
-        const userCompany = await client.user.findUnique({
-            where: { clerkId: user.id },
-            select: {
-                company: {
-                    select: { id: true },
-                }
-            }
-        })
-
-        if (!userCompany?.company) return []
-
-        const companyId = userCompany.company.id
-
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
-        const appointments = await client.bookings.findMany({
-            where: {
-                companyId,
-                date: {
-                    gte: today
-                }
-            },
-            select: {
-                id: true,
-                date: true,
-                slot: true,
-                email: true,
-                createdAt: true,
-                Customer: {
-                    select: {
-                        name: true,
-                        email: true
-                    }
-                }
-            },
-            orderBy: [
-                { date: 'asc' },
-                { slot: 'asc' }
-            ],
-            take: 10
-        })
-
-        return appointments
-    } catch (error) {
-        console.log('Error en onGetUpcomingAppointments:', error)
-        return []
-    }
-}
-
-// Obtener actividad reciente
-export const onGetRecentActivity = async () => {
-    try {
-        const user = await currentUser()
-        if (!user) return []
-
-        const userCompany = await client.user.findUnique({
-            where: { clerkId: user.id },
-            select: {
-                company: {
-                    select: { id: true },
-                }
-            }
-        })
-
-        if (!userCompany?.company) return []
-
-        const companyId = userCompany.company.id
-
-        // Obtener últimas conversaciones
-        const recentChats = await client.conversation.findMany({
-            where: {
-                Customer: { companyId }
-            },
-            select: {
-                id: true,
-                createdAt: true,
-                Customer: {
-                    select: {
-                        name: true,
-                        email: true
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: 'desc'
-            },
-            take: 5
-        })
-
-        // Obtener últimas citas
-        const recentBookings = await client.bookings.findMany({
-            where: {
-                companyId
-            },
-            select: {
-                id: true,
-                createdAt: true,
-                date: true,
-                slot: true,
-                email: true,
-                Customer: {
-                    select: {
-                        name: true,
-                        email: true
-                    }
-                }
-            },
-            orderBy: {
-                createdAt: 'desc'
-            },
-            take: 5
-        })
-
-        // Combinar y ordenar por fecha
-        const activities = [
-            ...recentChats.map(chat => ({
-                type: 'conversation' as const,
-                date: chat.createdAt,
-                customerName: chat.Customer?.name || 'Sin nombre',
-                customerEmail: chat.Customer?.email || 'Sin email',
-                id: chat.id
-            })),
-            ...recentBookings.map(booking => ({
-                type: 'booking' as const,
-                date: booking.createdAt,
-                customerName: booking.Customer?.name || 'Sin nombre',
-                customerEmail: booking.Customer?.email || booking.email,
-                bookingDate: booking.date,
-                bookingSlot: booking.slot,
-                id: booking.id
-            }))
-        ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10)
-
-        return activities
-    } catch (error) {
-        console.log('Error en onGetRecentActivity:', error)
-        return []
     }
 }
 
@@ -336,9 +182,9 @@ export const onGetConversationStats = async () => {
 
         const companyId = userCompany.company.id
 
-        // Últimos 7 días
+        // Últimos 30 días
         const stats: Array<{ date: string; count: number }> = []
-        for (let i = 6; i >= 0; i--) {
+        for (let i = 29; i >= 0; i--) {
             const date = new Date()
             date.setDate(date.getDate() - i)
             date.setHours(0, 0, 0, 0)
@@ -356,7 +202,7 @@ export const onGetConversationStats = async () => {
             })
 
             stats.push({
-                date: date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }),
+                date: date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
                 count
             })
         }

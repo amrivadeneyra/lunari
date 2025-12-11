@@ -1,8 +1,30 @@
 'use client'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { BarChart3 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+import { TrendingUp } from 'lucide-react'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 type Props = {
   stats: Array<{
@@ -12,88 +34,129 @@ type Props = {
 }
 
 const ConversationChart = ({ stats }: Props) => {
-  const maxCount = Math.max(...stats.map((s) => s.count), 1)
   const totalConversations = stats.reduce((acc, curr) => acc + curr.count, 0)
+  const average = stats.length > 0 ? (totalConversations / stats.length).toFixed(1) : 0
+
+  const data = {
+    labels: stats.map(stat => stat.date),
+    datasets: [
+      {
+        label: 'Conversaciones',
+        data: stats.map(stat => stat.count),
+        borderColor: 'rgb(37, 99, 235)',
+        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: 'rgb(37, 99, 235)',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+      }
+    ]
+  }
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(31, 41, 55, 0.95)',
+        padding: 12,
+        titleFont: {
+          size: 14,
+          weight: 'bold' as const
+        },
+        bodyFont: {
+          size: 13
+        },
+        borderColor: 'rgba(59, 130, 246, 0.5)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
+        callbacks: {
+          label: function (context: any) {
+            return `${context.parsed.y} ${context.parsed.y === 1 ? 'conversación' : 'conversaciones'}`
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          font: {
+            size: 11
+          }
+        }
+      },
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(229, 231, 235, 0.5)',
+          drawBorder: false
+        },
+        ticks: {
+          color: '#6b7280',
+          font: {
+            size: 11
+          },
+          stepSize: 1
+        }
+      }
+    }
+  }
 
   return (
-    <Card className="border-porcelain shadow-sm">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-blue-500" />
+    <Card className="border border-gray-200 shadow-md bg-white">
+      <CardHeader className="pb-3 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gravel">Conversaciones</h3>
-              <p className="text-xs text-ironside">Últimos 7 días</p>
+              <CardTitle className="text-sm sm:text-base font-semibold text-gray-900">Conversaciones en el Tiempo</CardTitle>
+              <p className="text-xs text-gray-500">Últimos 30 días</p>
             </div>
           </div>
-          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-            {totalConversations} total
-          </Badge>
+          <div className="text-left sm:text-right">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{totalConversations}</p>
+            <p className="text-xs text-gray-500">Total</p>
+          </div>
         </div>
       </CardHeader>
 
       <CardContent>
         {stats.length > 0 ? (
           <div className="space-y-4">
-            {/* Gráfico de barras simple */}
-            <div className="flex items-end justify-between gap-2 h-40">
-              {stats.map((stat, index) => {
-                const heightPercent = maxCount > 0 ? (stat.count / maxCount) * 100 : 0
-
-                return (
-                  <div key={index} className="flex flex-col items-center flex-1 gap-2">
-                    {/* Barra */}
-                    <div className="w-full flex items-end justify-center" style={{ height: '140px' }}>
-                      <div className="relative w-full max-w-[60px] flex flex-col items-center justify-end group">
-                        {/* Tooltip con el número */}
-                        {stat.count > 0 && (
-                          <div className="absolute -top-8 bg-gravel text-white text-xs font-semibold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            {stat.count} {stat.count === 1 ? 'conversación' : 'conversaciones'}
-                          </div>
-                        )}
-                        <div
-                          className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-lg hover:from-blue-600 hover:to-blue-500 transition-all duration-300 cursor-pointer"
-                          style={{
-                            height: `${heightPercent}%`,
-                            minHeight: stat.count > 0 ? '8px' : '2px'
-                          }}
-                        />
-                        {/* Número encima de la barra */}
-                        {stat.count > 0 && (
-                          <span className="absolute -top-5 text-xs font-semibold text-gravel">
-                            {stat.count}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Etiqueta del día */}
-                    <span className="text-xs text-ironside text-center truncate w-full">
-                      {stat.date}
-                    </span>
-                  </div>
-                )
-              })}
+            <div style={{ height: '300px' }}>
+              <Line data={data} options={options} />
             </div>
 
-            {/* Línea de referencia */}
-            <div className="border-t border-porcelain pt-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-ironside">
-                  Promedio: {(totalConversations / stats.length).toFixed(1)} por día
-                </span>
-                <span className="text-gravel font-medium">
-                  📊 {stats.filter((s) => s.count > 0).length} días activos
-                </span>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Promedio diario</p>
+                  <p className="text-base sm:text-lg font-bold text-gray-900">{average}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Días activos</p>
+                  <p className="text-base sm:text-lg font-bold text-gray-900">{stats.filter((s) => s.count > 0).length}</p>
+                </div>
               </div>
             </div>
           </div>
         ) : (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-4">
-              <BarChart3 className="w-8 h-8 text-blue-300" />
+              <TrendingUp className="w-8 h-8 text-blue-300" />
             </div>
             <p className="text-gravel font-medium mb-2">Sin datos disponibles</p>
             <p className="text-ironside text-xs">Los datos aparecerán cuando haya conversaciones</p>
@@ -105,4 +168,3 @@ const ConversationChart = ({ stats }: Props) => {
 }
 
 export default ConversationChart
-
