@@ -28,7 +28,7 @@ export const onGetUserInfo = async () => {
 }
 
 // Obtener métricas generales del dashboard
-export const onGetDashboardMetrics = async () => {
+export const onGetDashboardMetrics = async (dateRange?: { from: Date; to: Date }) => {
     try {
         const user = await currentUser()
         if (!user) return null
@@ -53,30 +53,48 @@ export const onGetDashboardMetrics = async () => {
         })
 
         // Conversaciones activas (chats con mensajes recientes)
-        const activeConversations = await client.conversation.count({
-            where: {
-                Customer: { companyId },
-                live: false,
-                updatedAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Últimas 24 horas
-                }
+        const activeConversationsWhere: any = {
+            Customer: { companyId },
+            live: false,
+        }
+
+        if (dateRange) {
+            activeConversationsWhere.updatedAt = {
+                gte: dateRange.from,
+                lte: dateRange.to
             }
+        } else {
+            activeConversationsWhere.updatedAt = {
+                gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Últimas 24 horas por defecto
+            }
+        }
+
+        const activeConversations = await client.conversation.count({
+            where: activeConversationsWhere
         })
 
-        // Citas de hoy
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        const tomorrow = new Date(today)
-        tomorrow.setDate(tomorrow.getDate() + 1)
+        // Citas (filtradas por fecha si se proporciona)
+        let appointmentsWhere: any = { companyId }
+
+        if (dateRange) {
+            appointmentsWhere.date = {
+                gte: dateRange.from,
+                lte: dateRange.to
+            }
+        } else {
+            // Por defecto: citas de hoy
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const tomorrow = new Date(today)
+            tomorrow.setDate(tomorrow.getDate() + 1)
+            appointmentsWhere.date = {
+                gte: today,
+                lt: tomorrow
+            }
+        }
 
         const todayAppointments = await client.bookings.count({
-            where: {
-                companyId,
-                date: {
-                    gte: today,
-                    lt: tomorrow
-                }
-            }
+            where: appointmentsWhere
         })
 
         // Chats en tiempo real (urgentes)
@@ -87,24 +105,38 @@ export const onGetDashboardMetrics = async () => {
             }
         })
 
-        // Nuevos clientes esta semana
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        const newCustomersThisWeek = await client.customer.count({
-            where: {
-                companyId,
-                createdAt: {
-                    gte: oneWeekAgo
-                }
+        // Nuevos clientes (filtrados por fecha si se proporciona)
+        let newCustomersWhere: any = { companyId }
+
+        if (dateRange) {
+            newCustomersWhere.createdAt = {
+                gte: dateRange.from,
+                lte: dateRange.to
             }
+        } else {
+            // Por defecto: esta semana
+            const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            newCustomersWhere.createdAt = {
+                gte: oneWeekAgo
+            }
+        }
+
+        const newCustomersThisWeek = await client.customer.count({
+            where: newCustomersWhere
         })
 
         // Calcular tasa de conversión: conversaciones que resultaron en citas
         // Buscar clientes que tienen conversaciones Y citas agendadas
-        const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const rangeStart = dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const rangeEnd = dateRange?.to || new Date()
+
         const totalConversationsLastMonth = await client.conversation.count({
             where: {
                 Customer: { companyId },
-                createdAt: { gte: oneMonthAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -113,7 +145,10 @@ export const onGetDashboardMetrics = async () => {
                 companyId,
                 booking: {
                     some: {
-                        createdAt: { gte: oneMonthAgo }
+                        createdAt: {
+                            gte: rangeStart,
+                            lte: rangeEnd
+                        }
                     }
                 }
             },
@@ -129,7 +164,10 @@ export const onGetDashboardMetrics = async () => {
             where: {
                 Customer: { companyId },
                 resolutionType: { in: ['FIRST_INTERACTION', 'FOLLOW_UP'] },
-                createdAt: { gte: oneMonthAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -137,7 +175,10 @@ export const onGetDashboardMetrics = async () => {
             where: {
                 Customer: { companyId },
                 resolutionType: 'ESCALATED',
-                createdAt: { gte: oneMonthAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -164,7 +205,7 @@ export const onGetDashboardMetrics = async () => {
 }
 
 // Obtener datos para el gráfico de conversaciones
-export const onGetConversationStats = async () => {
+export const onGetConversationStats = async (dateRange?: { from: Date; to: Date }) => {
     try {
         const user = await currentUser()
         if (!user) return []
@@ -182,14 +223,25 @@ export const onGetConversationStats = async () => {
 
         const companyId = userCompany.company.id
 
-        // Últimos 30 días
+        // Calcular rango de fechas
+        const startDate = dateRange?.from || new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
+        const endDate = dateRange?.to || new Date()
+
+        // Calcular días entre fechas (máximo 90 días para no sobrecargar)
+        const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        const daysToShow = Math.min(daysDiff, 90)
+
         const stats: Array<{ date: string; count: number }> = []
-        for (let i = 29; i >= 0; i--) {
-            const date = new Date()
-            date.setDate(date.getDate() - i)
+
+        // Si el rango es muy grande, agrupar por semanas o meses
+        const interval = daysToShow > 60 ? 7 : daysToShow > 30 ? 3 : 1
+
+        for (let i = daysToShow; i >= 0; i -= interval) {
+            const date = new Date(startDate)
+            date.setDate(date.getDate() + (daysToShow - i))
             date.setHours(0, 0, 0, 0)
             const nextDate = new Date(date)
-            nextDate.setDate(nextDate.getDate() + 1)
+            nextDate.setDate(nextDate.getDate() + interval)
 
             const count = await client.conversation.count({
                 where: {
@@ -215,7 +267,7 @@ export const onGetConversationStats = async () => {
 }
 
 // Obtener estadísticas de la semana
-export const onGetWeeklyStats = async () => {
+export const onGetWeeklyStats = async (dateRange?: { from: Date; to: Date }) => {
     try {
         const user = await currentUser()
         if (!user) return null
@@ -232,13 +284,18 @@ export const onGetWeeklyStats = async () => {
         if (!userCompany?.company) return null
 
         const companyId = userCompany.company.id
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+        const rangeStart = dateRange?.from || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        const rangeEnd = dateRange?.to || new Date()
 
         // Nuevos clientes
         const newCustomers = await client.customer.count({
             where: {
                 companyId,
-                createdAt: { gte: oneWeekAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -246,7 +303,10 @@ export const onGetWeeklyStats = async () => {
         const totalConversations = await client.conversation.count({
             where: {
                 Customer: { companyId },
-                createdAt: { gte: oneWeekAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -254,7 +314,10 @@ export const onGetWeeklyStats = async () => {
         const bookingsScheduled = await client.bookings.count({
             where: {
                 companyId,
-                createdAt: { gte: oneWeekAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -264,7 +327,10 @@ export const onGetWeeklyStats = async () => {
                 Conversation: {
                     Customer: { companyId }
                 },
-                createdAt: { gte: oneWeekAgo }
+                createdAt: {
+                    gte: rangeStart,
+                    lte: rangeEnd
+                }
             }
         })
 
@@ -281,9 +347,9 @@ export const onGetWeeklyStats = async () => {
 }
 
 // Obtener métricas de calidad para la tesis (FR1, FR2, FR3, FR4)
-export const onGetQualityMetrics = async () => {
+export const onGetQualityMetrics = async (dateRange?: { from: Date; to: Date }) => {
     try {
-        const metrics = await getQualityMetricsSummary()
+        const metrics = await getQualityMetricsSummary(dateRange)
         return metrics
     } catch (error) {
         console.log('Error en onGetQualityMetrics:', error)
