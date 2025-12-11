@@ -426,15 +426,39 @@ const handleAuthenticatedUser = async (
   // SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
   debugLog("Usando conversationId: ", validConversationId)
   if (!currentConversation.live) {
-    // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
-    const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
+    // Verificar si el asistente preguntó por más productos o por fecha
+    // Si está en flujo de reserva, NO debe pedir calificación
+    const lastAssistantMsg = chat
+      .filter((msg: any) => msg.role === 'assistant')
+      .slice(-1)[0]?.content || ''
 
-    if (shouldEndConversation) {
-      // Guardar mensaje del usuario
-      await onStoreConversations(validConversationId, message, 'user')
+    // Detectar estado del flujo de agendamiento usando IA
+    const flowState = await detectAppointmentFlowState(chat)
+    const isInReservationFlow = flowState !== 'NONE' ||
+      lastAssistantMsg.includes('reservar más productos') ||
+      lastAssistantMsg.includes('agendar tu cita') ||
+      lastAssistantMsg.includes('Siguiente paso') ||
+      lastAssistantMsg.includes('fecha') ||
+      lastAssistantMsg.includes('horario') ||
+      lastAssistantMsg.includes('agendar') ||
+      lastAssistantMsg.includes('reservar') ||
+      lastAssistantMsg.includes('productos reservados') ||
+      lastAssistantMsg.includes('¿Deseas reservar más productos') ||
+      lastAssistantMsg.includes('¿Te gustaría agregar') ||
+      lastAssistantMsg.includes('Resumen de tus productos')
 
-      // Solicitar calificación de forma simple
-      const ratingMessage = `¡Perfecto! Me alegra haberte ayudado. 😊
+    // Solo pedir calificación si NO está en flujo de reserva
+    // Si el usuario dice "solo eso" en flujo de reserva, debe continuar con agendamiento
+    if (!isInReservationFlow) {
+      // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
+      const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
+
+      if (shouldEndConversation) {
+        // Guardar mensaje del usuario
+        await onStoreConversations(validConversationId, message, 'user')
+
+        // Solicitar calificación de forma simple
+        const ratingMessage = `¡Perfecto! Me alegra haberte ayudado. 😊
 
 Antes de que te vayas, ¿podrías calificar tu experiencia del 1 al 5?
 
@@ -443,24 +467,25 @@ Antes de que te vayas, ¿podrías calificar tu experiencia del 1 al 5?
 
 Tu opinión nos ayuda a mejorar.`
 
-      // Guardar solicitud de feedback
-      await onStoreConversations(validConversationId, ratingMessage, 'assistant', message)
+        // Guardar solicitud de feedback
+        await onStoreConversations(validConversationId, ratingMessage, 'assistant', message)
 
-      // Marcar como esperando calificación
-      await client.conversation.update({
-        where: { id: validConversationId },
-        data: {
-          conversationState: 'AWAITING_RATING',
-          resolved: true
+        // Marcar como esperando calificación
+        await client.conversation.update({
+          where: { id: validConversationId },
+          data: {
+            conversationState: 'AWAITING_RATING',
+            resolved: true
+          }
+        })
+
+        return {
+          response: {
+            role: 'assistant',
+            content: ratingMessage
+          },
+          sessionToken
         }
-      })
-
-      return {
-        response: {
-          role: 'assistant',
-          content: ratingMessage
-        },
-        sessionToken
       }
     }
   }
@@ -1282,14 +1307,19 @@ EJEMPLOS DE TERMINACIÓN:
 - "eso es todo" → SI
 - "listo, gracias" → SI
 
-EJEMPLOS DE NO TERMINACIÓN:
+EJEMPLOS DE NO TERMINACIÓN (CRÍTICO):
+- "solo eso" → NO (si el asistente preguntó "¿Deseas reservar más productos?", significa que NO quiere más productos y quiere continuar con agendamiento)
+- "eso es todo" → NO (si el asistente preguntó "¿Deseas reservar más productos?", significa que NO quiere más productos y quiere continuar con agendamiento)
+- "no" → NO (si el asistente preguntó "¿Deseas reservar más productos?" o "¿proceder a agendar tu cita?", significa que NO quiere más productos y quiere continuar con agendamiento)
 - "lino" → NO (respuesta a pregunta sobre material)
 - "algodón" → NO (respuesta a pregunta sobre material)
 - "quiero más información" → NO
 - "tengo otra pregunta" → NO
 - "necesito ayuda con..." → NO
 - "sí" → NO (respuesta afirmativa)
-- "no" → NO (respuesta negativa a pregunta específica)`
+
+CONTEXTO CRÍTICO:
+Si el último mensaje del asistente pregunta "¿Deseas reservar más productos?" o "¿proceder a agendar tu cita?" y el usuario responde "solo eso", "eso es todo", "no", etc., NO es terminación. El usuario quiere continuar con el agendamiento, no terminar la conversación.`
 
     const chatCompletion = await openai.chat.completions.create({
       messages: [
@@ -2519,7 +2549,7 @@ const handleOpenAIResponse = async (
                   return {
                     response: {
                       role: 'assistant' as const,
-                      content: orchestration.response || `¡Perfecto! He confirmado tu pedido: 😊\n\n📋 **Detalles de tu reserva:**\n- Producto: ${productWithDetails.name}\n- Cantidad: ${extractedData.quantity} ${productWithDetails.unit || 'unidad(es)'}${extractedData.color ? `\n- Color: ${extractedData.color}` : ''}\n- Precio unitario: S/${productWithDetails.salePrice || productWithDetails.price}\n- Precio total: S/${(productWithDetails.salePrice || productWithDetails.price) * extractedData.quantity}\n\n💡 **Siguiente paso:**\n¿Deseas agregar más productos a tu pedido o proceder a agendar tu cita para ver y pagar estos productos en la tienda?`,
+                      content: orchestration.response || `¡Perfecto! He confirmado tu pedido: 😊\n\n📋 **Detalles de tu reserva:**\n- Producto: ${productWithDetails.name}\n- Cantidad: ${extractedData.quantity} ${productWithDetails.unit || 'unidad(es)'}${extractedData.color ? `\n- Color: ${extractedData.color}` : ''}\n- Precio unitario: S/${productWithDetails.salePrice || productWithDetails.price}\n- Precio total: S/${(productWithDetails.salePrice || productWithDetails.price) * extractedData.quantity}\n\n📋 **Siguiente paso:**\n¿Deseas reservar más productos o proceder a agendar tu cita para ver y pagar estos productos en la tienda?\n\nResponde "sí" para agregar otro producto o "no" (o "solo eso") para continuar con el agendamiento.`,
                       cartItems: [cartItem]
                     } as any
                   }
@@ -2538,7 +2568,77 @@ const handleOpenAIResponse = async (
       }
 
       // Si el orquestador generó una respuesta, usarla
+      // PERO si la acción es CONFIRM_COMPLETE, debemos incluir cartItems
       if (orchestration.response && orchestration.response.length > 0) {
+        // Si se confirmó un producto completo, incluir cartItems
+        if (orchestration.action === 'CONFIRM_COMPLETE' && orchestration.extractedData?.hasCompleteInfo) {
+          const extractedData = orchestration.extractedData
+          if (extractedData.selectedProductName && extractedData.quantity) {
+            // Buscar el producto para crear cartItem
+            const foundProducts = await findProductsByCharacteristics(
+              extractedData.selectedProductName,
+              companyId,
+              extractedData.characteristics || {}
+            )
+
+            if (foundProducts.length > 0) {
+              const selectedProduct = await selectBestProductMatch(
+                foundProducts,
+                extractedData.selectedProductName,
+                chatHistory,
+                extractedData.characteristics || {}
+              )
+
+              if (selectedProduct) {
+                const productWithDetails = await client.product.findUnique({
+                  where: { id: selectedProduct.id },
+                  select: {
+                    id: true,
+                    name: true,
+                    image: true,
+                    price: true,
+                    salePrice: true,
+                    unit: true,
+                    width: true,
+                    weight: true,
+                    color: true,
+                    colors: true
+                  }
+                })
+
+                if (productWithDetails) {
+                  const cartItem = {
+                    productId: productWithDetails.id,
+                    product: {
+                      id: productWithDetails.id,
+                      name: productWithDetails.name,
+                      image: (productWithDetails as any).image || '',
+                      price: productWithDetails.price,
+                      salePrice: productWithDetails.salePrice,
+                      unit: productWithDetails.unit
+                    },
+                    quantity: extractedData.quantity,
+                    unit: productWithDetails.unit || undefined,
+                    width: (productWithDetails as any).width || undefined,
+                    weight: (productWithDetails as any).weight || undefined,
+                    color: extractedData.color || undefined,
+                    unitPrice: productWithDetails.salePrice || productWithDetails.price,
+                    totalPrice: (productWithDetails.salePrice || productWithDetails.price) * extractedData.quantity
+                  }
+
+                  return {
+                    response: {
+                      role: 'assistant' as const,
+                      content: orchestration.response,
+                      cartItems: [cartItem]
+                    } as any
+                  }
+                }
+              }
+            }
+          }
+        }
+
         return {
           response: {
             role: 'assistant' as const,
@@ -5214,9 +5314,9 @@ RESPONDE SOLO EN FORMATO JSON:
 }
 
 EJEMPLOS:
-- "sí", "sí quiero", "agregar más", "quiero otro" → {"wantsMore": true, "response": "YES"}
-- "no", "no más", "solo eso", "esos son todos" → {"wantsMore": false, "response": "NO"}
-- "quiero agendar", "sí, agendar" → {"wantsMore": false, "response": "NO"} (quiere proceder, no agregar más)
+- "sí", "sí quiero", "agregar más", "quiero otro", "sí, otro producto" → {"wantsMore": true, "response": "YES"}
+- "no", "no más", "solo eso", "eso es todo", "esos son todos", "eso sería todo", "solo eso", "no, solo eso" → {"wantsMore": false, "response": "NO"}
+- "quiero agendar", "sí, agendar", "proceder", "agendar cita" → {"wantsMore": false, "response": "NO"} (quiere proceder, no agregar más)
 - "tal vez", "no sé" → {"wantsMore": false, "response": "UNCLEAR"}`
 
     const chatCompletion = await openai.chat.completions.create({
@@ -5443,7 +5543,10 @@ INSTRUCCIONES CRÍTICAS:
 10. Si el usuario está en CONFIRMING_QUANTITY, extrae la cantidad mencionada
 11. Si el usuario está en ASKING_COLOR, extrae el color mencionado
 12. Si el usuario está en ASKING_MORE_PRODUCTS, determina si quiere más o no
+    - Si el usuario dice "solo eso", "eso sería todo", "eso es todo", "no más", "no, solo eso" → quiere proceder a agendar (NO quiere más productos)
+    - Si el usuario dice "sí", "sí quiero", "agregar más", "quiero otro" → quiere agregar más productos
 13. Si el usuario está en ASKING_DATE, extrae fecha y horario
+14. **CRÍTICO**: Si el usuario está en ASKING_MORE_PRODUCTS y dice "solo eso" o "eso sería todo", NO es terminación de conversación, es que quiere proceder a agendar
 
 RESPONDE SOLO EN FORMATO JSON:
 {
@@ -5497,7 +5600,9 @@ IMPORTANTE:
 - Después de color, pregunta si quiere más productos (ASKING_MORE_PRODUCTS)
 - Solo después de confirmar todos los productos, pregunta fecha (ASKING_DATE)
 - Genera respuestas naturales, cálidas y sin duplicación
-- **CRÍTICO**: Si el mensaje contiene producto + cantidad + color, NO uses action: "SHOW_PRODUCTS", usa action: "CONFIRM_COMPLETE" directamente`
+- **CRÍTICO**: Si el mensaje contiene producto + cantidad + color, NO uses action: "SHOW_PRODUCTS", usa action: "CONFIRM_COMPLETE" directamente
+- **CRÍTICO**: Si el usuario está en ASKING_MORE_PRODUCTS y dice "solo eso", "eso sería todo", "eso es todo", "no más", "no, solo eso" → action debe ser "ASK_DATE" (NO es terminación de conversación, quiere proceder a agendar)
+- **CRÍTICO**: Cuando generes mensaje de confirmación de producto, SIEMPRE incluye la pregunta "¿Deseas reservar más productos o proceder a agendar tu cita?" para mantener el flujo activo`
 
     const chatCompletion = await openai.chat.completions.create({
       messages: [
@@ -6485,7 +6590,8 @@ Para recapitular tu pedido:
 - Cantidad: ${quantityInfo.quantity} ${fullProduct.unit || 'unidad(es)'}
 - Precio Total: S/${(fullProduct.salePrice || fullProduct.price) * quantityInfo.quantity} (S/${fullProduct.salePrice || fullProduct.price} por ${fullProduct.unit || 'unidad'})
 
-Antes de proceder, me gustaría saber si necesitas más tela o algún otro producto relacionado. ¿Hay algo más en lo que te pueda ayudar? 😊`
+📋 **Siguiente paso:**
+¿Deseas reservar más productos o proceder a agendar tu cita para ver y pagar estos productos en la tienda?`
 
                 await onStoreConversations(conversationId, message, 'user')
                 await onStoreConversations(conversationId, response, 'assistant', message)
