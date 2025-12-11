@@ -32,16 +32,16 @@ const UpcomingAppointments = ({ appointments }: Props) => {
     const upcomingAppointments = appointments.filter((apt) => apt.date >= tomorrow)
 
     return (
-        <Card className="border-porcelain shadow-sm">
-            <CardHeader className="pb-4">
+        <Card className="border border-orange-200 shadow-md bg-white">
+            <CardHeader className="pb-3 border-b border-orange-100">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-peach rounded-xl flex items-center justify-center">
-                            <Calendar className="w-6 h-6 text-orange" />
+                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Calendar className="w-5 h-5 text-orange-600" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-semibold text-gravel">Próximas Citas</h3>
-                            <p className="text-xs text-ironside">
+                            <h3 className="text-base font-semibold text-gray-900">Próximas Citas</h3>
+                            <p className="text-xs text-gray-500">
                                 {today.toLocaleDateString('es-ES', {
                                     weekday: 'long',
                                     day: 'numeric',
@@ -51,14 +51,14 @@ const UpcomingAppointments = ({ appointments }: Props) => {
                         </div>
                     </div>
                     <Link href="/appointment">
-                        <Button variant="outline" size="sm" className="text-xs">
+                        <Button variant="outline" size="sm" className="text-xs border-gray-300">
                             Ver todas
                         </Button>
                     </Link>
                 </div>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="max-h-[450px] overflow-y-auto">
                 {appointments.length > 0 ? (
                     <div className="space-y-3">
                         {/* Citas de HOY */}

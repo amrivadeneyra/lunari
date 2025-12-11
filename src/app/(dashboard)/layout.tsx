@@ -2,6 +2,7 @@ import { onLoginUser } from '@/action/auth';
 import SideBar from '@/components/sidebar';
 import { ChatProvider } from '@/context/user-chat-context';
 import CompanyRequiredGuard from '@/components/company-required-guard';
+import ContentWrapper from '@/components/dashboard/content-wrapper';
 import React from 'react';
 
 type Props = {
@@ -27,9 +28,9 @@ const OwnerLayout = async ({ children }: Props) => {
       <CompanyRequiredGuard company={authenticated.company}>
         <div className='flex h-screen w-full'>
           <SideBar company={authenticated.company} />
-          <div className='w-full h-screen flex flex-col pl-20 md:pl-4'>
+          <ContentWrapper>
             {children}
-          </div>
+          </ContentWrapper>
         </div>
       </CompanyRequiredGuard>
     </ChatProvider>

@@ -1,15 +1,34 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { useChatContext } from "./user-chat-context";
 import { onGetConversationMode, onToggleRealtime } from "@/action/conversation";
-import path from "path";
 import { useClerk } from "@clerk/nextjs";
 
 const useSideBar = () => {
   const [expand, setExpand] = useState<boolean | undefined>(undefined);
+
+  // Detectar tamaño de pantalla y ajustar el sidebar automáticamente
+  useEffect(() => {
+    const handleResize = () => {
+      // En móvil (< 768px): colapsar, en desktop: expandir
+      if (window.innerWidth < 768) {
+        setExpand(false);
+      } else {
+        setExpand(true);
+      }
+    };
+
+    // Establecer estado inicial
+    handleResize();
+
+    // Escuchar cambios de tamaño
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [realtime, setRealtime] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 

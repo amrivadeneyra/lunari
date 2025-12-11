@@ -26,31 +26,33 @@ type Props = {
 
 const UrgentChats = ({ urgentChats }: Props) => {
   return (
-    <Card className="border-porcelain shadow-sm">
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center relative">
-            <AlertCircle className="w-6 h-6 text-red-500" />
-            {urgentChats.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
-                {urgentChats.length}
-              </span>
-            )}
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gravel">Chats en Tiempo Real</h3>
-            <p className="text-xs text-ironside">Requieren atención humana inmediata</p>
+    <Card className="border border-red-200 shadow-md bg-white">
+      <CardHeader className="pb-3 border-b border-red-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center relative">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              {urgentChats.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {urgentChats.length}
+                </span>
+              )}
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Chats Urgentes</h3>
+              <p className="text-xs text-gray-500">Requieren atención inmediata</p>
+            </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="max-h-[450px] overflow-y-auto">
         {urgentChats.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {urgentChats.map((chat) => (
               <div
                 key={chat.id}
-                className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200 hover:bg-red-100 transition-colors"
+                className="flex items-start gap-3 p-3 bg-red-50/50 rounded-lg border border-red-200/50 hover:bg-red-50 transition-colors"
               >
                 <Avatar className="w-10 h-10 border-2 border-red-300">
                   <AvatarFallback className="bg-red-200 text-red-700 font-semibold">
