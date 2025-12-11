@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import { DataTable } from '../table'
 import { TableCell, TableRow } from '../ui/table'
-import { onGetCompanyUsers, onGetCustomerById } from '@/action/users'
+import { onGetCompanyUsers, onGetCustomerById, onUpdateCustomer, onToggleCustomerStatus } from '@/action/users'
+import { useToast } from '@/components/ui/use-toast'
 import { Loader } from '../loader'
 import { Users as UsersIcon, MoreVertical, Edit, UserX } from 'lucide-react'
 import {
@@ -32,14 +33,6 @@ type Customer = {
     status: boolean
 }
 
-type CustomerDetails = {
-    id: string
-    name: string | null
-    email: string | null
-    phone: string | null
-    status: boolean
-}
-
 type Props = {
     companyId: string
 }
@@ -50,8 +43,11 @@ const UsersTable = ({ companyId }: Props) => {
     const [error, setError] = useState<string | null>(null)
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
-    const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null)
     const [loadingCustomer, setLoadingCustomer] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [togglingCustomerId, setTogglingCustomerId] = useState<string | null>(null)
+    const [dialogError, setDialogError] = useState<string | null>(null)
+    const { toast } = useToast()
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -86,12 +82,11 @@ const UsersTable = ({ companyId }: Props) => {
         setEditingCustomerId(customerId)
         setIsEditDialogOpen(true)
         setLoadingCustomer(true)
-        setError(null)
+        setDialogError(null)
 
         try {
             const result = await onGetCustomerById(customerId)
             if (result.status === 200 && result.customer) {
-                setCustomerDetails(result.customer)
                 setFormData({
                     name: result.customer.name || '',
                     email: result.customer.email || '',
@@ -99,10 +94,10 @@ const UsersTable = ({ companyId }: Props) => {
                     status: result.customer.status,
                 })
             } else {
-                setError(result.message || 'Error al cargar datos del cliente')
+                setDialogError(result.message || 'Error al cargar datos del cliente')
             }
         } catch (err) {
-            setError('Error al cargar datos del cliente')
+            setDialogError('Error al cargar datos del cliente')
             console.error('Error fetching customer:', err)
         } finally {
             setLoadingCustomer(false)
@@ -113,14 +108,118 @@ const UsersTable = ({ companyId }: Props) => {
     const handleCloseDialog = () => {
         setIsEditDialogOpen(false)
         setEditingCustomerId(null)
-        setCustomerDetails(null)
         setFormData({
             name: '',
             email: '',
             phone: '',
             status: true,
         })
-        setError(null)
+        setDialogError(null)
+    }
+
+    // Función para guardar los cambios del cliente
+    const handleSaveChanges = async () => {
+        if (!editingCustomerId) return
+
+        setSaving(true)
+        setDialogError(null)
+
+        try {
+            const result = await onUpdateCustomer(editingCustomerId, {
+                name: formData.name || null,
+                email: formData.email || null,
+                phone: formData.phone || null,
+                status: formData.status,
+            })
+
+            if (result.status === 200 && result.customer) {
+                toast({
+                    title: 'Éxito',
+                    description: result.message || 'Cliente actualizado exitosamente',
+                })
+
+                // Actualizar solo el cliente específico en el estado local sin recargar toda la tabla
+                // Esto evita el spinner y mejora la experiencia de usuario
+                setUsers(prevUsers =>
+                    prevUsers.map(user =>
+                        user.id === editingCustomerId
+                            ? {
+                                id: result.customer!.id,
+                                name: result.customer!.name,
+                                email: result.customer!.email,
+                                status: result.customer!.status,
+                            }
+                            : user
+                    )
+                )
+
+                // Cerrar el modal
+                handleCloseDialog()
+            } else {
+                setDialogError(result.message || 'Error al actualizar el cliente')
+                toast({
+                    title: 'Error',
+                    description: result.message || 'Error al actualizar el cliente',
+                    variant: 'destructive',
+                })
+            }
+        } catch (err) {
+            const errorMessage = 'Error al guardar los cambios'
+            setDialogError(errorMessage)
+            toast({
+                title: 'Error',
+                description: errorMessage,
+                variant: 'destructive',
+            })
+            console.error('Error saving customer:', err)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    // Función para activar/desactivar cliente
+    const handleToggleStatus = async (customerId: string) => {
+        setTogglingCustomerId(customerId)
+
+        try {
+            const result = await onToggleCustomerStatus(customerId)
+
+            if (result.status === 200 && result.customer) {
+                toast({
+                    title: 'Éxito',
+                    description: result.message || 'Estado del cliente actualizado exitosamente',
+                })
+
+                // Actualizar solo el cliente específico en el estado local sin recargar toda la tabla
+                setUsers(prevUsers =>
+                    prevUsers.map(user =>
+                        user.id === customerId
+                            ? {
+                                id: result.customer!.id,
+                                name: result.customer!.name,
+                                email: result.customer!.email,
+                                status: result.customer!.status,
+                            }
+                            : user
+                    )
+                )
+            } else {
+                toast({
+                    title: 'Error',
+                    description: result.message || 'Error al cambiar el estado del cliente',
+                    variant: 'destructive',
+                })
+            }
+        } catch (err) {
+            toast({
+                title: 'Error',
+                description: 'Error al cambiar el estado del cliente',
+                variant: 'destructive',
+            })
+            console.error('Error toggling customer status:', err)
+        } finally {
+            setTogglingCustomerId(null)
+        }
     }
 
     if (loading) {
@@ -212,14 +311,43 @@ const UsersTable = ({ companyId }: Props) => {
                                                     Editar
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
-                                                    className="cursor-pointer text-red-600 focus:text-red-600"
-                                                    onClick={() => {
-                                                        // TODO: Implementar funcionalidad de desactivar
-                                                        console.log('Desactivar usuario:', customer.id)
-                                                    }}
+                                                    className={`cursor-pointer ${customer.status
+                                                        ? 'text-red-600 focus:text-red-600'
+                                                        : 'text-green-600 focus:text-green-600'
+                                                        }`}
+                                                    onClick={() => handleToggleStatus(customer.id)}
+                                                    disabled={togglingCustomerId === customer.id}
                                                 >
-                                                    <UserX className="w-4 h-4 mr-2" />
-                                                    Desactivar usuario
+                                                    {togglingCustomerId === customer.id ? (
+                                                        <span className="flex items-center gap-2">
+                                                            <svg
+                                                                className="animate-spin h-4 w-4"
+                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                            >
+                                                                <circle
+                                                                    className="opacity-25"
+                                                                    cx="12"
+                                                                    cy="12"
+                                                                    r="10"
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="4"
+                                                                ></circle>
+                                                                <path
+                                                                    className="opacity-75"
+                                                                    fill="currentColor"
+                                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                                ></path>
+                                                            </svg>
+                                                            {customer.status ? 'Desactivando...' : 'Activando...'}
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <UserX className="w-4 h-4 mr-2" />
+                                                            {customer.status ? 'Desactivar usuario' : 'Activar usuario'}
+                                                        </>
+                                                    )}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -261,10 +389,10 @@ const UsersTable = ({ companyId }: Props) => {
                                 <div className="text-gray-600">Cargando datos del cliente...</div>
                             </Loader>
                         </div>
-                    ) : error ? (
+                    ) : dialogError ? (
                         <div className="py-4">
                             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <p className="text-sm text-red-800">{error}</p>
+                                <p className="text-sm text-red-800">{dialogError}</p>
                             </div>
                         </div>
                     ) : (
@@ -338,21 +466,43 @@ const UsersTable = ({ companyId }: Props) => {
                             type="button"
                             variant="outline"
                             onClick={handleCloseDialog}
-                            disabled={loadingCustomer}
+                            disabled={loadingCustomer || saving}
                         >
                             Cancelar
                         </Button>
                         <Button
                             type="button"
-                            onClick={() => {
-                                // TODO: Implementar funcionalidad de guardar
-                                console.log('Guardar cambios:', formData)
-                                handleCloseDialog()
-                            }}
-                            disabled={loadingCustomer}
+                            onClick={handleSaveChanges}
+                            disabled={loadingCustomer || saving}
                             className="bg-orange hover:bg-orange/90 text-white"
                         >
-                            Guardar Cambios
+                            {saving ? (
+                                <span className="flex items-center gap-2">
+                                    <svg
+                                        className="animate-spin h-4 w-4 text-white"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            className="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                            className="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                    </svg>
+                                    Guardando...
+                                </span>
+                            ) : (
+                                'Guardar Cambios'
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
