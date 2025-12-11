@@ -222,20 +222,6 @@ const UsersTable = ({ companyId }: Props) => {
         }
     }
 
-    if (loading) {
-        return (
-            <div className="w-full h-full overflow-y-auto">
-                <div className="w-full p-4 md:p-6">
-                    <div className="flex items-center justify-center py-12">
-                        <Loader loading={true}>
-                            <div className="text-gray-600">Cargando usuarios...</div>
-                        </Loader>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     if (error) {
         return (
             <div className="w-full h-full overflow-y-auto">
@@ -273,7 +259,15 @@ const UsersTable = ({ companyId }: Props) => {
                     <div className="w-full h-px bg-gradient-to-r from-orange/20 via-orange/40 to-orange/20"></div>
                 </div>
 
-                {users.length > 0 ? (
+                {loading ? (
+                    <div className="bg-gray-50 rounded-lg p-3 md:p-4 lg:p-6 border border-gray-100">
+                        <div className="flex items-center justify-center py-12">
+                            <Loader loading={true}>
+                                <div className="text-gray-600">Cargando usuarios...</div>
+                            </Loader>
+                        </div>
+                    </div>
+                ) : users.length > 0 ? (
                     <DataTable headers={['Nombre', 'Email', 'Estado', 'Acciones']}>
                         {users.map((customer) => (
                             <TableRow key={customer.id}>
@@ -355,16 +349,18 @@ const UsersTable = ({ companyId }: Props) => {
                         ))}
                     </DataTable>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <div className="w-16 h-16 mx-auto bg-orange/10 rounded-full flex items-center justify-center mb-4">
-                            <UsersIcon className="w-8 h-8 text-orange" />
+                    <div className="bg-gray-50 rounded-lg p-3 md:p-4 lg:p-6 border border-gray-100">
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="w-16 h-16 mx-auto bg-orange/10 rounded-full flex items-center justify-center mb-4">
+                                <UsersIcon className="w-8 h-8 text-orange" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                No hay clientes registrados
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-6 max-w-md">
+                                Actualmente no hay clientes asociados a esta empresa.
+                            </p>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            No hay clientes registrados
-                        </h3>
-                        <p className="text-sm text-gray-600 mb-6 max-w-md">
-                            Actualmente no hay clientes asociados a esta empresa.
-                        </p>
                     </div>
                 )}
             </div>
