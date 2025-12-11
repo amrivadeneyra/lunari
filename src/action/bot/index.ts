@@ -704,7 +704,7 @@ Tu opinión me ayuda a mejorar.`
   }
 
   // 5. Generar contexto para OpenAI
-  const contextSpecificPrompt = getContextSpecificPrompt(message, companyId, customerInfo.id)
+  const contextSpecificPrompt = await getContextSpecificPrompt(message, companyId, customerInfo.id, chat)
 
   const customerDataForContext = {
     email: customerInfo.email,
@@ -786,36 +786,6 @@ Tu opinión me ayuda a mejorar.`
 // GESTIÓN DE CICLO DE VIDA DE CONVERSACIONES
 // ============================================
 
-/**
- * Detecta si el usuario ha estado inactivo y debe finalizar la conversación
- * Inactividad = 5 minutos sin responder
- */
-const checkUserInactivity = async (conversationId: string): Promise<boolean> => {
-  try {
-    const chatRoom = await client.conversation.findUnique({
-      where: { id: conversationId },
-      select: {
-        lastUserActivityAt: true,
-        conversationState: true
-      }
-    })
-
-    if (!chatRoom) return false
-
-    const now = new Date()
-    const lastActivity = new Date(chatRoom.lastUserActivityAt)
-    const minutesInactive = (now.getTime() - lastActivity.getTime()) / (1000 * 60)
-
-    // Si lleva más de 5 minutos inactivo y está ACTIVE
-    if (minutesInactive > 5 && chatRoom.conversationState === 'ACTIVE') {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    return false
-  }
-}
 
 /**
  * Finaliza la conversación actual y solicita calificación
@@ -1912,23 +1882,79 @@ Responde en español, de forma natural, cálida y genuinamente amigable. Usa el 
 }
 
 /**
- * Verifica si el mensaje es una solicitud de agendamiento de cita
+ * NUEVA FUNCIÓN: Usa IA para detectar si el usuario quiere agendar una cita
+ * Reemplaza la detección hardcodeada por una basada en IA para mayor precisión
  */
-const isAppointmentRequest = (message: string): boolean => {
-  const appointmentKeywords = ['reservar cita', 'agendar cita', 'generar cita', 'quiero cita', 'necesito cita', 'cita']
-  return appointmentKeywords.some(keyword =>
-    message.toLowerCase().includes(keyword.toLowerCase())
-  )
+const isAppointmentRequest = async (
+  message: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<boolean> => {
+  try {
+    const systemPrompt = `Eres un analizador de conversaciones. Tu trabajo es determinar si el usuario quiere AGENDAR UNA CITA, CONSULTA o REUNIÓN.
+
+ANALIZA el mensaje del usuario y el contexto de la conversación para determinar si:
+1. El usuario está solicitando EXPLÍCITAMENTE agendar una cita, consulta o reunión
+2. El usuario quiere programar una visita o encuentro
+3. El usuario necesita reservar un horario o fecha para atención
+
+IMPORTANTE: Solo marca como solicitud de cita si hay intención CLARA de agendar algo.
+Las preguntas sobre productos, precios, información general NO son solicitudes de cita.
+
+RESPUESTA SOLO: "SI" si el usuario quiere agendar una cita, "NO" si no.
+
+EJEMPLOS DE SOLICITUD DE CITA:
+- "quiero agendar una cita" → SI
+- "necesito una consulta" → SI
+- "puedo reservar un horario" → SI
+- "quiero programar una visita" → SI
+- "necesito una reunión" → SI
+- "me gustaría agendar" → SI
+- "quiero ver el producto en persona" → SI (implica visita)
+- "puedo ir a verlos" → SI (implica visita)
+
+EJEMPLOS DE NO SOLICITUD DE CITA:
+- "quiero información sobre productos" → NO
+- "cuánto cuesta" → NO
+- "qué materiales tienen" → NO
+- "necesito ayuda" → NO (muy genérico)
+- "tengo una pregunta" → NO
+- "cita" (solo la palabra sin contexto) → NO
+- "consulta" (solo la palabra sin contexto) → NO`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3), // Últimos 3 mensajes para contexto
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1, // Baja temperatura para respuestas consistentes
+      max_tokens: 10 // Solo necesitamos "SI" o "NO"
+    })
+
+    const response = chatCompletion.choices[0].message.content?.trim().toUpperCase()
+    return response === 'SI'
+
+  } catch (error) {
+    console.error('Error en isAppointmentRequest:', error)
+    // Si falla la IA, retornar false (no usar fallback hardcodeado)
+    return false
+  }
 }
 
 /**
  * Determina el contexto específico basado en el tipo de solicitud
  */
-const getContextSpecificPrompt = (message: string, companyId: string, customerId: string): string => {
-  const isAppointmentRequest = /cita|agendar|consulta|reunión|visita/i.test(message)
+const getContextSpecificPrompt = async (
+  message: string,
+  companyId: string,
+  customerId: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<string> => {
+  const isAppointment = await isAppointmentRequest(message, chatHistory)
   const isGeneralQuery = /ayuda|información|consulta|pregunta/i.test(message)
 
-  if (isAppointmentRequest) {
+  if (isAppointment) {
     return `
 CONTEXTO ACTUAL: El cliente está solicitando agendar una cita o consulta.
 RESPUESTA ESPERADA: Debes ayudarlo con el proceso de agendamiento y proporcionar el enlace de citas: http://localhost:3000/portal/${companyId}/appointment/${customerId}
@@ -2540,42 +2566,6 @@ RECUERDA: Sé natural, cálido y genuinamente amigable. Muestra interés real en
 // SISTEMA DE RESERVAS DE PRODUCTOS
 // ============================================
 
-/**
- * Detecta si el cliente quiere reservar un producto específico
- */
-const detectProductReservationRequest = (message: string): { wantsReservation: boolean; productName?: string } => {
-  const lowerMsg = message.toLowerCase()
-
-  // Palabras clave que indican interés en reservar
-  const reservationKeywords = [
-    'quiero reservar', 'reservar', 'me interesa', 'quiero ese producto',
-    'quiero comprar', 'me gusta', 'quiero ese', 'resérvame', 'guárdame'
-  ]
-
-  const wantsReservation = reservationKeywords.some(keyword => lowerMsg.includes(keyword))
-
-  // Intentar extraer el nombre del producto del mensaje
-  let productName: string | undefined
-
-  // Buscar patrones como "quiero reservar [producto]", "me interesa [producto]", etc.
-  const patterns = [
-    /quiero reservar (.+)/i,
-    /reservar (.+)/i,
-    /me interesa (.+)/i,
-    /quiero (.+)/i,
-    /me gusta (.+)/i
-  ]
-
-  for (const pattern of patterns) {
-    const match = message.match(pattern)
-    if (match && match[1]) {
-      productName = match[1].trim()
-      break
-    }
-  }
-
-  return { wantsReservation, productName }
-}
 
 /**
  * Crea una reserva de producto con detalles específicos de compra
@@ -2974,39 +2964,6 @@ const createAppointmentWithType = async (
   }
 }
 
-/**
- * Obtiene las reservas pendientes de un cliente
- */
-const getCustomerPendingReservations = async (customerId: string) => {
-  try {
-    const reservations = await client.productReservation.findMany({
-      where: {
-        customerId,
-        status: 'PENDING',
-        expiresAt: {
-          gt: new Date() // Solo reservas que no han expirado
-        }
-      },
-      include: {
-        Product: {
-          select: {
-            name: true,
-            price: true,
-            salePrice: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
-
-    return reservations
-  } catch (error) {
-    console.error('Error getting customer reservations:', error)
-    return []
-  }
-}
 
 export const onAiChatBotAssistant = async (
   id: string,
@@ -3289,7 +3246,7 @@ export const onAiChatBotAssistant = async (
         }
       }
 
-      const isAppointment = isAppointmentRequest(message)
+      const isAppointment = await isAppointmentRequest(message, chat)
       if (isAppointment) {
         await onStoreConversations(customerInfo.conversations[0].id, message, author)
         await onStoreConversations(
@@ -3398,7 +3355,7 @@ export const onAiChatBotAssistant = async (
         }
       }
 
-      const contextSpecificPrompt = getContextSpecificPrompt(message, id, customerInfo.id)
+      const contextSpecificPrompt = await getContextSpecificPrompt(message, id, customerInfo.id, chat)
       const customerDataForContext = {
         email: customerInfo.email,
         name: customerInfo.name,
@@ -3475,7 +3432,7 @@ export const onAiChatBotAssistant = async (
       }
     }
 
-    const isAppointment = isAppointmentRequest(message)
+    const isAppointment = await isAppointmentRequest(message, chat)
     if (isAppointment) {
       return {
         response: {
