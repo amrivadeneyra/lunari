@@ -11,6 +11,7 @@ import {
   generateSessionToken,
   getCustomerFromToken
 } from '@/lib/session'
+import { onBookNewAppointment, onGetAvailableTimeSlotsForDay, onGetAllCompanyBookings } from '../appointment'
 
 const openai = new OpenAi({
   apiKey: process.env.OPEN_AI_KEY,
@@ -317,15 +318,7 @@ const getQuickResponse = (
 ): { content: string; link?: string } | null => {
   const lowerMsg = message.toLowerCase().trim()
 
-  // 1. Agendamiento de citas
-  if (/\b(agendar|cita|reservar|reserva|appointment)\b/.test(lowerMsg)) {
-    return {
-      content: '¡Perfecto! Aquí tienes el enlace para agendar tu cita:',
-      link: `http://localhost:3000/portal/${companyId}/appointment/${customerInfo.id}`
-    }
-  }
-
-  // 2. Saludos simples
+  // 1. Saludos simples
   if (/^(hola|hi|hey|buenos días|buenas tardes|buenas noches|qué tal)\.?$/i.test(lowerMsg)) {
     return {
       content: `¡Hola ${customerInfo.name || ''}! Soy Lunari AI. 😊`
@@ -665,7 +658,26 @@ Tu opinión me ayuda a mejorar.`
     }
   }
 
-  // 5. OPTIMIZACIÓN: Intentar respuesta rápida primero (sin OpenAI)
+  // 5. DETECCIÓN DE SOLICITUD DE CITA
+  const isAppointment = await isAppointmentRequest(message, chat)
+  if (isAppointment) {
+    const appointmentResult = await handleAppointmentBooking(
+      message,
+      customerInfo,
+      companyId,
+      validConversationId,
+      chat
+    )
+
+    if (appointmentResult) {
+      return {
+        response: appointmentResult.response,
+        sessionToken
+      }
+    }
+  }
+
+  // 6. OPTIMIZACIÓN: Intentar respuesta rápida primero (sin OpenAI)
   const quickResponse = getQuickResponse(message, customerInfo, companyId)
 
   if (quickResponse) {
@@ -703,7 +715,7 @@ Tu opinión me ayuda a mejorar.`
     }
   }
 
-  // 5. Generar contexto para OpenAI
+  // 7. Generar contexto para OpenAI
   const contextSpecificPrompt = await getContextSpecificPrompt(message, companyId, customerInfo.id, chat)
 
   const customerDataForContext = {
@@ -1838,9 +1850,8 @@ const generateOpenAIContext = async (
 2. NUNCA inventes productos, materiales, características o servicios que no están en el contexto
 3. Si no tienes la información exacta, di de forma amigable: "No tengo esa información específica en este momento, pero puedo ayudarte con otras opciones"
 4. NO pidas datos del cliente que ya aparecen arriba (nombre, email, teléfono)
-5. Si dice "agendar/reservar/cita" → Da SOLO este enlace: http://localhost:3000/portal/${companyId}/appointment/${customerInfo?.id}
-6. NO preguntes fecha/hora para citas, solo da el enlace
-7. PROHIBIDO crear enlaces de compra, tiendas online, o cualquier enlace que no sea el de agendar citas
+5. Si dice "agendar/reservar/cita" → El sistema manejará el agendamiento automáticamente. Solo confirma que estás listo para ayudar.
+6. PROHIBIDO crear enlaces de compra, tiendas online, o cualquier enlace
 8. PROHIBIDO mencionar pagos online, transferencias bancarias, o cualquier forma de pago digital
 9. Si la consulta es fuera de contexto textil, no puedes ayudar, o el cliente solicita hablar con un humano → Responde con "(realtime)" para escalar a humano
    Palabras clave para escalación: "humano", "persona", "agente", "operador", "hablar con alguien", "no me ayuda", "quiero hablar con", "escalar"
@@ -1957,7 +1968,7 @@ const getContextSpecificPrompt = async (
   if (isAppointment) {
     return `
 CONTEXTO ACTUAL: El cliente está solicitando agendar una cita o consulta.
-RESPUESTA ESPERADA: Debes ayudarlo con el proceso de agendamiento y proporcionar el enlace de citas: http://localhost:3000/portal/${companyId}/appointment/${customerId}
+RESPUESTA ESPERADA: El sistema manejará el agendamiento automáticamente. Solo confirma que estás listo para ayudar con el proceso.
 NO pidas email nuevamente, ya lo tienes.`
   } else if (isGeneralQuery) {
     return `
@@ -2134,8 +2145,7 @@ ${purchaseDetails.color ? `- Color: ${purchaseDetails.color}` : ''}
 
 💳 **IMPORTANTE:** El pago se realiza presencialmente en nuestra tienda durante la cita. NO aceptamos pagos online.
 
-Para completar tu compra y recoger el producto, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría agendar una cita ahora?`,
-              link: `http://localhost:3000/portal/${companyId}/appointment/${customerInfo.id}`
+Para completar tu compra y recoger el producto, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría agendar una cita ahora? Puedo ayudarte a coordinar una visita en el horario que más te convenga.`
             }
           }
         } else {
@@ -2918,49 +2928,360 @@ const findProductByName = async (productName: string, companyId: string) => {
   }
 }
 
+// ============================================
+// SISTEMA DE AGENDAMIENTO CONVERSACIONAL
+// ============================================
+
 /**
- * Crea una cita con tipo específico y opcionalmente asocia reservas
+ * Extrae información de cita del mensaje del usuario usando IA
  */
-const createAppointmentWithType = async (
-  customerId: string,
-  companyId: string,
-  appointmentType: 'STORE_VISIT' | 'PURCHASE',
-  purpose?: string,
-  notes?: string,
-  reservationIds?: string[]
-) => {
+const extractAppointmentInfo = async (
+  message: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<{
+  hasAppointmentInfo: boolean
+  date?: string // Formato: YYYY-MM-DD
+  time?: string // Formato: "9:00am", "2:30pm", etc.
+  appointmentType?: 'STORE_VISIT' | 'PURCHASE'
+  purpose?: string
+}> => {
   try {
-    const appointment = await client.bookings.create({
-      data: {
-        customerId,
-        companyId,
-        appointmentType: appointmentType as any,
-        purpose,
-        notes,
-        email: '', // Se llenará cuando se procese la cita
-        date: new Date(), // Se actualizará cuando se procese la cita
-        slot: '' // Se llenará cuando se procese la cita
-      }
+    const systemPrompt = `Eres un analizador de mensajes. Extrae información sobre solicitudes de citas.
+
+ANALIZA el mensaje del usuario y extrae:
+1. FECHA: Si menciona una fecha específica (ej: "mañana", "el 15 de marzo", "lunes", "próxima semana")
+2. HORA: Si menciona una hora específica (ej: "a las 3pm", "9:00am", "por la tarde")
+3. TIPO: Si es visita a tienda (STORE_VISIT) o compra (PURCHASE)
+4. PROPÓSITO: Razón de la cita si se menciona
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "hasAppointmentInfo": true/false,
+  "date": "YYYY-MM-DD" o null,
+  "time": "H:MMam/pm" o null,
+  "appointmentType": "STORE_VISIT" o "PURCHASE" o null,
+  "purpose": "texto" o null
+}
+
+Si no hay información suficiente, hasAppointmentInfo debe ser false.
+
+EJEMPLOS:
+- "quiero agendar una cita para mañana a las 3pm" → {"hasAppointmentInfo": true, "date": "2024-03-16", "time": "3:00pm", "appointmentType": "STORE_VISIT", "purpose": null}
+- "necesito una consulta el lunes" → {"hasAppointmentInfo": true, "date": "2024-03-18", "time": null, "appointmentType": "STORE_VISIT", "purpose": "consulta"}
+- "quiero agendar" → {"hasAppointmentInfo": false, "date": null, "time": null, "appointmentType": null, "purpose": null}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 200
     })
 
-    // Si hay reservas asociadas, actualizarlas
-    if (reservationIds && reservationIds.length > 0) {
-      await client.productReservation.updateMany({
-        where: {
-          id: { in: reservationIds },
-          customerId
-        },
-        data: {
-          bookingId: appointment.id,
-          status: 'CONFIRMED'
+    const response = chatCompletion.choices[0].message.content
+    if (!response) {
+      return { hasAppointmentInfo: false }
+    }
+
+    const parsed = JSON.parse(response)
+    return {
+      hasAppointmentInfo: parsed.hasAppointmentInfo || false,
+      date: parsed.date || undefined,
+      time: parsed.time || undefined,
+      appointmentType: parsed.appointmentType || undefined,
+      purpose: parsed.purpose || undefined
+    }
+  } catch (error) {
+    console.error('Error en extractAppointmentInfo:', error)
+    return { hasAppointmentInfo: false }
+  }
+}
+
+/**
+ * Obtiene horarios disponibles para una fecha y filtra los ocupados
+ */
+const getAvailableSlotsForDate = async (
+  companyId: string,
+  date: Date
+): Promise<string[]> => {
+  try {
+    // Obtener horarios configurados para ese día
+    const slotsResult = await onGetAvailableTimeSlotsForDay(companyId, date)
+    if (slotsResult.status !== 200 || !slotsResult.timeSlots) {
+      return []
+    }
+
+    // Obtener citas ya reservadas para esa fecha
+    const existingBookings = await onGetAllCompanyBookings(companyId)
+    const bookedSlots = existingBookings
+      ?.filter((booking: any) => {
+        const bookingDate = new Date(booking.date)
+        return (
+          bookingDate.getDate() === date.getDate() &&
+          bookingDate.getMonth() === date.getMonth() &&
+          bookingDate.getFullYear() === date.getFullYear()
+        )
+      })
+      .map((booking: any) => booking.slot) || []
+
+    // Filtrar horarios ocupados
+    const availableSlots = slotsResult.timeSlots.filter(
+      (slot: string) => !bookedSlots.includes(slot)
+    )
+
+    // Si es hoy, filtrar horarios pasados
+    const now = new Date()
+    if (
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    ) {
+      const currentMinutes = now.getHours() * 60 + now.getMinutes()
+      return availableSlots.filter((slot: string) => {
+        const [time, period] = slot.split(/(am|pm)/i)
+        const [hours, minutes] = time.split(':').map(Number)
+        let totalHours = hours
+        if (period?.toLowerCase() === 'pm' && hours !== 12) {
+          totalHours += 12
+        } else if (period?.toLowerCase() === 'am' && hours === 12) {
+          totalHours = 0
         }
+        const slotMinutes = totalHours * 60 + (minutes || 0)
+        return slotMinutes > currentMinutes
       })
     }
 
-    return appointment
+    return availableSlots
   } catch (error) {
-    console.error('Error creating appointment with type:', error)
-    throw error
+    console.error('Error obteniendo horarios disponibles:', error)
+    return []
+  }
+}
+
+/**
+ * Maneja el flujo conversacional de agendamiento de citas
+ */
+const handleAppointmentBooking = async (
+  message: string,
+  customerInfo: any,
+  companyId: string,
+  conversationId: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[]
+): Promise<{
+  response?: { role: 'assistant'; content: string }
+  appointmentBooked?: boolean
+} | null> => {
+  try {
+    // Extraer información del mensaje
+    const appointmentInfo = await extractAppointmentInfo(message, chatHistory)
+
+    if (!appointmentInfo.hasAppointmentInfo) {
+      // No hay información suficiente, preguntar por fecha
+      const response = `¡Perfecto! Me encantaría ayudarte a agendar tu cita. 😊
+
+Para continuar, necesito algunos detalles:
+
+1. **¿Qué fecha te gustaría?** (puedes decir "mañana", "el lunes", "15 de marzo", etc.)
+2. **¿Qué horario prefieres?** (mañana, tarde, o un horario específico)
+3. **¿Cuál es el propósito de tu visita?** (ver productos, asesoría, compra, etc.)
+
+Por ejemplo, puedes decir: "mañana a las 3pm para ver productos"`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: false
+      }
+    }
+
+    // Procesar fecha
+    let appointmentDate: Date
+    if (appointmentInfo.date) {
+      appointmentDate = new Date(appointmentInfo.date)
+    } else {
+      // Si no hay fecha, usar mañana por defecto
+      appointmentDate = new Date()
+      appointmentDate.setDate(appointmentDate.getDate() + 1)
+    }
+
+    // Validar que la fecha no sea en el pasado
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (appointmentDate < today) {
+      const response = `Lo siento, no puedo agendar citas en el pasado. 😅
+
+¿Podrías indicarme una fecha futura? Por ejemplo: "mañana", "el lunes", o "15 de marzo"`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: false
+      }
+    }
+
+    // Obtener horarios disponibles
+    const availableSlots = await getAvailableSlotsForDate(companyId, appointmentDate)
+
+    if (availableSlots.length === 0) {
+      const response = `Lo siento, no hay horarios disponibles para ${appointmentDate.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })}. 😔
+
+¿Te gustaría elegir otra fecha?`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: false
+      }
+    }
+
+    // Si hay hora especificada, validarla
+    let selectedSlot: string | undefined = appointmentInfo.time
+
+    if (selectedSlot) {
+      // Normalizar formato de hora
+      selectedSlot = selectedSlot.toLowerCase().replace(/\s/g, '')
+      if (!selectedSlot.includes('am') && !selectedSlot.includes('pm')) {
+        // Si no tiene am/pm, intentar inferir
+        const hour = parseInt(selectedSlot.split(':')[0])
+        if (hour < 12) {
+          selectedSlot = selectedSlot + 'am'
+        } else {
+          selectedSlot = selectedSlot + 'pm'
+        }
+      }
+
+      // Verificar si el slot está disponible
+      const slotAvailable = availableSlots.some(
+        (slot: string) => slot.toLowerCase().replace(/\s/g, '') === selectedSlot
+      )
+
+      if (!slotAvailable) {
+        // Hora no disponible, ofrecer alternativas
+        const response = `Lo siento, el horario ${appointmentInfo.time} no está disponible para esa fecha. 😔
+
+Horarios disponibles:
+${availableSlots.slice(0, 5).map((slot: string) => `• ${slot}`).join('\n')}
+${availableSlots.length > 5 ? `\n... y ${availableSlots.length - 5} horarios más` : ''}
+
+¿Cuál prefieres?`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response
+          },
+          appointmentBooked: false
+        }
+      }
+    } else {
+      // No hay hora especificada, ofrecer opciones
+      const response = `¡Perfecto! Para ${appointmentDate.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })}, tengo estos horarios disponibles:
+
+${availableSlots.slice(0, 8).map((slot: string, idx: number) => `${idx + 1}. ${slot}`).join('\n')}
+${availableSlots.length > 8 ? `\n... y ${availableSlots.length - 8} horarios más` : ''}
+
+¿Cuál prefieres? Puedes decir el número o el horario directamente.`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: false
+      }
+    }
+
+    // Si llegamos aquí, tenemos fecha y hora válidas
+    // Crear la cita
+    const bookingResult = await onBookNewAppointment(
+      companyId,
+      customerInfo.id,
+      selectedSlot!,
+      appointmentDate.toISOString(),
+      customerInfo.email || ''
+    )
+
+    if (bookingResult && bookingResult.status === 200) {
+      const formattedDate = appointmentDate.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+
+      const response = `¡Excelente! ✅ Tu cita ha sido agendada exitosamente:
+
+📅 **Fecha:** ${formattedDate}
+⏰ **Hora:** ${selectedSlot}
+${appointmentInfo.purpose ? `📝 **Propósito:** ${appointmentInfo.purpose}` : ''}
+
+Te hemos enviado un correo de confirmación a ${customerInfo.email}. 
+
+¡Te esperamos! 😊`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+      await updateResolutionType(conversationId, false)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: true
+      }
+    } else {
+      const response = `Lo siento, hubo un problema al agendar tu cita. Por favor, intenta de nuevo o contáctanos directamente.`
+
+      await onStoreConversations(conversationId, message, 'user')
+      await onStoreConversations(conversationId, response, 'assistant', message)
+
+      return {
+        response: {
+          role: 'assistant',
+          content: response
+        },
+        appointmentBooked: false
+      }
+    }
+  } catch (error) {
+    console.error('Error en handleAppointmentBooking:', error)
+    return null
   }
 }
 
@@ -3248,21 +3569,17 @@ export const onAiChatBotAssistant = async (
 
       const isAppointment = await isAppointmentRequest(message, chat)
       if (isAppointment) {
-        await onStoreConversations(customerInfo.conversations[0].id, message, author)
-        await onStoreConversations(
+        const appointmentResult = await handleAppointmentBooking(
+          message,
+          customerInfo,
+          id,
           customerInfo.conversations[0].id,
-          `¡Perfecto! Aquí tienes el enlace para agendar tu cita: http://localhost:3000/portal/${id}/appointment/${customerInfo.id}`,
-          'assistant',
-          message
+          chat
         )
 
-        await updateResolutionType(customerInfo.conversations[0].id, false)
-
-        return {
-          response: {
-            role: 'assistant',
-            content: `¡Perfecto! Aquí tienes el enlace para agendar tu cita:`,
-            link: `http://localhost:3000/portal/${id}/appointment/${customerInfo.id}`
+        if (appointmentResult) {
+          return {
+            response: appointmentResult.response
           }
         }
       }
