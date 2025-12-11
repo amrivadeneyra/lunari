@@ -12,7 +12,7 @@ type Props = {
 
 const CatalogsManager = ({ companyId }: Props) => {
   return (
-    <div className="w-full h-full overflow-y-auto">
+    <div className="w-full h-full overflow-y-auto overflow-x-hidden">
       <div className="w-full p-4 md:p-6">
         {/* Header principal */}
         <div className="mb-8">
