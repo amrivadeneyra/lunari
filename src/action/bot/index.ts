@@ -601,6 +601,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
     role: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    imageUrl?: string;
     responseTime?: number;
     respondedWithin2Hours?: boolean
   }[] = [
@@ -806,7 +807,8 @@ Tu opinión me ayuda a mejorar.`
     content: finalContent,
     timestamp: new Date(),
     responseTime: Math.floor((Date.now() - messagesToSave[0].timestamp.getTime()) / 1000),
-    respondedWithin2Hours: true // Respuesta inmediata
+    respondedWithin2Hours: true, // Respuesta inmediata
+    imageUrl: systemPromptData.imageUrl
   })
 
   // 10. NUEVO: Guardar chat completo con respuesta de OpenAI
@@ -953,7 +955,8 @@ const saveCompleteChatSession = async (
     content: string;
     timestamp: Date;
     responseTime?: number;
-    respondedWithin2Hours?: boolean
+    respondedWithin2Hours?: boolean;
+    imageUrl?: string;
   }[]
 ) => {
   try {
@@ -967,7 +970,8 @@ const saveCompleteChatSession = async (
         role: true,
         createdAt: true,
         responseTime: true,
-        respondedWithin2Hours: true
+        respondedWithin2Hours: true,
+        imageUrl: true
       }
     })
 
@@ -978,7 +982,8 @@ const saveCompleteChatSession = async (
         content: msg.message,
         timestamp: msg.createdAt,
         responseTime: msg.responseTime,
-        respondedWithin2Hours: msg.respondedWithin2Hours
+        respondedWithin2Hours: msg.respondedWithin2Hours,
+        imageUrl: msg.imageUrl || undefined
       })),
       ...newMessages
     ]
@@ -1025,7 +1030,8 @@ const saveCompleteChatSession = async (
             role: newMsg.role,
             responseTime: newMsg.responseTime,
             respondedWithin2Hours: newMsg.respondedWithin2Hours,
-            createdAt: newMsg.timestamp
+            createdAt: newMsg.timestamp,
+            imageUrl: newMsg.imageUrl || null
           }
         })
       }
@@ -4911,7 +4917,8 @@ export const onAiChatBotAssistant = async (
           content: finalContentMain,
           timestamp: new Date(),
           responseTime: 0,
-          respondedWithin2Hours: true
+          respondedWithin2Hours: true,
+          imageUrl: (result.response as any).imageUrl || undefined
         }
       ]
 

@@ -44,6 +44,7 @@ type Props = {
         role: 'user' | 'assistant'
         content: string
         link?: string | undefined
+        imageUrl?: string | undefined
       }[]
     >
   >
@@ -200,7 +201,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               const formattedMessages = conversationData.messages.map((msg: any) => ({
                 role: msg.role || 'assistant',
                 content: msg.message || '',
-                link: undefined
+                link: undefined,
+                imageUrl: msg.imageUrl || undefined
               }))
 
               // Actualizar los chats

@@ -59,7 +59,7 @@ export const useChatBot = (companyId?: string) => {
   const onOpenChatBot = () => setBotOpened((prev) => !prev)
   const [loading, setLoading] = useState<boolean>(true)
   const [onChats, setOnChats] = useState<
-    { role: 'user' | 'assistant'; content: string; link?: string }[]
+    { role: 'user' | 'assistant'; content: string; link?: string; imageUrl?: string }[]
   >([])
   const [onAiTyping, setOnAiTyping] = useState<boolean>(false)
   const [currentBotId, setCurrentBotId] = useState<string>()
