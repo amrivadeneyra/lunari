@@ -32,7 +32,13 @@ const getUserCompanyId = async (): Promise<string | null> => {
  * Calcula el tiempo promedio en segundos desde que el usuario envía un mensaje
  * hasta que recibe la respuesta del asistente
  */
-export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date }) => {
+export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date }): Promise<{
+  averageResponseTime: number
+  totalResponseTime: number
+  totalMessages: number
+  totalConversations: number
+  formattedTime: string
+} | null> => {
   try {
     const companyId = await getUserCompanyId()
     if (!companyId) return null
@@ -61,8 +67,9 @@ export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date 
     if (metrics.length === 0) {
       return {
         averageResponseTime: 0,
+        totalResponseTime: 0, // STR - Sumatoria de Tiempo respuesta
+        totalMessages: 0, // TMR - Número total de mensajes recibidos
         totalConversations: 0,
-        totalMessages: 0,
         formattedTime: '0 segundos',
       }
     }
@@ -80,9 +87,10 @@ export const getAverageResponseTime = async (dateRange?: { from: Date; to: Date 
     }
 
     return {
-      averageResponseTime, // En segundos
+      averageResponseTime, // En segundos (TPR)
+      totalResponseTime: totalTime, // STR - Sumatoria de Tiempo respuesta
+      totalMessages, // TMR - Número total de mensajes recibidos
       totalConversations: metrics.length,
-      totalMessages,
       formattedTime: formatTime(averageResponseTime),
     }
   } catch (error) {
@@ -135,9 +143,9 @@ export const getOnTimeResponsePercentage = async (dateRange?: { from: Date; to: 
     const percentage = totalMessages > 0 ? (totalRespondedOnTime / totalMessages) * 100 : 0
 
     return {
-      percentage: Math.round(percentage * 100) / 100, // 2 decimales
-      respondedOnTime: totalRespondedOnTime,
-      totalMessages,
+      percentage: Math.round(percentage * 100) / 100, // PMR - Porcentaje de mensajes respondidos
+      respondedOnTime: totalRespondedOnTime, // NMR - Número de mensajes respondidos (< 2 horas)
+      totalMessages, // TMR - Número total de mensajes recibidos
       notRespondedOnTime: totalMessages - totalRespondedOnTime,
     }
   } catch (error) {
@@ -207,12 +215,12 @@ export const getFirstInteractionResolutionRate = async (dateRange?: { from: Date
     const firstInteractionRate = (firstInteractionCount / totalConversations) * 100
 
     return {
-      firstInteractionRate: Math.round(firstInteractionRate * 100) / 100,
-      firstInteractionCount,
+      firstInteractionRate: Math.round(firstInteractionRate * 100) / 100, // TRPI - Tasa de resolución en primera interacción
+      firstInteractionCount, // CRPI - Número de casos resueltos en la primera interacción
       followUpCount,
       escalatedCount,
       unresolvedCount,
-      totalConversations,
+      totalConversations, // TCA - Número total de casos atendidos
     }
   } catch (error) {
     console.log('Error en getFirstInteractionResolutionRate:', error)
@@ -224,7 +232,26 @@ export const getFirstInteractionResolutionRate = async (dateRange?: { from: Date
  * FR4: Obtener nivel de satisfacción del cliente
  * Calcula el promedio de calificaciones (1-5) y la distribución de calificaciones
  */
-export const getCustomerSatisfactionAverage = async (dateRange?: { from: Date; to: Date }) => {
+export const getCustomerSatisfactionAverage = async (dateRange?: { from: Date; to: Date }): Promise<{
+  averageRating: number
+  totalRatings: number
+  positiveResponses: number
+  satisfactionLevel: number
+  distribution: {
+    rating1: number
+    rating2: number
+    rating3: number
+    rating4: number
+    rating5: number
+  }
+  percentages: {
+    rating1: number
+    rating2: number
+    rating3: number
+    rating4: number
+    rating5: number
+  }
+} | null> => {
   try {
     const companyId = await getUserCompanyId()
     if (!companyId) return null
@@ -251,7 +278,9 @@ export const getCustomerSatisfactionAverage = async (dateRange?: { from: Date; t
     if (satisfactionRecords.length === 0) {
       return {
         averageRating: 0,
-        totalRatings: 0,
+        totalRatings: 0, // NTR - Número total de respuestas
+        positiveResponses: 0, // NRP - Número de respuestas positivas (4 y 5)
+        satisfactionLevel: 0, // NSC - Nivel de satisfacción del cliente
         distribution: {
           rating1: 0,
           rating2: 0,
@@ -292,9 +321,18 @@ export const getCustomerSatisfactionAverage = async (dateRange?: { from: Date; t
       rating5: Math.round((distribution.rating5 / totalRatings) * 100),
     }
 
+    // NRP - Número de respuestas positivas (escala 1-5)
+    // Considerando respuestas positivas como 4 y 5 (satisfactorias)
+    const positiveResponses = distribution.rating4 + distribution.rating5
+
+    // NSC - Nivel de satisfacción del cliente (NRP / NTR × 100)
+    const satisfactionLevel = totalRatings > 0 ? (positiveResponses / totalRatings) * 100 : 0
+
     return {
       averageRating: Math.round(averageRating * 100) / 100,
-      totalRatings,
+      totalRatings, // NTR - Número total de respuestas
+      positiveResponses, // NRP - Número de respuestas positivas (4 y 5)
+      satisfactionLevel: Math.round(satisfactionLevel * 100) / 100, // NSC - Nivel de satisfacción del cliente
       distribution,
       percentages,
     }

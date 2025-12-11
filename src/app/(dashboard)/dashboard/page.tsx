@@ -16,6 +16,7 @@ import UpcomingAppointments from '@/components/dashboard/upcoming-appointments'
 import RecentActivity from '@/components/dashboard/recent-activity'
 import ConversationChart from '@/components/dashboard/conversation-chart'
 import WeeklyStats from '@/components/dashboard/weekly-stats'
+import ResearchMetrics from '@/components/dashboard/research-metrics'
 import { Sparkles } from 'lucide-react'
 
 // Forzar SSR para evitar error en build time
@@ -84,6 +85,9 @@ const DashboardPage = async (props: Props) => {
 
         {/* Estadísticas de la Semana */}
         <WeeklyStats stats={weeklyStats} />
+
+        {/* Indicadores de Investigación */}
+        <ResearchMetrics metrics={qualityMetrics} />
 
       </div>
     </div>
