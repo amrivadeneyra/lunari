@@ -486,7 +486,16 @@ Tu opinión nos ayuda a mejorar.`
   }
 
   // 1. FR4: Detectar si el usuario está calificando (1-5)
-  const satisfactionRating = detectSatisfactionRating(message)
+  // Obtener último mensaje del asistente para contexto
+  const lastAssistantMessage = chat
+    .filter(msg => msg.role === 'assistant')
+    .slice(-1)[0]?.content || ''
+
+  const satisfactionRating = detectSatisfactionRating(
+    message,
+    currentConversation.conversationState || undefined,
+    lastAssistantMessage
+  )
   if (satisfactionRating) {
     // Guardar mensaje de calificación del usuario
     await onStoreConversations(validConversationId, message, 'user')
@@ -1308,9 +1317,49 @@ const addHelpOffer = (content: string): string => {
 
 /**
  * FR4: Detectar si el cliente está calificando la atención (1-5)
+ * IMPORTANTE: Solo detecta calificación si el contexto indica que se está esperando una calificación
  */
-const detectSatisfactionRating = (message: string): number | null => {
-  // Patrones para detectar calificación
+const detectSatisfactionRating = (
+  message: string,
+  conversationState?: string,
+  lastAssistantMessage?: string
+): number | null => {
+  // Verificar si estamos en contexto de calificación
+  const isRatingContext =
+    conversationState === 'AWAITING_RATING' ||
+    (lastAssistantMessage && (
+      lastAssistantMessage.includes('calificar') ||
+      lastAssistantMessage.includes('calificación') ||
+      lastAssistantMessage.includes('califica') ||
+      lastAssistantMessage.includes('⭐') ||
+      lastAssistantMessage.includes('estrella') ||
+      lastAssistantMessage.includes('rating') ||
+      lastAssistantMessage.includes('del 1 al 5')
+    ))
+
+  // Si NO estamos en contexto de calificación, NO detectar números como calificación
+  // Esto evita que "1", "2", etc. se interpreten como calificaciones durante selección de productos
+  if (!isRatingContext) {
+    // Solo detectar si hay palabras explícitas de calificación
+    const explicitRatingPatterns = [
+      /(?:califico|calificar|puntuación|nota|rating|estrella).*?([1-5])/i,
+      /([1-5])\s*(?:estrella|star)/i,
+    ]
+
+    for (const pattern of explicitRatingPatterns) {
+      const match = message.match(pattern)
+      if (match) {
+        const rating = parseInt(match[1])
+        if (rating >= 1 && rating <= 5) {
+          return rating
+        }
+      }
+    }
+
+    return null
+  }
+
+  // Si estamos en contexto de calificación, detectar números del 1-5
   const ratingPatterns = [
     /(?:califico|calificar|puntuación|nota|rating|estrella).*?([1-5])/i,
     /^([1-5])$/,
@@ -2317,12 +2366,33 @@ ${recommendationsList}
       const products = await findProductsByCharacteristics(purchaseResponse.productName, companyId)
 
       if (products.length > 0) {
-        const product = products[0]
+        // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+        const product = await selectBestProductMatch(products, userMessage || '', chatHistory)
+
+        if (!product) {
+          return {
+            response: {
+              role: 'assistant' as const,
+              content: 'No pude encontrar el producto que mencionaste. ¿Podrías ser más específico?'
+            }
+          }
+        }
+
         const purchaseDetails = await extractPurchaseDetails(userMessage || '', chatHistory)
 
         if (purchaseDetails.hasDetails) {
           // El cliente proporcionó detalles específicos
-          const quantity = purchaseDetails.quantity || 1
+          // No usar fallback - si no hay cantidad, no crear reserva
+          if (!purchaseDetails.quantity || purchaseDetails.quantity <= 0) {
+            return {
+              response: {
+                role: 'assistant' as const,
+                content: 'Para crear tu reserva, necesito saber la cantidad exacta. Por favor, indica cuántos metros, rollos o unidades necesitas.'
+              }
+            }
+          }
+
+          const quantity = purchaseDetails.quantity
           const unitPrice = product.salePrice || product.price
           const totalPrice = calculateTotalPrice(product, quantity, purchaseDetails)
 
@@ -2454,14 +2524,34 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
         const products = await findProductsByCharacteristics(productName, companyId)
 
         if (products.length > 0) {
-          const product = products[0] // Tomar el primer producto encontrado
+          // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+          const product = await selectBestProductMatch(products, userMessage || '', chatHistory)
+
+          if (!product) {
+            return {
+              response: {
+                role: 'assistant' as const,
+                content: 'No pude encontrar el producto que mencionaste. ¿Podrías ser más específico?'
+              }
+            }
+          }
 
           // Detectar detalles específicos en el mensaje del cliente usando IA
           const purchaseDetails = await extractPurchaseDetails(userMessage || '', chatHistory)
 
           if (purchaseDetails.hasDetails) {
             // El cliente ya proporcionó detalles específicos
-            const quantity = purchaseDetails.quantity || 1
+            // No usar fallback - si no hay cantidad, no crear reserva
+            if (!purchaseDetails.quantity || purchaseDetails.quantity <= 0) {
+              return {
+                response: {
+                  role: 'assistant' as const,
+                  content: 'Para crear tu reserva, necesito saber la cantidad exacta. Por favor, indica cuántos metros, rollos o unidades necesitas.'
+                }
+              }
+            }
+
+            const quantity = purchaseDetails.quantity
             const unitPrice = product.salePrice || product.price
             const totalPrice = calculateTotalPrice(product, quantity, purchaseDetails)
 
@@ -2602,7 +2692,17 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
         const products = await findProductsByCharacteristics(productName, companyId)
 
         if (products.length > 0) {
-          const product = products[0]
+          // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+          const product = await selectBestProductMatch(products, userMessage || '', chatHistory)
+
+          if (!product) {
+            return {
+              response: {
+                role: 'assistant' as const,
+                content: 'No pude encontrar el producto que mencionaste. ¿Podrías ser más específico?'
+              }
+            }
+          }
 
           return {
             response: {
@@ -3916,9 +4016,234 @@ Máximo ${limit} productos.`
 /**
  * Detecta el estado del flujo de agendamiento basado en el historial usando IA
  */
+/**
+ * Detecta cuando el usuario selecciona un producto de una lista mostrada
+ */
+const detectProductSelection = async (
+  message: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  displayedProducts: any[] // Lista de productos mostrados al usuario
+): Promise<{ selected: boolean; productIndex?: number; productName?: string }> => {
+  try {
+    if (displayedProducts.length === 0) {
+      return { selected: false }
+    }
+
+    // Crear contexto de productos mostrados
+    const productsContext = displayedProducts.map((p, idx) => {
+      const details: string[] = []
+      if (p.material) details.push(p.material.name)
+      if (p.color) details.push(p.color)
+      return `${idx + 1}. ${p.name}${details.length > 0 ? ` (${details.join(', ')})` : ''}`
+    }).join('\n')
+
+    const systemPrompt = `Eres un analizador de selecciones de productos. El usuario ha visto una lista de productos numerada y ahora está respondiendo.
+
+PRODUCTOS MOSTRADOS (numerados):
+${productsContext}
+
+MENSAJE DEL USUARIO:
+"${message}"
+
+INSTRUCCIONES:
+1. Detecta si el usuario está seleccionando UNO o VARIOS productos de la lista
+2. Puede seleccionar por:
+   - Número: "opción 2", "el 1", "quiero el número 3", "deseo la opción 2"
+   - Nombre: "quiero el Cortina Blackout Premium", "me interesa el Poliester Deportivo"
+   - Descripción: "quiero el de poliéster beige", "el blanco"
+3. Si selecciona múltiples, detecta todos
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "selected": true/false,
+  "productIndex": 1 (índice 0-based del producto seleccionado) o null,
+  "productName": "nombre del producto" o null
+}
+
+Si selecciona por número, usa productIndex. Si selecciona por nombre, usa productName.
+Si no hay selección clara, selected debe ser false.
+
+EJEMPLOS:
+- "deseo la opción 2" → {"selected": true, "productIndex": 1}
+- "quiero el número 1" → {"selected": true, "productIndex": 0}
+- "me interesa el Cortina Blackout Premium" → {"selected": true, "productName": "Cortina Blackout Premium"}
+- "quiero el de poliéster beige" → {"selected": true, "productName": "Cortina Blackout Premium"} (si coincide)
+- "sí, quiero agendar" → {"selected": false} (no es selección de producto)`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 200
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return { selected: false }
+    }
+
+    const parsed = safeJsonParse<{
+      selected?: boolean
+      productIndex?: number
+      productName?: string
+    }>(response, { selected: false })
+
+    // Validar que el índice esté en rango
+    if (parsed.productIndex !== undefined && parsed.productIndex !== null) {
+      if (parsed.productIndex < 0 || parsed.productIndex >= displayedProducts.length) {
+        return { selected: false }
+      }
+    }
+
+    return {
+      selected: parsed.selected || false,
+      productIndex: parsed.productIndex !== undefined ? parsed.productIndex : undefined,
+      productName: parsed.productName || undefined
+    }
+  } catch (error) {
+    console.error('Error en detectProductSelection:', error)
+    return { selected: false }
+  }
+}
+
+/**
+ * Detecta la cantidad mencionada por el usuario
+ */
+const detectQuantity = async (
+  message: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[]
+): Promise<{ hasQuantity: boolean; quantity: number }> => {
+  try {
+    const systemPrompt = `Eres un analizador de mensajes. Extrae la CANTIDAD mencionada por el usuario.
+
+MENSAJE DEL USUARIO:
+"${message}"
+
+INSTRUCCIONES:
+1. Busca números que representen cantidades (metros, rollos, unidades, etc.)
+2. Si no hay cantidad mencionada, hasQuantity debe ser false
+3. Si hay cantidad, extrae el número (ej: "5 metros" → 5, "tres rollos" → 3)
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "hasQuantity": true/false,
+  "quantity": 5 (número) o null
+}
+
+EJEMPLOS:
+- "quiero 5 metros" → {"hasQuantity": true, "quantity": 5}
+- "necesito 3 rollos" → {"hasQuantity": true, "quantity": 3}
+- "quiero ese producto" → {"hasQuantity": false, "quantity": null}
+- "sí, quiero agendar" → {"hasQuantity": false, "quantity": null}
+- "tres metros" → {"hasQuantity": true, "quantity": 3}
+- "un metro" → {"hasQuantity": true, "quantity": 1}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-2),
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 100
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return { hasQuantity: false, quantity: 0 } // No usar fallback - retornar 0 si no se detecta
+    }
+
+    const parsed = safeJsonParse<{
+      hasQuantity?: boolean
+      quantity?: number | null
+    }>(response, { hasQuantity: false, quantity: null })
+
+    if (parsed.hasQuantity && parsed.quantity !== null && parsed.quantity !== undefined && parsed.quantity > 0) {
+      return { hasQuantity: true, quantity: parsed.quantity }
+    }
+
+    return { hasQuantity: false, quantity: 0 } // No usar fallback - retornar 0
+  } catch (error) {
+    console.error('Error en detectQuantity:', error)
+    return { hasQuantity: false, quantity: 0 } // No usar fallback - retornar 0
+  }
+}
+
+/**
+ * Detecta si el usuario quiere agregar más productos
+ */
+const detectMoreProductsRequest = async (
+  message: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[]
+): Promise<{ wantsMore: boolean; response: 'YES' | 'NO' | 'UNCLEAR' }> => {
+  try {
+    const systemPrompt = `Eres un analizador de respuestas. El asistente acaba de preguntar si el usuario desea reservar más productos.
+
+MENSAJE DEL USUARIO:
+"${message}"
+
+INSTRUCCIONES:
+1. Detecta si el usuario quiere agregar MÁS productos (YES)
+2. Detecta si el usuario NO quiere agregar más productos (NO)
+3. Si la respuesta no es clara, marca como UNCLEAR
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "wantsMore": true/false,
+  "response": "YES" o "NO" o "UNCLEAR"
+}
+
+EJEMPLOS:
+- "sí", "sí quiero", "agregar más", "quiero otro" → {"wantsMore": true, "response": "YES"}
+- "no", "no más", "solo eso", "esos son todos" → {"wantsMore": false, "response": "NO"}
+- "quiero agendar", "sí, agendar" → {"wantsMore": false, "response": "NO"} (quiere proceder, no agregar más)
+- "tal vez", "no sé" → {"wantsMore": false, "response": "UNCLEAR"}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 100
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return { wantsMore: false, response: 'UNCLEAR' }
+    }
+
+    const parsed = safeJsonParse<{
+      wantsMore?: boolean
+      response?: string
+    }>(response, { wantsMore: false, response: 'UNCLEAR' })
+
+    const responseType = parsed.response?.toUpperCase() === 'YES' ? 'YES' :
+      parsed.response?.toUpperCase() === 'NO' ? 'NO' : 'UNCLEAR'
+
+    return {
+      wantsMore: parsed.wantsMore || false,
+      response: responseType
+    }
+  } catch (error) {
+    console.error('Error en detectMoreProductsRequest:', error)
+    return { wantsMore: false, response: 'UNCLEAR' }
+  }
+}
+
 const detectAppointmentFlowState = async (
   chatHistory: { role: 'user' | 'assistant'; content: string }[]
-): Promise<'ASKING_PRODUCTS' | 'ASKING_DATE' | 'NONE'> => {
+): Promise<'ASKING_PRODUCTS' | 'SELECTING_PRODUCT' | 'CONFIRMING_QUANTITY' | 'ASKING_MORE_PRODUCTS' | 'ASKING_DATE' | 'NONE'> => {
   try {
     const lastAssistantMessage = chatHistory
       .filter(msg => msg.role === 'assistant')
@@ -3931,31 +4256,44 @@ const detectAppointmentFlowState = async (
     const systemPrompt = `Eres un analizador de conversaciones. Determina en qué etapa del flujo de agendamiento de citas se encuentra la conversación.
 
 ANALIZA el último mensaje del asistente y determina si está:
-1. **ASKING_PRODUCTS**: Preguntando qué productos desea el usuario o qué productos le interesan
-2. **ASKING_DATE**: Preguntando qué fecha u horario prefiere el usuario para agendar
-3. **NONE**: No está en ninguna etapa específica del flujo de agendamiento
+1. **ASKING_PRODUCTS**: Preguntando qué productos desea el usuario o qué productos le interesan (inicio del flujo)
+2. **SELECTING_PRODUCT**: Mostrando una lista de productos numerada y esperando que el usuario seleccione uno
+3. **CONFIRMING_QUANTITY**: Confirmando un producto seleccionado y preguntando por la cantidad
+4. **ASKING_MORE_PRODUCTS**: Preguntando si el usuario desea reservar más productos
+5. **ASKING_DATE**: Preguntando qué fecha u horario prefiere el usuario para agendar
+6. **NONE**: No está en ninguna etapa específica del flujo de agendamiento
 
-RESPONDE SOLO: "ASKING_PRODUCTS", "ASKING_DATE" o "NONE"
+RESPONDE SOLO: "ASKING_PRODUCTS", "SELECTING_PRODUCT", "CONFIRMING_QUANTITY", "ASKING_MORE_PRODUCTS", "ASKING_DATE" o "NONE"
 
 EJEMPLOS DE ASKING_PRODUCTS:
 - "¿Qué productos te interesan?" → ASKING_PRODUCTS
 - "¿Qué productos deseas reservar?" → ASKING_PRODUCTS
 - "Para ayudarte mejor, ¿qué productos te interesan?" → ASKING_PRODUCTS
-- "Menciona los productos que deseas" → ASKING_PRODUCTS
-- "Primero necesito saber qué productos te interesan" → ASKING_PRODUCTS
+
+EJEMPLOS DE SELECTING_PRODUCT:
+- "1. **Producto A** - S/50" (lista numerada) → SELECTING_PRODUCT
+- "Encontré estos productos: 1. X, 2. Y, 3. Z" → SELECTING_PRODUCT
+- "Aquí tienes opciones: 1. ..." → SELECTING_PRODUCT
+
+EJEMPLOS DE CONFIRMING_QUANTITY:
+- "¿Cuántos metros necesitas?" → CONFIRMING_QUANTITY
+- "¿Qué cantidad deseas?" → CONFIRMING_QUANTITY
+- "Perfecto, ¿cuántos necesitas?" → CONFIRMING_QUANTITY
+
+EJEMPLOS DE ASKING_MORE_PRODUCTS:
+- "¿Deseas reservar más productos?" → ASKING_MORE_PRODUCTS
+- "¿Quieres agregar otro producto?" → ASKING_MORE_PRODUCTS
+- "¿Hay algo más que te interese?" → ASKING_MORE_PRODUCTS
 
 EJEMPLOS DE ASKING_DATE:
 - "¿Qué fecha te gustaría agendar?" → ASKING_DATE
 - "¿Qué horario prefieres?" → ASKING_DATE
 - "¿Cuándo te gustaría venir?" → ASKING_DATE
-- "Elige una fecha para tu cita" → ASKING_DATE
-- "¿Qué día te conviene?" → ASKING_DATE
 
 EJEMPLOS DE NONE:
 - "¡Perfecto! He reservado tu producto" → NONE
 - "Gracias por tu consulta" → NONE
-- "El producto cuesta S/50" → NONE
-- "Aquí está la información" → NONE`
+- "El producto cuesta S/50" → NONE`
 
     const chatCompletion = await openai.chat.completions.create({
       messages: [
@@ -3972,6 +4310,9 @@ EJEMPLOS DE NONE:
     const upperResponse = response?.trim().toUpperCase()
 
     if (upperResponse === 'ASKING_PRODUCTS') return 'ASKING_PRODUCTS'
+    if (upperResponse === 'SELECTING_PRODUCT') return 'SELECTING_PRODUCT'
+    if (upperResponse === 'CONFIRMING_QUANTITY') return 'CONFIRMING_QUANTITY'
+    if (upperResponse === 'ASKING_MORE_PRODUCTS') return 'ASKING_MORE_PRODUCTS'
     if (upperResponse === 'ASKING_DATE') return 'ASKING_DATE'
     return 'NONE'
   } catch (error) {
@@ -3981,7 +4322,294 @@ EJEMPLOS DE NONE:
 }
 
 /**
+ * Determina el mejor producto de una lista cuando hay múltiples coincidencias usando IA
+ */
+const selectBestProductMatch = async (
+  products: any[],
+  userMessage: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  characteristics?: {
+    material?: string
+    color?: string
+    category?: string
+    texture?: string
+  }
+): Promise<any | null> => {
+  try {
+    if (products.length === 0) return null
+    if (products.length === 1) return products[0]
+
+    // Crear contexto de productos
+    const productsContext = products.map((p, idx) => {
+      const details: string[] = []
+      if (p.material) details.push(`material: ${p.material.name}`)
+      if (p.color) details.push(`color: ${p.color}`)
+      if (p.category) details.push(`categoría: ${p.category.name}`)
+      if (p.texture) details.push(`textura: ${p.texture.name}`)
+      if (p.width) details.push(`ancho: ${p.width}`)
+      if (p.weight) details.push(`gramaje: ${p.weight}`)
+      return `${idx + 1}. ID: ${p.id} | ${p.name}${details.length > 0 ? ` (${details.join(', ')})` : ''}`
+    }).join('\n')
+
+    const systemPrompt = `Eres un experto en selección de productos. Tu trabajo es determinar qué producto de la lista es el MÁS RELEVANTE para lo que el usuario está buscando.
+
+PRODUCTOS DISPONIBLES:
+${productsContext}
+
+MENSAJE DEL USUARIO:
+"${userMessage}"
+
+CARACTERÍSTICAS MENCIONADAS:
+${characteristics ? JSON.stringify(characteristics, null, 2) : 'Ninguna específica'}
+
+INSTRUCCIONES:
+1. Analiza el mensaje del usuario y las características mencionadas
+2. Determina qué producto de la lista es el MÁS RELEVANTE
+3. Considera: nombre, material, color, categoría, textura, y otras características
+4. Si hay múltiples productos igualmente relevantes, elige el primero de la lista
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "productId": "id-del-producto-más-relevante"
+}
+
+Si no puedes determinar, devuelve el ID del primer producto de la lista.`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: userMessage }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 100
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      console.error('Error: No se pudo obtener respuesta de IA para seleccionar producto')
+      return null // No usar fallback - si falla, retornar null
+    }
+
+    const parsed = safeJsonParse<{ productId?: string | null }>(response, { productId: undefined })
+    if (!parsed.productId) {
+      console.error('Error: No se pudo determinar productId de la respuesta de IA')
+      return null // No usar fallback
+    }
+
+    const selectedProduct = products.find(p => p.id === parsed.productId)
+    if (!selectedProduct) {
+      console.error('Error: Producto seleccionado por IA no encontrado en la lista', parsed.productId)
+      return null // No usar fallback - si el producto no existe, retornar null
+    }
+
+    return selectedProduct
+  } catch (error) {
+    console.error('Error en selectBestProductMatch:', error)
+    return null // No usar fallback - si falla, retornar null
+  }
+}
+
+/**
+ * Detecta si el asistente está preguntando por cantidad usando IA
+ */
+const isAssistantAskingForQuantity = async (
+  assistantMessage: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[]
+): Promise<boolean> => {
+  try {
+    const systemPrompt = `Eres un analizador de mensajes. Determina si el asistente está preguntando por la CANTIDAD de un producto.
+
+MENSAJE DEL ASISTENTE:
+"${assistantMessage}"
+
+INSTRUCCIONES:
+1. Detecta si el asistente está preguntando por cantidad (ej: "¿Cuántos metros?", "¿Qué cantidad?", "¿Cuántos necesitas?")
+2. Puede estar preguntando de diferentes formas, no solo con la palabra "cantidad"
+3. Si está preguntando por cantidad, responde "SI", si no, responde "NO"
+
+RESPONDE SOLO: "SI" o "NO"
+
+EJEMPLOS:
+- "¿Cuántos metros necesitas?" → SI
+- "¿Qué cantidad deseas?" → SI
+- "¿Cuántos necesitas?" → SI
+- "¿Cuántos rollos quieres?" → SI
+- "Perfecto, ¿cuántos?" → SI
+- "¿Qué producto te interesa?" → NO
+- "¿Qué fecha prefieres?" → NO
+- "He anotado tu producto" → NO`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-2),
+        { role: 'assistant', content: assistantMessage }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      max_tokens: 10
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    return response?.trim().toUpperCase() === 'SI'
+  } catch (error) {
+    console.error('Error en isAssistantAskingForQuantity:', error)
+    return false
+  }
+}
+
+/**
+ * Determina qué producto(s) de una lista corresponde a la selección del usuario usando IA
+ */
+const matchSelectedProduct = async (
+  userMessage: string,
+  displayedProducts: any[],
+  chatHistory: { role: 'user' | 'assistant'; content: string }[]
+): Promise<{ matched: boolean; productIndex?: number; productIds?: string[] }> => {
+  try {
+    if (displayedProducts.length === 0) {
+      return { matched: false }
+    }
+
+    // Crear contexto de productos mostrados
+    const productsContext = displayedProducts.map((p, idx) => {
+      const details: string[] = []
+      if (p.material) details.push(p.material.name)
+      if (p.color) details.push(p.color)
+      if (p.category) details.push(p.category.name)
+      return `${idx + 1}. ID: ${p.id} | ${p.name}${details.length > 0 ? ` (${details.join(', ')})` : ''}`
+    }).join('\n')
+
+    const systemPrompt = `Eres un analizador de selecciones de productos. El usuario ha visto una lista de productos y está respondiendo.
+
+PRODUCTOS MOSTRADOS:
+${productsContext}
+
+MENSAJE DEL USUARIO:
+"${userMessage}"
+
+INSTRUCCIONES:
+1. Determina qué producto(s) de la lista está seleccionando el usuario
+2. Puede seleccionar por número, nombre, o descripción
+3. Puede seleccionar UNO o VARIOS productos
+4. Si selecciona múltiples, devuelve todos los IDs
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "matched": true/false,
+  "productIndex": 1 (índice 0-based del producto, solo si selecciona uno) o null,
+  "productIds": ["id1", "id2"] (IDs de productos seleccionados) o null
+}
+
+Si selecciona por número, usa productIndex. Si selecciona por nombre/descripción, usa productIds.
+Si no hay selección clara, matched debe ser false.
+
+EJEMPLOS:
+- "deseo la opción 2" → {"matched": true, "productIndex": 1, "productIds": null}
+- "quiero el número 1 y el 3" → {"matched": true, "productIndex": null, "productIds": ["id1", "id3"]}
+- "me interesa el Cortina Blackout Premium" → {"matched": true, "productIndex": null, "productIds": ["id-del-producto"]}
+- "quiero el de poliéster beige" → {"matched": true, "productIndex": null, "productIds": ["id-del-producto-que-coincide"]}
+- "sí, quiero agendar" → {"matched": false, "productIndex": null, "productIds": null}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: userMessage }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 200
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return { matched: false }
+    }
+
+    const parsed = safeJsonParse<{
+      matched?: boolean
+      productIndex?: number | null
+      productIds?: string[] | null
+    }>(response, { matched: false })
+
+    // Validar que el índice esté en rango
+    if (parsed.productIndex !== undefined && parsed.productIndex !== null) {
+      if (parsed.productIndex < 0 || parsed.productIndex >= displayedProducts.length) {
+        return { matched: false }
+      }
+    }
+
+    return {
+      matched: parsed.matched || false,
+      productIndex: parsed.productIndex !== undefined && parsed.productIndex !== null ? parsed.productIndex : undefined,
+      productIds: parsed.productIds || undefined
+    }
+  } catch (error) {
+    console.error('Error en matchSelectedProduct:', error)
+    return { matched: false }
+  }
+}
+
+/**
+ * Extrae productos ya seleccionados y confirmados del historial de conversación usando IA
+ */
+const extractConfirmedProductsFromHistory = async (
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  companyId: string
+): Promise<Array<{ product: any; quantity: number }>> => {
+  const confirmedProducts: Array<{ product: any; quantity: number }> = []
+
+  // Buscar patrones de confirmación en el historial usando IA
+  for (let i = 0; i < chatHistory.length - 1; i++) {
+    const assistantMsg = chatHistory[i]
+    const userMsg = chatHistory[i + 1]
+
+    if (assistantMsg.role === 'assistant' && userMsg.role === 'user') {
+      // Usar IA para detectar si el asistente está preguntando por cantidad
+      const isAskingQuantity = await isAssistantAskingForQuantity(assistantMsg.content, chatHistory.slice(0, i))
+
+      if (isAskingQuantity) {
+        const quantityInfo = await detectQuantity(userMsg.content, [])
+        if (quantityInfo.hasQuantity) {
+          // Buscar el producto mencionado en el mensaje anterior del asistente
+          const productsInfo = await extractProductsFromMessage(assistantMsg.content, companyId, chatHistory.slice(0, i))
+          if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+            // Buscar TODOS los productos que coincidan
+            const foundProducts = await findProductsByCharacteristics(productsInfo.productNames[0], companyId, productsInfo.characteristics)
+
+            if (foundProducts.length > 0) {
+              // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+              const selectedProduct = await selectBestProductMatch(
+                foundProducts,
+                userMsg.content,
+                chatHistory.slice(0, i),
+                productsInfo.characteristics
+              )
+
+              if (selectedProduct) {
+                confirmedProducts.push({
+                  product: selectedProduct,
+                  quantity: quantityInfo.quantity
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return confirmedProducts
+}
+
+/**
  * Maneja el flujo conversacional de agendamiento de citas CON reserva de productos
+ * FLUJO MEJORADO: Selección → Cantidad → Más productos → Fecha/Hora
  */
 const handleAppointmentBooking = async (
   message: string,
@@ -3990,12 +4618,15 @@ const handleAppointmentBooking = async (
   conversationId: string,
   chatHistory: { role: 'user' | 'assistant'; content: string }[]
 ): Promise<{
-  response?: { role: 'assistant'; content: string }
+  response?: { role: 'assistant'; content: string; imageUrl?: string }
   appointmentBooked?: boolean
 } | null> => {
   try {
     // Detectar el estado actual del flujo usando IA
     const flowState = await detectAppointmentFlowState(chatHistory)
+
+    // Extraer productos ya confirmados del historial
+    const confirmedProducts = await extractConfirmedProductsFromHistory(chatHistory, companyId)
 
     // ETAPA 1: Si estamos preguntando por productos o es el inicio, detectar productos
     if (flowState === 'ASKING_PRODUCTS' || flowState === 'NONE') {
@@ -4113,7 +4744,7 @@ Aunque no encontré exactamente lo que mencionaste, tengo estas opciones que pod
           index === self.findIndex(prod => prod.id === p.id)
         )
 
-        // Mostrar TODOS los productos encontrados y preguntar por fecha
+        // Mostrar productos numerados y esperar selección
         const productsList = uniqueProducts
           .slice(0, 8) // Mostrar hasta 8 productos
           .map((p, idx) => {
@@ -4124,12 +4755,280 @@ Aunque no encontré exactamente lo que mencionaste, tengo estas opciones que pod
           })
           .join('\n')
 
-        let response = `¡Excelente! Encontré estos productos que te pueden interesar: 😊
+        // Obtener imagen del primer producto si existe
+        let firstProductImageUrl: string | undefined = undefined
+        if (uniqueProducts.length > 0 && uniqueProducts[0].image) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+          if (uuidRegex.test(uniqueProducts[0].image)) {
+            firstProductImageUrl = `https://ucarecdn.com/${uniqueProducts[0].image}/`
+          }
+        }
+
+        const response = `¡Excelente! Encontré estos productos que te pueden interesar: 😊
 
 ${productsList}
 ${uniqueProducts.length > 8 ? `\n... y ${uniqueProducts.length - 8} productos más disponibles` : ''}
 
-Todos estos productos estarán disponibles para ti durante tu visita. 
+**¿Cuál te gustaría reservar?** Puedes decirme el número (ej: "opción 2") o el nombre del producto.`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response,
+            imageUrl: firstProductImageUrl
+          },
+          appointmentBooked: false
+        }
+      }
+    }
+
+    // ETAPA 2: Si estamos mostrando productos (SELECTING_PRODUCT), detectar selección
+    if (flowState === 'SELECTING_PRODUCT' || flowState === 'NONE') {
+      // Buscar productos mostrados en el último mensaje del asistente
+      const lastAssistantMessage = chatHistory
+        .filter(msg => msg.role === 'assistant')
+        .slice(-1)[0]?.content || ''
+
+      // Extraer productos mencionados en el mensaje anterior para reconstruir la lista
+      const productsInfo = await extractProductsFromMessage(lastAssistantMessage, companyId, chatHistory.slice(0, -1))
+
+      if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+        // Reconstruir lista de productos mostrados
+        const displayedProducts: any[] = []
+        for (const productName of productsInfo.productNames) {
+          const products = await findProductsByCharacteristics(productName, companyId, productsInfo.characteristics)
+          displayedProducts.push(...products)
+        }
+
+        const uniqueDisplayedProducts = displayedProducts.filter((p, index, self) =>
+          index === self.findIndex(prod => prod.id === p.id)
+        ).slice(0, 8)
+
+        // Detectar selección del usuario
+        const selection = await detectProductSelection(message, chatHistory, uniqueDisplayedProducts)
+
+        if (selection.selected) {
+          // Usuario seleccionó un producto
+          let selectedProduct: any | null = null
+
+          if (selection.productIndex !== undefined && selection.productIndex < uniqueDisplayedProducts.length) {
+            selectedProduct = uniqueDisplayedProducts[selection.productIndex]
+          } else if (selection.productName) {
+            // Buscar por nombre
+            selectedProduct = uniqueDisplayedProducts.find(p =>
+              p.name.toLowerCase().includes(selection.productName!.toLowerCase())
+            ) || null
+
+            // Si no se encuentra por nombre, no usar fallback - debe fallar
+            if (!selectedProduct) {
+              console.error('Error: Producto seleccionado por nombre no encontrado', selection.productName)
+              // No continuar con el flujo si no se puede determinar el producto
+              const response = `Lo siento, no pude identificar exactamente qué producto seleccionaste. 😊
+
+Por favor, indica el número del producto (ej: "opción 2") o el nombre completo del producto que deseas reservar.`
+
+              await onStoreConversations(conversationId, message, 'user')
+              await onStoreConversations(conversationId, response, 'assistant', message)
+
+              return {
+                response: {
+                  role: 'assistant',
+                  content: response
+                },
+                appointmentBooked: false
+              }
+            }
+          }
+
+          if (selectedProduct) {
+            // Detectar cantidad en el mismo mensaje
+            const quantityInfo = await detectQuantity(message, chatHistory)
+
+            if (quantityInfo.hasQuantity) {
+              // Tiene cantidad, confirmar y preguntar si quiere más productos
+              // Obtener productos ya confirmados para mostrar resumen
+              const currentConfirmed = await extractConfirmedProductsFromHistory(chatHistory, companyId)
+              const summaryProducts = currentConfirmed.map(cp =>
+                `- ${cp.product.name} (${cp.quantity} ${cp.product.unit || 'unidad(es)'})`
+              ).join('\n')
+
+              let response = `¡Perfecto! He anotado: **${selectedProduct.name}** - ${quantityInfo.quantity} ${selectedProduct.unit || 'metro(s)'}. 😊`
+
+              if (currentConfirmed.length > 0) {
+                response += `\n\n📋 **Productos que has reservado hasta ahora:**
+${summaryProducts}`
+              }
+
+              response += `\n\n¿Deseas reservar más productos? Puedes decirme "sí" para agregar otro producto o "no" para continuar con el agendamiento.`
+
+              await onStoreConversations(conversationId, message, 'user')
+              await onStoreConversations(conversationId, response, 'assistant', message)
+
+              return {
+                response: {
+                  role: 'assistant',
+                  content: response
+                },
+                appointmentBooked: false
+              }
+            } else {
+              // No tiene cantidad, preguntar por cantidad
+              const response = `¡Excelente elección! **${selectedProduct.name}** es un gran producto. 😊
+
+¿Cuántos ${selectedProduct.unit || 'metros'} necesitas?`
+
+              await onStoreConversations(conversationId, message, 'user')
+              await onStoreConversations(conversationId, response, 'assistant', message)
+
+              return {
+                response: {
+                  role: 'assistant',
+                  content: response
+                },
+                appointmentBooked: false
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ETAPA 3: Si estamos confirmando cantidad (CONFIRMING_QUANTITY)
+    if (flowState === 'CONFIRMING_QUANTITY') {
+      const quantityInfo = await detectQuantity(message, chatHistory)
+
+      if (quantityInfo.hasQuantity) {
+        // Buscar el producto que se estaba confirmando en el mensaje anterior del asistente
+        const lastAssistantMessage = chatHistory
+          .filter(msg => msg.role === 'assistant')
+          .slice(-1)[0]?.content || ''
+
+        // Extraer nombre del producto del mensaje anterior
+        const productsInfo = await extractProductsFromMessage(lastAssistantMessage, companyId, chatHistory.slice(0, -1))
+        let productName = 'el producto'
+        let productUnit = 'unidad(es)'
+
+        if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+          const foundProducts = await findProductsByCharacteristics(productsInfo.productNames[0], companyId, productsInfo.characteristics)
+          if (foundProducts.length > 0) {
+            // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+            const selectedProduct = await selectBestProductMatch(
+              foundProducts,
+              message,
+              chatHistory.slice(0, -1),
+              productsInfo.characteristics
+            )
+
+            // Si IA no puede determinar el producto, usar valores genéricos pero no crear reserva incorrecta
+            if (selectedProduct) {
+              productName = selectedProduct.name
+              productUnit = selectedProduct.unit || 'unidad(es)'
+            } else {
+              // Si no se puede determinar, usar valores genéricos pero el flujo no continuará con reserva
+              console.error('Error: No se pudo determinar el producto correcto')
+              productName = 'el producto'
+              productUnit = 'unidad(es)'
+            }
+          }
+        }
+
+        // Obtener productos ya confirmados para mostrar resumen
+        const currentConfirmed = await extractConfirmedProductsFromHistory(chatHistory, companyId)
+        const summaryProducts = currentConfirmed.map(cp =>
+          `- ${cp.product.name} (${cp.quantity} ${cp.product.unit || 'unidad(es)'})`
+        ).join('\n')
+
+        let response = `¡Perfecto! He anotado: **${productName}** - ${quantityInfo.quantity} ${productUnit}. 😊`
+
+        if (currentConfirmed.length > 0) {
+          response += `\n\n📋 **Productos que has reservado hasta ahora:**
+${summaryProducts}`
+        }
+
+        response += `\n\n¿Deseas reservar más productos? Puedes decirme "sí" para agregar otro producto o "no" para continuar con el agendamiento.`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response
+          },
+          appointmentBooked: false
+        }
+      } else {
+        // No detectó cantidad, preguntar de nuevo de forma más clara
+        const response = `Para continuar, necesito saber la cantidad. Por ejemplo: "5 metros", "3 rollos", o simplemente "5". 😊
+
+¿Cuántos necesitas?`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response
+          },
+          appointmentBooked: false
+        }
+      }
+    }
+
+    // ETAPA 4: Si estamos preguntando por más productos (ASKING_MORE_PRODUCTS)
+    if (flowState === 'ASKING_MORE_PRODUCTS') {
+      const moreProductsInfo = await detectMoreProductsRequest(message, chatHistory)
+
+      if (moreProductsInfo.response === 'YES') {
+        // Quiere más productos, volver a preguntar qué productos
+        const response = `¡Genial! 😊 ¿Qué otro producto te interesa? Puedes mencionar el material, color, o tipo de producto que buscas.
+
+Por ejemplo: "algodón azul", "lino", "cortinas", etc.`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response
+          },
+          appointmentBooked: false
+        }
+      } else if (moreProductsInfo.response === 'NO') {
+        // No quiere más productos, validar que hay productos confirmados
+        const currentConfirmed = await extractConfirmedProductsFromHistory(chatHistory, companyId)
+
+        if (currentConfirmed.length === 0) {
+          // No hay productos confirmados, preguntar de nuevo
+          const response = `Para agendar tu cita, primero necesito que confirmes al menos un producto. 😊
+
+¿Qué producto te gustaría reservar? Puedes mencionar el material, color, o tipo de producto que buscas.`
+
+          await onStoreConversations(conversationId, message, 'user')
+          await onStoreConversations(conversationId, response, 'assistant', message)
+
+          return {
+            response: {
+              role: 'assistant',
+              content: response
+            },
+            appointmentBooked: false
+          }
+        }
+
+        // Mostrar resumen de productos confirmados
+        const summaryProducts = currentConfirmed.map(cp =>
+          `- ${cp.product.name} (${cp.quantity} ${cp.product.unit || 'unidad(es)'})`
+        ).join('\n')
+
+        const response = `¡Perfecto! 📋 **Resumen de tus productos reservados:**
+
+${summaryProducts}
 
 Ahora, para agendar tu cita, necesito:
 
@@ -4137,6 +5036,22 @@ Ahora, para agendar tu cita, necesito:
 **¿Qué horario prefieres?** (mañana, tarde, o un horario específico)
 
 Por ejemplo: "mañana a las 3pm" o "el lunes por la tarde"`
+
+        await onStoreConversations(conversationId, message, 'user')
+        await onStoreConversations(conversationId, response, 'assistant', message)
+
+        return {
+          response: {
+            role: 'assistant',
+            content: response
+          },
+          appointmentBooked: false
+        }
+      } else {
+        // Respuesta no clara, aclarar
+        const response = `Para continuar, necesito saber si deseas agregar más productos. 😊
+
+¿Deseas reservar más productos? Responde "sí" para agregar otro producto o "no" para continuar con el agendamiento.`
 
         await onStoreConversations(conversationId, message, 'user')
         await onStoreConversations(conversationId, response, 'assistant', message)
@@ -4304,80 +5219,194 @@ ${availableSlots.length > 8 ? `\n... y ${availableSlots.length - 8} horarios má
       }
 
       // Si llegamos aquí, tenemos fecha y hora válidas
-      // Buscar productos mencionados en el historial reciente
-      const recentMessages = chatHistory.slice(-10) // Últimos 10 mensajes
-      const allProductNames: string[] = []
-      const allCharacteristics: {
-        material?: string
-        color?: string
-        category?: string
-        texture?: string
-      } = {}
-
-      for (const msg of recentMessages) {
-        if (msg.role === 'user') {
-          const productsInfo = await extractProductsFromMessage(msg.content, companyId, [])
-          if (productsInfo.hasProducts && productsInfo.productNames) {
-            allProductNames.push(...productsInfo.productNames)
-            // Acumular características
-            if (productsInfo.characteristics) {
-              if (productsInfo.characteristics.material) allCharacteristics.material = productsInfo.characteristics.material
-              if (productsInfo.characteristics.color) allCharacteristics.color = productsInfo.characteristics.color
-              if (productsInfo.characteristics.category) allCharacteristics.category = productsInfo.characteristics.category
-              if (productsInfo.characteristics.texture) allCharacteristics.texture = productsInfo.characteristics.texture
-            }
-          }
-        }
-      }
-
-      // Eliminar duplicados
-      const uniqueProductNames = Array.from(new Set(allProductNames))
-
-      // Buscar productos y crear reservas
+      // Usar los productos confirmados que ya extrajimos al inicio
       const reservationIds: string[] = []
       const reservedProducts: string[] = []
 
-      if (uniqueProductNames.length > 0) {
-        // Buscar TODOS los productos mencionados y crear reservas para TODOS
-        const allFoundProducts: any[] = []
+      // Usar confirmedProducts si tiene datos, sino extraer del historial como fallback
+      let productSelections: Array<{ product: any; quantity: number }> = []
 
-        for (const productName of uniqueProductNames) {
-          const products = await findProductsByCharacteristics(productName, companyId, allCharacteristics)
-          if (products.length > 0) {
-            allFoundProducts.push(...products) // Agregar TODOS los productos encontrados, no solo el primero
+      if (confirmedProducts.length > 0) {
+        // Usar los productos ya confirmados
+        productSelections = confirmedProducts
+      } else {
+        // Fallback: Extraer productos y cantidades del historial de forma más robusta
+        const recentMessages = chatHistory.slice(-20) // Últimos 20 mensajes para más contexto
+        const extractedSelections: Array<{ productName: string; quantity: number; characteristics?: any }> = []
+
+        // Buscar patrones de confirmación: asistente muestra productos → usuario selecciona → asistente pregunta cantidad → usuario responde cantidad
+        for (let i = 0; i < recentMessages.length - 3; i++) {
+          const assistantShowProducts = recentMessages[i]
+          const userSelect = recentMessages[i + 1]
+          const assistantAskQuantity = recentMessages[i + 2]
+          const userQuantity = recentMessages[i + 3]
+
+          if (
+            assistantShowProducts.role === 'assistant' &&
+            userSelect.role === 'user' &&
+            assistantAskQuantity.role === 'assistant' &&
+            userQuantity.role === 'user'
+          ) {
+            // Usar IA para detectar si el asistente está preguntando por cantidad
+            const isAskingQuantity = await isAssistantAskingForQuantity(assistantAskQuantity.content, recentMessages.slice(0, i + 2))
+
+            if (isAskingQuantity) {
+              // Extraer productos mostrados en el mensaje del asistente
+              const productsInfo = await extractProductsFromMessage(assistantShowProducts.content, companyId, recentMessages.slice(0, i))
+
+              if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+                // Buscar TODOS los productos que coincidan
+                const foundProducts = await findProductsByCharacteristics(productsInfo.productNames[0], companyId, productsInfo.characteristics)
+
+                if (foundProducts.length > 0) {
+                  // Usar IA para determinar qué producto seleccionó el usuario
+                  const productMatch = await matchSelectedProduct(userSelect.content, foundProducts, recentMessages.slice(0, i + 2))
+
+                  if (productMatch.matched) {
+                    // Extraer cantidad
+                    const quantityInfo = await detectQuantity(userQuantity.content, [])
+
+                    // Determinar qué producto(s) seleccionó
+                    let selectedProducts: any[] = []
+
+                    if (productMatch.productIndex !== undefined && productMatch.productIndex < foundProducts.length) {
+                      // Selección por índice
+                      selectedProducts = [foundProducts[productMatch.productIndex]]
+                    } else if (productMatch.productIds && productMatch.productIds.length > 0) {
+                      // Selección por IDs
+                      selectedProducts = foundProducts.filter(p => productMatch.productIds!.includes(p.id))
+                    } else {
+                      // Si no hay match específico, usar IA para determinar el mejor producto
+                      const bestProduct = await selectBestProductMatch(
+                        foundProducts,
+                        userSelect.content,
+                        recentMessages.slice(0, i + 2),
+                        productsInfo.characteristics
+                      )
+
+                      // Si IA no puede determinar el producto, no crear reserva incorrecta
+                      if (!bestProduct) {
+                        console.error('Error: No se pudo determinar qué producto seleccionó el usuario')
+                        continue // Saltar este producto, no crear reserva incorrecta
+                      }
+
+                      selectedProducts = [bestProduct]
+                    }
+
+                    // Agregar todos los productos seleccionados
+                    for (const product of selectedProducts) {
+                      extractedSelections.push({
+                        productName: product.name,
+                        quantity: quantityInfo.quantity,
+                        characteristics: productsInfo.characteristics
+                      })
+                    }
+                  }
+                }
+              }
+            }
           }
         }
 
-        // Eliminar duplicados por ID
-        const uniqueFoundProducts = allFoundProducts.filter((p, index, self) =>
-          index === self.findIndex(prod => prod.id === p.id)
-        )
+        // Si no encontramos productos confirmados, buscar en todo el historial de forma más simple
+        if (extractedSelections.length === 0) {
+          const allProductNames: string[] = []
+          const allCharacteristics: {
+            material?: string
+            color?: string
+            category?: string
+            texture?: string
+          } = {}
 
-        // Crear reserva para CADA producto encontrado
-        for (const product of uniqueFoundProducts) {
-          const quantity = 1 // Por defecto, se puede mejorar extrayendo cantidades del historial
-
-          try {
-            const reservation = await createProductReservation(
-              product.id,
-              customerInfo.id,
-              quantity,
-              `Reserva asociada a cita - ${product.name}`,
-              {
-                unitPrice: product.salePrice || product.price,
-                totalPrice: (product.salePrice || product.price) * quantity,
-                unit: product.unit || undefined,
-                width: product.width || undefined,
-                weight: product.weight || undefined,
-                color: product.color || undefined,
-                category: product.category?.name || undefined
+          for (const msg of recentMessages) {
+            if (msg.role === 'user') {
+              const productsInfo = await extractProductsFromMessage(msg.content, companyId, [])
+              if (productsInfo.hasProducts && productsInfo.productNames) {
+                allProductNames.push(...productsInfo.productNames)
+                if (productsInfo.characteristics) {
+                  if (productsInfo.characteristics.material) allCharacteristics.material = productsInfo.characteristics.material
+                  if (productsInfo.characteristics.color) allCharacteristics.color = productsInfo.characteristics.color
+                  if (productsInfo.characteristics.category) allCharacteristics.category = productsInfo.characteristics.category
+                  if (productsInfo.characteristics.texture) allCharacteristics.texture = productsInfo.characteristics.texture
+                }
               }
-            )
 
-            reservationIds.push(reservation.id)
-            reservedProducts.push(product.name)
-          } catch (error) {
-            console.error(`Error creando reserva para ${product.name}:`, error)
+              // También buscar cantidades en el mismo mensaje
+              const quantityInfo = await detectQuantity(msg.content, [])
+              if (quantityInfo.hasQuantity && allProductNames.length > 0) {
+                extractedSelections.push({
+                  productName: allProductNames[allProductNames.length - 1],
+                  quantity: quantityInfo.quantity,
+                  characteristics: allCharacteristics
+                })
+              }
+            }
+          }
+
+          // Si aún no hay productos con cantidad confirmada, NO crear reservas con cantidad por defecto
+          // Solo crear reservas si hay cantidad explícitamente mencionada
+          // Si extractedSelections está vacío, significa que no hay productos con cantidad confirmada
+          // y no debemos crear reservas incorrectas
+
+          // Convertir extractedSelections a formato de productSelections buscando los productos
+          for (const selection of extractedSelections) {
+            const products = await findProductsByCharacteristics(selection.productName, companyId, selection.characteristics)
+
+            if (products.length > 0) {
+              // Usar IA para determinar el mejor producto cuando hay múltiples coincidencias
+              const selectedProduct = await selectBestProductMatch(
+                products,
+                selection.productName,
+                recentMessages,
+                selection.characteristics
+              )
+
+              if (selectedProduct) {
+                productSelections.push({
+                  product: selectedProduct,
+                  quantity: selection.quantity
+                })
+              }
+            }
+          }
+        }
+
+        // Buscar productos y crear reservas
+        if (productSelections.length > 0) {
+          for (const selection of productSelections) {
+            // productSelections siempre tiene formato { product: any; quantity: number }
+            const product = selection.product
+
+            // No usar fallback - si no hay cantidad válida, no crear reserva
+            if (!selection.quantity || selection.quantity <= 0) {
+              console.error('Error: Cantidad inválida para producto', product.name, selection.quantity)
+              continue // Saltar este producto, no crear reserva incorrecta
+            }
+
+            const quantity = selection.quantity
+
+            try {
+              const reservation = await createProductReservation(
+                product.id,
+                customerInfo.id,
+                quantity,
+                `Reserva asociada a cita - ${product.name}`,
+                {
+                  unitPrice: product.salePrice || product.price,
+                  totalPrice: (product.salePrice || product.price) * quantity,
+                  unit: product.unit || undefined,
+                  width: product.width || undefined,
+                  weight: product.weight || undefined,
+                  color: product.color || undefined,
+                  category: product.category?.name || undefined
+                }
+              )
+
+              reservationIds.push(reservation.id)
+              reservedProducts.push(`${product.name} (${quantity} ${product.unit || 'unidad(es)'})`)
+            } catch (error) {
+              console.error(`Error creando reserva para ${product.name}:`, error)
+            }
           }
         }
       }
@@ -4775,7 +5804,18 @@ export const onAiChatBotAssistant = async (
         }
       }
 
-      const satisfactionRating = detectSatisfactionRating(message)
+      // Obtener último mensaje del asistente y estado para contexto
+      const lastAssistantMsg = chat
+        .filter(msg => msg.role === 'assistant')
+        .slice(-1)[0]?.content || ''
+
+      const conversationState = customerInfo.conversations[0]?.conversationState || undefined
+
+      const satisfactionRating = detectSatisfactionRating(
+        message,
+        conversationState,
+        lastAssistantMsg
+      )
       if (satisfactionRating) {
         await saveSatisfactionRating(
           customerInfo.conversations[0].id,
