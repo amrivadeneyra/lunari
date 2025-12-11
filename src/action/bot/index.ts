@@ -2092,11 +2092,281 @@ const handleOpenAIResponse = async (
   if (!validConversationId) {
     throw new Error('No se pudo determinar un conversationId válido en handleOpenAIResponse')
   }
+
+  // Obtener companyId primero
+  const chatRoom = await client.conversation.findUnique({
+    where: { id: validConversationId },
+    select: {
+      Customer: {
+        select: { companyId: true }
+      }
+    }
+  })
+  const companyId = chatRoom?.Customer?.companyId || ''
+
+  // NUEVO: Manejar múltiples productos con cantidades en un solo mensaje
+  // Ejemplo: "ocupo algodon pima 9 unidades y lino natural 20 unidades"
+  const multipleProductsInfo = await extractMultipleProductsWithQuantities(userMessage || '', companyId, chatHistory)
+  if (multipleProductsInfo.hasMultipleProducts && multipleProductsInfo.products && multipleProductsInfo.products.length > 0) {
+    try {
+      const confirmedProducts: Array<{ product: any; quantity: number; color?: string }> = []
+      const productsNeedingColor: Array<{ product: any; quantity: number; availableColors: string[] }> = []
+      const notFoundProducts: Array<{ productName: string; quantity: number }> = []
+
+      // Buscar cada producto mencionado
+      for (const productInfo of multipleProductsInfo.products) {
+        console.log(`[DEBUG] Buscando producto: "${productInfo.productName}" con características:`, productInfo.characteristics)
+
+        const foundProducts = await findProductsByCharacteristics(
+          productInfo.productName,
+          companyId,
+          productInfo.characteristics
+        )
+
+        console.log(`[DEBUG] Productos encontrados para "${productInfo.productName}":`, foundProducts.length, foundProducts.map((p: any) => p.name))
+
+        // Usar IA para determinar si la búsqueda es muy genérica y necesita más detalles
+        if (foundProducts.length > 1) {
+          const isGenericSearch = await detectGenericProductSearch(
+            productInfo.productName,
+            productInfo.characteristics,
+            foundProducts.length,
+            chatHistory
+          )
+
+          if (isGenericSearch) {
+            // Generar respuesta con recomendaciones usando IA
+            const recommendationResponse = await generateProductRecommendationsResponse(
+              productInfo.productName,
+              productInfo.characteristics,
+              foundProducts.slice(0, 8),
+              chatHistory
+            )
+
+            if (recommendationResponse) {
+              return {
+                response: {
+                  role: 'assistant' as const,
+                  content: recommendationResponse
+                }
+              }
+            }
+          }
+        }
+
+        if (foundProducts.length > 0) {
+          let selectedProduct = await selectBestProductMatch(
+            foundProducts,
+            productInfo.productName,
+            chatHistory,
+            productInfo.characteristics
+          )
+
+          console.log(`[DEBUG] Producto seleccionado para "${productInfo.productName}":`, selectedProduct ? selectedProduct.name : 'null')
+
+          // Si selectBestProductMatch falla pero hay productos encontrados, usar el primero como último recurso
+          if (!selectedProduct && foundProducts.length > 0) {
+            console.log(`[DEBUG] selectBestProductMatch falló, usando primer producto encontrado como fallback temporal`)
+            selectedProduct = foundProducts[0]
+          }
+
+          if (selectedProduct) {
+            // Obtener información completa del producto
+            const productWithDetails = await client.product.findUnique({
+              where: { id: selectedProduct.id },
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                salePrice: true,
+                stock: true,
+                unit: true,
+                color: true,
+                colors: true,
+                material: { select: { name: true } },
+                category: { select: { name: true } }
+              }
+            })
+
+            if (productWithDetails) {
+              // Verificar si tiene color especificado
+              const requestedColor = productInfo.characteristics?.color?.toLowerCase()
+              const productColor = productWithDetails.color?.toLowerCase() || ''
+              const productColors = (productWithDetails.colors || []).map((c: string) => c.toLowerCase())
+
+              // Verificar si tiene color especificado
+              const hasRequestedColor = requestedColor && (
+                productColor.includes(requestedColor) ||
+                productColors.some((c: string) => c.includes(requestedColor)) ||
+                requestedColor.includes(productColor) ||
+                productColors.some((c: string) => requestedColor.includes(c))
+              )
+
+              // Si no se especificó color, SIEMPRE preguntar por el color
+              if (!requestedColor) {
+                // No se especificó color, agregar a lista para preguntar
+                const availableColors = productColors.length > 0
+                  ? productColors.map((c: string) => c.charAt(0).toUpperCase() + c.slice(1))
+                  : (productColor ? [productColor.charAt(0).toUpperCase() + productColor.slice(1)] : ['No hay colores específicos'])
+                productsNeedingColor.push({
+                  product: productWithDetails,
+                  quantity: productInfo.quantity,
+                  availableColors: availableColors
+                })
+              } else if (hasRequestedColor) {
+                // Color especificado y disponible
+                if (productInfo.quantity > 0 && productInfo.quantity <= productWithDetails.stock) {
+                  confirmedProducts.push({
+                    product: productWithDetails,
+                    quantity: productInfo.quantity,
+                    color: requestedColor
+                  })
+                }
+              } else {
+                // Color especificado pero no disponible, ofrecer colores disponibles
+                const availableColors = productColors.length > 0
+                  ? productColors.map((c: string) => c.charAt(0).toUpperCase() + c.slice(1))
+                  : (productColor ? [productColor.charAt(0).toUpperCase() + productColor.slice(1)] : ['No hay colores específicos'])
+                productsNeedingColor.push({
+                  product: productWithDetails,
+                  quantity: productInfo.quantity,
+                  availableColors: availableColors
+                })
+              }
+            }
+          } else {
+            // Producto encontrado pero IA no pudo seleccionar el mejor
+            notFoundProducts.push({
+              productName: productInfo.productName,
+              quantity: productInfo.quantity
+            })
+          }
+        } else {
+          // Producto no encontrado exactamente, buscar productos similares
+          const similarProducts = await findSimilarProducts(
+            productInfo.characteristics || { material: productInfo.productName },
+            companyId,
+            8
+          )
+
+          if (similarProducts.length > 0) {
+            // Generar respuesta con recomendaciones usando IA
+            const recommendationResponse = await generateProductRecommendationsResponse(
+              productInfo.productName,
+              productInfo.characteristics,
+              similarProducts,
+              chatHistory
+            )
+
+            if (recommendationResponse) {
+              return {
+                response: {
+                  role: 'assistant' as const,
+                  content: recommendationResponse
+                }
+              }
+            }
+          } else {
+            // No se encontró nada, agregar a lista de no encontrados
+            notFoundProducts.push({
+              productName: productInfo.productName,
+              quantity: productInfo.quantity
+            })
+          }
+        }
+      }
+
+      // Si hay productos no encontrados, informar al usuario
+      if (notFoundProducts.length > 0) {
+        const notFoundList = notFoundProducts.map(nf =>
+          `- **${nf.productName}** (${nf.quantity} unidades)`
+        ).join('\n')
+
+        let responseContent = `No pude encontrar estos productos en nuestro catálogo: 😔\n\n${notFoundList}\n\n`
+
+        if (confirmedProducts.length > 0 || productsNeedingColor.length > 0) {
+          responseContent += `Sin embargo, encontré estos productos que mencionaste:\n\n`
+
+          if (confirmedProducts.length > 0) {
+            const confirmedList = confirmedProducts.map(cp =>
+              `✅ **${cp.product.name}** - ${cp.quantity} ${cp.product.unit || 'unidad(es)'}${cp.color ? ` (Color: ${cp.color})` : ''}`
+            ).join('\n')
+            responseContent += `${confirmedList}\n\n`
+          }
+
+          if (productsNeedingColor.length > 0) {
+            const needingColorList = productsNeedingColor.map(p =>
+              `⏳ **${p.product.name}** - ${p.quantity} ${p.product.unit || 'unidad(es)'} (necesita seleccionar color)`
+            ).join('\n')
+            responseContent += `${needingColorList}\n\n`
+          }
+        }
+
+        responseContent += `¿Podrías ser más específico sobre los productos que no encontré? Por ejemplo, menciona el material, categoría o nombre exacto del producto.`
+
+        return {
+          response: {
+            role: 'assistant' as const,
+            content: responseContent
+          }
+        }
+      }
+
+      // Si hay productos que necesitan color, preguntar
+      if (productsNeedingColor.length > 0) {
+        const colorQuestions = productsNeedingColor.map((p, idx) => {
+          const colorList = p.availableColors.length > 0
+            ? p.availableColors.join(', ')
+            : 'No hay colores específicos disponibles'
+          return `${idx + 1}. **${p.product.name}** (${p.quantity} ${p.product.unit || 'unidad(es)'}): ¿Qué color prefieres? Colores disponibles: ${colorList}`
+        }).join('\n\n')
+
+        let responseContent = ''
+        if (confirmedProducts.length > 0) {
+          const confirmedList = confirmedProducts.map(cp =>
+            `- **${cp.product.name}** - ${cp.quantity} ${cp.product.unit || 'unidad(es)'}${cp.color ? ` (Color: ${cp.color})` : ''}`
+          ).join('\n')
+          responseContent = `¡Perfecto! He anotado estos productos: 😊\n\n${confirmedList}\n\n`
+        }
+
+        responseContent += `Para completar tu reserva, necesito saber el color de estos productos:\n\n${colorQuestions}`
+
+        return {
+          response: {
+            role: 'assistant' as const,
+            content: responseContent
+          }
+        }
+      }
+
+      // Si todos los productos están confirmados, mostrar resumen
+      if (confirmedProducts.length > 0) {
+        const productsList = confirmedProducts.map(cp =>
+          `- **${cp.product.name}** - ${cp.quantity} ${cp.product.unit || 'unidad(es)'}${cp.color ? ` (Color: ${cp.color})` : ''} - S/${(cp.product.salePrice || cp.product.price) * cp.quantity}`
+        ).join('\n')
+
+        const totalPrice = confirmedProducts.reduce((sum, cp) =>
+          sum + ((cp.product.salePrice || cp.product.price) * cp.quantity), 0
+        )
+
+        return {
+          response: {
+            role: 'assistant' as const,
+            content: `¡Excelente! He anotado tus productos: 😊\n\n${productsList}\n\n💰 **Total estimado:** S/${totalPrice}\n\n¿Te gustaría agendar una cita para ver estos productos y completar tu compra?`
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error handling multiple products:', error)
+      // Continuar con el flujo normal
+    }
+  }
+
   // Manejar solicitudes iniciales de compra usando IA
   const purchaseIntent = await detectPurchaseIntent(userMessage || '', chatHistory)
   if (purchaseIntent.wantsToPurchase) {
     try {
-      // Buscar productos que coincidan con el material mencionado
+      // Obtener companyId
       const chatRoom = await client.conversation.findUnique({
         where: { id: validConversationId },
         select: {
@@ -2107,17 +2377,85 @@ const handleOpenAIResponse = async (
       })
       const companyId = chatRoom?.Customer?.companyId || ''
 
+      // PASO 1: Extraer características del mensaje del usuario usando IA
+      // Esto identifica palabras clave: material, color, categoría, textura, temporada, uso, características
+      const productsInfo = await extractProductsFromMessage(userMessage || '', companyId, chatHistory)
+
       let products: any[] = []
 
-      // Si hay producto mencionado, buscarlo usando IA
-      if (purchaseIntent.productMentioned) {
+      // PASO 2: Buscar productos basándose en las características extraídas
+      if (productsInfo.hasProducts || productsInfo.characteristics) {
+        // Si hay nombres de productos mencionados, buscar por cada uno
+        if (productsInfo.productNames && productsInfo.productNames.length > 0) {
+          for (const productName of productsInfo.productNames) {
+            const foundProducts = await findProductsByCharacteristics(
+              productName,
+              companyId,
+              productsInfo.characteristics // Pasar características para búsqueda más precisa
+            )
+            products.push(...foundProducts)
+          }
+        }
+
+        // Si hay características pero no productos encontrados aún, buscar productos similares
+        if (products.length === 0 && productsInfo.characteristics) {
+          const similarProducts = await findSimilarProducts(
+            productsInfo.characteristics,
+            companyId,
+            8
+          )
+          products = similarProducts
+        }
+      } else if (purchaseIntent.productMentioned) {
+        // Fallback: si detectPurchaseIntent encontró algo pero extractProductsFromMessage no
+        // Buscar directamente por el término mencionado
         products = await findProductsByCharacteristics(purchaseIntent.productMentioned, companyId)
+      }
+
+      // Si se encontraron productos, filtrar por características específicas si están disponibles
+      if (products.length > 0 && productsInfo.characteristics) {
+        // Filtrar productos que coincidan con las características específicas (especialmente color)
+        const filteredProducts = products.filter((p: any) => {
+          // Si se especificó color, el producto debe tener ese color
+          if (productsInfo.characteristics?.color) {
+            const requestedColor = productsInfo.characteristics.color.toLowerCase()
+            const productColor = p.color?.toLowerCase() || ''
+            const productColors = (p.colors || []).map((c: string) => c.toLowerCase())
+
+            // Verificar si el color coincide
+            const colorMatch = productColor.includes(requestedColor) ||
+              productColors.some((c: string) => c.includes(requestedColor)) ||
+              requestedColor.includes(productColor) ||
+              productColors.some((c: string) => requestedColor.includes(c))
+
+            if (!colorMatch) return false
+          }
+
+          // Si se especificó material, el producto debe tener ese material
+          if (productsInfo.characteristics?.material) {
+            const requestedMaterial = productsInfo.characteristics.material.toLowerCase()
+            const productMaterial = p.material?.name?.toLowerCase() || ''
+            if (productMaterial && !productMaterial.includes(requestedMaterial) && !requestedMaterial.includes(productMaterial)) {
+              return false
+            }
+          }
+
+          return true
+        })
+
+        // Si después del filtro hay productos, usarlos; si no, usar los originales
+        products = filteredProducts.length > 0 ? filteredProducts : products
       }
 
       // Si se encontraron productos, analizar necesidades y mostrar información completa
       if (products.length > 0) {
+        // Eliminar duplicados por ID
+        const uniqueProducts = products.filter((p: any, index: number, self: any[]) =>
+          index === self.findIndex((prod: any) => prod.id === p.id)
+        )
+
         // Obtener información completa de los productos para análisis inteligente
-        const productIds = products.map(p => p.id)
+        const productIds = uniqueProducts.map((p: any) => p.id)
         const productsWithDetails = await client.product.findMany({
           where: {
             companyId,
@@ -2194,6 +2532,71 @@ Todas nuestras compras son presenciales en nuestra tienda. Una vez que elijas lo
             content: responseContent
           }
         }
+      } else if (purchaseIntent.productMentioned) {
+        // Si hay producto mencionado pero no se encontraron productos ni similares
+        // Extraer características para mostrar recomendaciones más amplias
+        const productsInfo = await extractProductsFromMessage(purchaseIntent.productMentioned, companyId, chatHistory)
+
+        // Buscar productos por material o categoría si hay características
+        let recommendations: any[] = []
+        if (productsInfo.characteristics?.material) {
+          recommendations = await client.product.findMany({
+            where: {
+              companyId,
+              active: true,
+              material: { name: { contains: productsInfo.characteristics.material, mode: 'insensitive' } }
+            },
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              salePrice: true,
+              stock: true,
+              unit: true,
+              color: true,
+              material: { select: { name: true } },
+              category: { select: { name: true } }
+            },
+            take: 5
+          })
+        }
+
+        if (recommendations.length > 0) {
+          const recommendationsList = recommendations
+            .slice(0, 5)
+            .map((p, idx) => {
+              const details: string[] = []
+              if (p.material) details.push(p.material.name)
+              if (p.color) details.push(p.color)
+              return `${idx + 1}. **${p.name}**${details.length > 0 ? ` (${details.join(', ')})` : ''} - S/${p.salePrice || p.price} por ${p.unit || 'metro'}`
+            })
+            .join('\n')
+
+          return {
+            response: {
+              role: 'assistant' as const,
+              content: `Entiendo que buscas ${purchaseIntent.productMentioned}. 😊
+
+No encontré exactamente lo que mencionaste, pero tengo estas opciones que podrían interesarte:
+
+${recommendationsList}
+
+¿Te gustaría ver más opciones o agendar una cita para ver estos productos en persona?`
+            }
+          }
+        }
+
+        // Si no hay recomendaciones, mostrar mensaje empático
+        return {
+          response: {
+            role: 'assistant' as const,
+            content: `Entiendo que buscas ${purchaseIntent.productMentioned}. 😊
+
+Lamentablemente no encontré productos exactos con esas características en este momento. 
+
+¿Te gustaría que te ayude a buscar productos similares o agendar una cita para que puedas ver todas nuestras opciones disponibles en la tienda?`
+          }
+        }
       } else {
         // Si no hay producto específico mencionado, explicar proceso y preguntar por productos
         return {
@@ -2208,12 +2611,25 @@ Todas nuestras compras se realizan de manera presencial en nuestra tienda. El pr
 2. **Agendar fecha y horario** que más te convenga
 3. **Visitar nuestra tienda** en la fecha acordada para ver, pagar y recoger tus productos
 
-Para ayudarte mejor, **¿qué productos te interesan?** Puedes mencionar:
-- El tipo de material (ej: "lino", "algodón", "gabardina")
-- El color que buscas (ej: "azul", "blanco")
-- O simplemente decir "quiero ver productos" y te mostraré opciones
+Para ayudarte mejor, **¿qué productos te interesan?** Puedes mencionar cualquier característica:
 
-Por ejemplo: "quiero productos de lino azul" o "me interesa algodón"`
+📋 **Puedes especificar:**
+- **Material**: "lino", "algodón", "poliéster", "gabardina", etc.
+- **Color**: "azul", "blanco", "rojo", "verde", etc.
+- **Categoría**: "mantel", "cortina", "tela", "ropa", etc.
+- **Textura**: "jacquard", "liso", "estampado", "satinado", etc.
+- **Temporada**: "verano", "invierno", "todo el año", etc.
+- **Uso**: "para cocina", "vestidos", "decoración", "tapicería", etc.
+- **Características**: "impermeable", "elástico", "antibacterial", etc.
+
+**Ejemplos de cómo puedes preguntar:**
+- "Quiero lino azul"
+- "Necesito mantel de algodón para cocina"
+- "Deseo cortina impermeable para verano"
+- "Me interesa tela elástica para vestidos"
+- "Quiero productos de algodón jacquard"
+
+También puedes combinar varias características o simplemente decir "quiero ver productos" y te mostraré opciones.`
 
           }
         }
@@ -3063,29 +3479,43 @@ const detectPurchaseIntent = async (
   productMentioned?: string
 }> => {
   try {
-    const systemPrompt = `Eres un analizador de conversaciones. Tu trabajo es determinar si el usuario quiere COMPRAR o ADQUIRIR productos.
+    const systemPrompt = `Eres un analizador experto de conversaciones de una tienda de telas y productos textiles. Tu trabajo es determinar si el usuario quiere COMPRAR o ADQUIRIR productos, y extraer cualquier MATERIAL, COLOR, CATEGORÍA o PRODUCTO específico mencionado.
 
 ANALIZA el mensaje del usuario y el contexto de la conversación para determinar si:
 1. El usuario está expresando intención de COMPRAR productos
 2. El usuario quiere ADQUIRIR algo
 3. El usuario está interesado en REALIZAR UNA COMPRA
+4. El usuario menciona MATERIALES específicos (lino, algodón, poliéster, gabardina, etc.)
+5. El usuario menciona COLORES específicos (azul, rojo, verde, blanco, etc.)
+6. El usuario menciona CATEGORÍAS (cortinas, telas, manteles, etc.)
 
 IMPORTANTE: 
-- Solo marca como intención de compra si hay CLARA intención de adquirir/comprar
+- Si el usuario menciona un MATERIAL (lino, algodón, etc.) o COLOR (azul, rojo, etc.), SIEMPRE extrae esa información en "productMentioned"
+- Frases como "quiero lino azul", "necesito algodón", "deseo poliéster" son intención de compra CON producto mencionado
+- Si menciona material + color, extrae ambos (ej: "lino azul" → "lino azul")
+- Si solo menciona material, extrae el material (ej: "lino" → "lino")
+- Si solo menciona color, extrae el color (ej: "azul" → "azul")
 - Las preguntas sobre productos, precios, información NO son intención de compra directa
 - Si el usuario dice "quiero ver productos" o "quiero información", NO es compra directa
 
 RESPONDE SOLO EN FORMATO JSON:
 {
   "wantsToPurchase": true/false,
-  "productMentioned": "nombre del producto mencionado" o null
+  "productMentioned": "material/color/categoría mencionado" o null
 }
 
-EJEMPLOS DE INTENCIÓN DE COMPRA:
+EJEMPLOS DE INTENCIÓN DE COMPRA CON PRODUCTO:
+- "quiero lino azul" → {"wantsToPurchase": true, "productMentioned": "lino azul"}
+- "necesito comprar lino" → {"wantsToPurchase": true, "productMentioned": "lino"}
+- "quiero algodón verde" → {"wantsToPurchase": true, "productMentioned": "algodón verde"}
+- "deseo poliéster" → {"wantsToPurchase": true, "productMentioned": "poliéster"}
+- "quiero adquirir algodón" → {"wantsToPurchase": true, "productMentioned": "algodón"}
+- "necesito telas de lino" → {"wantsToPurchase": true, "productMentioned": "lino"}
+- "quiero cortinas azules" → {"wantsToPurchase": true, "productMentioned": "cortinas azul"}
+
+EJEMPLOS DE INTENCIÓN DE COMPRA SIN PRODUCTO:
 - "quiero comprar" → {"wantsToPurchase": true, "productMentioned": null}
 - "deseo poder comprar algún producto" → {"wantsToPurchase": true, "productMentioned": null}
-- "necesito comprar lino" → {"wantsToPurchase": true, "productMentioned": "lino"}
-- "quiero adquirir algodón" → {"wantsToPurchase": true, "productMentioned": "algodón"}
 - "deseo realizar una compra" → {"wantsToPurchase": true, "productMentioned": null}
 
 EJEMPLOS DE NO INTENCIÓN DE COMPRA:
@@ -3122,6 +3552,158 @@ EJEMPLOS DE NO INTENCIÓN DE COMPRA:
   } catch (error) {
     console.error('Error en detectPurchaseIntent:', error)
     return { wantsToPurchase: false }
+  }
+}
+
+/**
+ * Extrae múltiples productos con cantidades de un solo mensaje
+ * Ejemplo: "ocupo algodon pima 9 unidades y lino natural 20 unidades"
+ */
+const extractMultipleProductsWithQuantities = async (
+  message: string,
+  companyId: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<{
+  hasMultipleProducts: boolean
+  products?: Array<{
+    productName: string
+    quantity: number
+    unit?: string
+    characteristics?: {
+      material?: string
+      color?: string
+      category?: string
+      texture?: string
+      season?: string
+      use?: string
+      feature?: string
+    }
+  }>
+}> => {
+  try {
+    const systemPrompt = `Eres un analizador experto de mensajes sobre productos textiles. Tu trabajo es EXTRAER MÚLTIPLES PRODUCTOS con sus CANTIDADES de un solo mensaje.
+
+MENSAJE DEL USUARIO:
+"${message}"
+
+INSTRUCCIONES CRÍTICAS:
+1. **Detecta si el mensaje menciona MÚLTIPLES productos con cantidades**
+   - Ejemplo: "ocupo algodon pima 9 unidades y lino natural 20 unidades" → 2 productos
+   - Ejemplo: "quiero 5 metros de algodón y 3 metros de lino" → 2 productos
+   - Ejemplo: "deseo tela de algodón cortina premium 50 unidades algodon pima 10 unidades" → 2 productos
+   - Ejemplo: "necesito 10 metros de algodón" → 1 producto (no múltiple)
+
+2. **Para cada producto mencionado, extrae:**
+   - **Nombre del producto**: Puede ser una descripción completa como "tela de algodón cortina premium", "algodon pima", "lino natural", etc.
+   - **Cantidad**: El número mencionado (9, 20, 5, 50, etc.)
+   - **Unidad**: "unidades", "metros", "rollos", etc. (si se menciona)
+   - **Características**: material, color, categoría, etc. (si se mencionan)
+   - **IMPORTANTE**: Si el producto tiene una descripción completa como "tela de algodón cortina premium", extrae TODO el nombre completo
+
+3. **IMPORTANTE**: Solo marca como múltiples productos si hay AL MENOS 2 productos diferentes con cantidades
+
+4. **Si solo hay un producto o no hay cantidades claras**, hasMultipleProducts debe ser false
+
+5. **Detecta productos incluso si están escritos sin separadores claros:**
+   - "tela algodón cortina premium 50 unidades algodon pima 10 unidades" → 2 productos
+   - "producto1 10 unidades producto2 20 unidades producto3 30 unidades" → 3 productos
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "hasMultipleProducts": true/false,
+  "products": [
+    {
+      "productName": "algodon pima",
+      "quantity": 9,
+      "unit": "unidades",
+      "characteristics": {
+        "material": "algodón",
+        "color": null
+      }
+    },
+    {
+      "productName": "lino natural",
+      "quantity": 20,
+      "unit": "unidades",
+      "characteristics": {
+        "material": "lino",
+        "color": null
+      }
+    }
+  ] o null
+}
+
+EJEMPLOS:
+- "ocupo algodon pima 9 unidades y lino natural 20 unidades" → {
+    "hasMultipleProducts": true,
+    "products": [
+      {"productName": "algodon pima", "quantity": 9, "unit": "unidades", "characteristics": {"material": "algodón"}},
+      {"productName": "lino natural", "quantity": 20, "unit": "unidades", "characteristics": {"material": "lino"}}
+    ]
+  }
+
+- "deseo tela de algodón cortina premium 50 unidades algodon pima 10 unidades bambu organico 40 unidades" → {
+    "hasMultipleProducts": true,
+    "products": [
+      {"productName": "tela de algodón cortina premium", "quantity": 50, "unit": "unidades", "characteristics": {"material": "algodón", "category": "cortina"}},
+      {"productName": "algodon pima", "quantity": 10, "unit": "unidades", "characteristics": {"material": "algodón"}},
+      {"productName": "bambu organico", "quantity": 40, "unit": "unidades", "characteristics": {"material": "bambú"}}
+    ]
+  }
+
+- "quiero 5 metros de algodón y 3 metros de lino azul" → {
+    "hasMultipleProducts": true,
+    "products": [
+      {"productName": "algodón", "quantity": 5, "unit": "metros", "characteristics": {"material": "algodón"}},
+      {"productName": "lino", "quantity": 3, "unit": "metros", "characteristics": {"material": "lino", "color": "azul"}}
+    ]
+  }
+
+- "necesito 10 metros de algodón" → {"hasMultipleProducts": false, "products": null}
+- "quiero productos" → {"hasMultipleProducts": false, "products": null}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: message }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 500
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return { hasMultipleProducts: false }
+    }
+
+    const parsed = safeJsonParse<{
+      hasMultipleProducts?: boolean
+      products?: Array<{
+        productName: string
+        quantity: number
+        unit?: string
+        characteristics?: {
+          material?: string
+          color?: string
+          category?: string
+          texture?: string
+          season?: string
+          use?: string
+          feature?: string
+        }
+      }>
+    }>(response, { hasMultipleProducts: false })
+
+    return {
+      hasMultipleProducts: parsed.hasMultipleProducts || false,
+      products: parsed.products || undefined
+    }
+  } catch (error) {
+    console.error('Error en extractMultipleProductsWithQuantities:', error)
+    return { hasMultipleProducts: false }
   }
 }
 
@@ -3353,11 +3935,13 @@ const generatePurchaseQuestions = (product: any, currentDetails: any): string =>
     questions.push(`3. ¿Qué gramaje necesitas? (Disponible: ${product.weight})`)
   }
 
-  // Preguntar por color si hay opciones
-  if (!currentDetails.color && product.colors && product.colors.length > 0) {
-    questions.push(`4. ¿Qué color prefieres? (Disponibles: ${product.colors.join(', ')})`)
-  } else if (!currentDetails.color && product.color) {
-    questions.push(`4. ¿Te gusta el color ${product.color} o prefieres otro?`)
+  // SIEMPRE preguntar por color si el producto tiene colores disponibles
+  if (!currentDetails.color) {
+    if (product.colors && product.colors.length > 0) {
+      questions.push(`¿Qué color prefieres? Colores disponibles: ${product.colors.join(', ')}`)
+    } else if (product.color) {
+      questions.push(`¿Te gusta el color ${product.color} o prefieres otro?`)
+    }
   }
 
   // Si no hay preguntas específicas, preguntar por cantidad básica
@@ -3414,6 +3998,9 @@ const findProductsByCharacteristics = async (
     color?: string
     category?: string
     texture?: string
+    season?: string
+    use?: string
+    feature?: string
   }
 ): Promise<any[]> => {
   try {
@@ -3438,6 +4025,7 @@ const findProductsByCharacteristics = async (
         material: { select: { name: true } },
         category: { select: { name: true } },
         texture: { select: { name: true } },
+        season: { select: { name: true } },
         uses: {
           select: {
             use: { select: { name: true } }
@@ -3454,7 +4042,7 @@ const findProductsByCharacteristics = async (
     if (allProducts.length === 0) return []
 
     // Usar IA para encontrar productos relevantes basándose en TODAS las características
-    const productsContext = allProducts.map(p => {
+    const productsContext = allProducts.map((p: any) => {
       const details: string[] = []
       details.push(`nombre: ${p.name}`)
       if (p.material) details.push(`material: ${p.material.name}`)
@@ -3462,6 +4050,7 @@ const findProductsByCharacteristics = async (
       if (p.color) details.push(`color: ${p.color}`)
       if (p.colors && p.colors.length > 0) details.push(`colores: ${p.colors.join(', ')}`)
       if (p.texture) details.push(`textura: ${p.texture.name}`)
+      if (p.season) details.push(`temporada: ${p.season.name}`)
       if (p.uses && p.uses.length > 0) {
         details.push(`usos: ${p.uses.map((u: any) => u.use.name).join(', ')}`)
       }
@@ -3471,42 +4060,174 @@ const findProductsByCharacteristics = async (
       return `${p.id} | ${details.join(' | ')}`
     }).join('\n')
 
-    const systemPrompt = `Eres un experto en búsqueda de productos textiles. Tu trabajo es encontrar productos que coincidan con lo que el usuario busca, considerando TODAS las características disponibles.
+    const systemPrompt = `Eres un experto en búsqueda semántica de productos textiles. Tu trabajo es encontrar productos que coincidan con lo que el usuario busca, considerando TODAS las características disponibles y aplicando búsqueda inteligente y flexible.
 
+═══════════════════════════════════════════════════════════════
 PRODUCTOS DISPONIBLES (con TODAS sus características):
+═══════════════════════════════════════════════════════════════
 ${productsContext}
 
+═══════════════════════════════════════════════════════════════
 BÚSQUEDA DEL USUARIO:
+═══════════════════════════════════════════════════════════════
 "${searchTerm}"
 
+═══════════════════════════════════════════════════════════════
 CARACTERÍSTICAS ESPECÍFICAS MENCIONADAS:
+═══════════════════════════════════════════════════════════════
 ${characteristics ? JSON.stringify(characteristics, null, 2) : 'Ninguna específica'}
 
-INSTRUCCIONES CRÍTICAS:
-1. Busca productos que coincidan con el término de búsqueda en CUALQUIERA de sus características:
-   - Nombre del producto
-   - Material (ej: si busca "algodón", encuentra productos con material algodón aunque el nombre no lo mencione)
-   - Categoría (ej: si busca "mantel", encuentra productos de categoría mantel)
-   - Tipo
-   - Color
-   - Textura
-   - Uso
-   - Características
+═══════════════════════════════════════════════════════════════
+METODOLOGÍA DE BÚSQUEDA (APLICAR EN ESTE ORDEN):
+═══════════════════════════════════════════════════════════════
 
-2. Si el usuario busca "algodón", encuentra TODOS los productos que tengan algodón como material, aunque el nombre del producto sea diferente (ej: "Mantel Jacquard Elegante" con material algodón)
+FASE 1: ANÁLISIS DEL TÉRMINO DE BÚSQUEDA
+────────────────────────────────────────────
+1. **Normalización**: Convierte a minúsculas, elimina acentos opcionales, maneja variaciones
+   - "algodón" = "algodon" = "algodón"
+   - "premium" = "premiun" = "premium" (tolerancia a errores menores)
 
-3. Si el usuario busca un material, categoría o tipo, encuentra productos que tengan esa característica en CUALQUIER campo relevante
+2. **Extracción de Componentes**: Identifica todos los elementos mencionados:
+   - Materiales: "algodón", "lino", "bambú", "poliéster", etc.
+   - Categorías: "cortina", "mantel", "tela", "ropa", etc.
+   - Colores: "azul", "blanco", "rojo", etc.
+   - Calificativos: "premium", "orgánico", "natural", "elegante", etc.
+   - Variedades: "pima", "jacquard", "blackout", etc.
 
-4. Prioriza coincidencias exactas, luego parciales
+3. **Identificación de Patrones**:
+   - Descripción completa: "tela de algodón cortina premium" → [material: algodón, categoría: cortina, calificativo: premium]
+   - Nombre específico: "algodon pima" → [nombre: algodon pima, material: algodón, variedad: pima]
+   - Características múltiples: "lino azul natural" → [material: lino, color: azul, calificativo: natural]
 
-5. Devuelve los IDs de los productos más relevantes (máximo 20)
+FASE 2: ESTRATEGIA DE COINCIDENCIA
+───────────────────────────────────
+**REGLAS DE PRIORIDAD (aplicar en orden):**
 
-RESPONDE SOLO EN FORMATO JSON:
+A. **COINCIDENCIA EXACTA TOTAL** (Prioridad 1 - Máxima):
+   - Si hay características específicas proporcionadas, SOLO devuelve productos que coincidan con TODAS
+   - Ejemplo: "lino azul" (material: lino, color: azul) → Solo productos con material lino Y color azul
+   - NO incluyas productos que solo tengan una parte (ej: lino sin azul, o azul sin lino)
+
+B. **COINCIDENCIA POR NOMBRE EXACTO O PARCIAL** (Prioridad 2):
+   - Busca coincidencias exactas en el nombre del producto
+   - Luego coincidencias parciales (el nombre contiene el término de búsqueda)
+   - Ejemplo: "algodon pima" → Busca productos cuyo nombre contenga "algodon pima" o "algodón pima"
+
+C. **COINCIDENCIA POR CARACTERÍSTICAS COMBINADAS** (Prioridad 3):
+   - Si el término contiene múltiples características, busca productos que tengan TODAS:
+     * Material + Categoría: "algodón cortina" → Material algodón Y categoría cortina
+     * Material + Color: "lino azul" → Material lino Y color azul
+     * Material + Calificativo: "bambú orgánico" → Material bambú Y características orgánicas
+     * Categoría + Calificativo: "cortina premium" → Categoría cortina Y nombre/características premium
+
+D. **COINCIDENCIA POR CARACTERÍSTICA ÚNICA** (Prioridad 4):
+   - Si solo hay una característica clara, busca productos con esa característica:
+     * Solo material: "algodón" → Todos los productos con material algodón
+     * Solo categoría: "mantel" → Todos los productos de categoría mantel
+     * Solo color: "azul" → Todos los productos con color azul
+
+E. **COINCIDENCIA SEMÁNTICA Y SINÓNIMOS** (Prioridad 5):
+   - Considera sinónimos y términos relacionados:
+     * "tela" = puede referirse a cualquier producto textil
+     * "premium" = "elegante", "alta calidad", "superior"
+     * "orgánico" = "natural", "ecológico"
+   - Busca en descripciones y características del producto
+
+FASE 3: BÚSQUEDA EN TODOS LOS CAMPOS
+────────────────────────────────────
+Para cada producto, evalúa coincidencias en:
+1. **Nombre del producto**: Coincidencia exacta > parcial > contiene palabras clave
+2. **Material**: Nombre del material coincide con búsqueda
+3. **Categoría**: Nombre de categoría coincide con búsqueda
+4. **Color**: Color principal o array de colores contiene el término
+5. **Textura**: Nombre de textura coincide
+6. **Temporada**: Nombre de temporada coincide
+7. **Usos**: Algún uso mencionado coincide
+8. **Características/Features**: Alguna característica mencionada coincide
+9. **Descripción**: Si existe, buscar en descripción del producto
+
+FASE 4: MANEJO DE CASOS ESPECIALES
+───────────────────────────────────
+1. **Errores de escritura comunes**:
+   - "algodo" → "algodón"
+   - "primium" → "premium"
+   - "cortina" → "cortina" (aceptar variaciones)
+
+2. **Búsquedas ambiguas**:
+   - "tela azul" → Buscar productos con color azul (prioridad) o nombre que contenga "azul"
+   - "premium" → Buscar productos con "premium" en nombre o características
+
+3. **Búsquedas muy genéricas**:
+   - "tela" → Si no hay más contexto, devolver productos más populares o con stock
+   - "productos" → Similar a "tela"
+
+4. **Búsquedas con múltiples palabras**:
+   - "tela de algodón cortina premium" → Extraer: [material: algodón, categoría: cortina, calificativo: premium]
+   - Buscar productos que tengan TODAS estas características
+
+FASE 5: ORDENAMIENTO Y SELECCIÓN
+─────────────────────────────────
+1. **Puntuación de relevancia** (mayor puntuación = más relevante):
+   - Coincidencia exacta en nombre: +10 puntos
+   - Coincidencia parcial en nombre: +7 puntos
+   - Coincidencia en material: +5 puntos
+   - Coincidencia en categoría: +5 puntos
+   - Coincidencia en color: +4 puntos
+   - Coincidencia en características: +3 puntos
+   - Coincidencia en otros campos: +2 puntos
+   - Si coincide con TODAS las características mencionadas: +5 puntos bonus
+
+2. **Ordenar por puntuación descendente**
+
+3. **Devolver máximo 20 productos más relevantes**
+
+═══════════════════════════════════════════════════════════════
+EJEMPLOS PRÁCTICOS DE BÚSQUEDA:
+═══════════════════════════════════════════════════════════════
+
+Ejemplo 1: "tela de algodón cortina premium"
+→ Extraer: [material: algodón, categoría: cortina, calificativo: premium]
+→ Buscar: Productos con material algodón Y (categoría cortina O nombre contiene "cortina") Y (nombre contiene "premium" O características premium)
+→ Prioridad: Productos que cumplan TODAS las condiciones
+
+Ejemplo 2: "algodon pima"
+→ Extraer: [nombre: algodon pima, material: algodón, variedad: pima]
+→ Buscar: Productos cuyo nombre contenga "algodon pima" O (material algodón Y nombre contiene "pima")
+→ Prioridad: Coincidencia exacta en nombre > coincidencia por material y variedad
+
+Ejemplo 3: "bambu organico"
+→ Extraer: [material: bambú, calificativo: orgánico]
+→ Buscar: Productos con material bambú Y (nombre contiene "organico" O características orgánicas)
+→ Prioridad: Productos que cumplan AMBAS condiciones
+
+Ejemplo 4: "lino azul"
+→ Extraer: [material: lino, color: azul]
+→ Buscar: Productos con material lino Y (color azul O colores contiene "azul")
+→ Prioridad: SOLO productos que tengan AMBOS (material lino Y color azul)
+
+Ejemplo 5: "cortina"
+→ Extraer: [categoría: cortina]
+→ Buscar: Productos de categoría cortina O nombre contiene "cortina"
+→ Prioridad: Categoría exacta > nombre parcial
+
+Ejemplo 6: "premium"
+→ Extraer: [calificativo: premium]
+→ Buscar: Productos cuyo nombre contenga "premium" O características contengan "premium" O descripción contenga "premium"
+→ Prioridad: Nombre > características > descripción
+
+═══════════════════════════════════════════════════════════════
+FORMATO DE RESPUESTA:
+═══════════════════════════════════════════════════════════════
+RESPONDE SOLO EN FORMATO JSON (sin texto adicional):
 {
   "productIds": ["id1", "id2", "id3", ...]
 }
 
-Ordena los IDs por relevancia (más relevantes primero).`
+IMPORTANTE:
+- Ordena los IDs por relevancia (más relevantes primero)
+- Máximo 20 productos
+- Si no encuentras productos que coincidan, devuelve un array vacío: {"productIds": []}
+- NO inventes IDs que no existan en la lista de productos disponibles`
 
     const chatCompletion = await openai.chat.completions.create({
       messages: [
@@ -3755,10 +4476,13 @@ const extractProductsFromMessage = async (
     color?: string
     category?: string
     texture?: string
+    season?: string
+    use?: string
+    feature?: string
   }
 }> => {
   try {
-    // Obtener información completa de productos para contexto
+    // Obtener información completa de productos para contexto (con TODOS los atributos)
     const allProducts = await client.product.findMany({
       where: {
         companyId,
@@ -3770,12 +4494,23 @@ const extractProductsFromMessage = async (
         color: true,
         colors: true,
         category: { select: { name: true } },
-        texture: { select: { name: true } }
+        texture: { select: { name: true } },
+        season: { select: { name: true } },
+        uses: {
+          select: {
+            use: { select: { name: true } }
+          }
+        },
+        features: {
+          select: {
+            feature: { select: { name: true } }
+          }
+        }
       },
       take: 100 // Aumentar para mejor contexto
     })
 
-    // Crear contexto estructurado de productos
+    // Crear contexto estructurado de productos (con TODOS los atributos)
     const productsContext = allProducts.map(p => {
       const details = [p.name]
       if (p.material) details.push(`material: ${p.material.name}`)
@@ -3783,6 +4518,13 @@ const extractProductsFromMessage = async (
       if (p.colors && p.colors.length > 0) details.push(`colores: ${p.colors.join(', ')}`)
       if (p.category) details.push(`categoría: ${p.category.name}`)
       if (p.texture) details.push(`textura: ${p.texture.name}`)
+      if (p.season) details.push(`temporada: ${p.season.name}`)
+      if (p.uses && p.uses.length > 0) {
+        details.push(`usos: ${p.uses.map((u: any) => u.use.name).join(', ')}`)
+      }
+      if (p.features && p.features.length > 0) {
+        details.push(`características: ${p.features.map((f: any) => f.feature.name).join(', ')}`)
+      }
       return details.join(' | ')
     }).join('\n')
 
@@ -3793,11 +4535,13 @@ ${productsContext || 'No hay productos disponibles'}
 
 INSTRUCCIONES CRÍTICAS:
 1. **Extrae TODAS las características mencionadas**, no solo el nombre:
-   - **Material**: Si menciona "algodón", "lino", "seda", etc. → extrae como material
-   - **Categoría/Tipo**: Si menciona "mantel", "cortina", "tela", "textil", etc. → extrae como categoría
-   - **Color**: Si menciona "azul", "blanco", "rojo", etc. → extrae como color
-   - **Textura**: Si menciona "jacquard", "liso", "estampado", etc. → extrae como textura
-   - **Uso**: Si menciona "para cocina", "decoración", etc. → puede indicar categoría
+   - **Material**: Si menciona "algodón", "lino", "seda", "poliéster", "gabardina", etc. → extrae como material
+   - **Categoría/Tipo**: Si menciona "mantel", "cortina", "tela", "textil", "ropa", etc. → extrae como categoría
+   - **Color**: Si menciona "azul", "blanco", "rojo", "verde", etc. → extrae como color
+   - **Textura**: Si menciona "jacquard", "liso", "estampado", "satinado", "rugoso", etc. → extrae como textura
+   - **Temporada**: Si menciona "verano", "invierno", "otoño", "primavera", "todo el año", etc. → extrae como season
+   - **Uso**: Si menciona "para cocina", "decoración", "vestidos", "camisas", "tapicería", etc. → extrae como use
+   - **Características**: Si menciona "impermeable", "elástico", "antibacterial", "antiarrugas", etc. → extrae como feature
 
 2. **IMPORTANTE**: Si el usuario dice "algodón", extrae:
    - productNames: ["algodón"] (para buscar por nombre)
@@ -3808,7 +4552,9 @@ INSTRUCCIONES CRÍTICAS:
 3. **Si menciona múltiples características**, extrae todas:
    - "algodón azul" → material="algodón", color="azul"
    - "mantel de algodón" → categoría="mantel", material="algodón"
-   - "lino para cocina" → material="lino", categoría="cocina" (o uso relacionado)
+   - "lino para cocina" → material="lino", use="cocina"
+   - "cortina impermeable para verano" → categoría="cortina", feature="impermeable", season="verano"
+   - "tela elástica para vestidos" → material="tela" (o categoría), feature="elástico", use="vestidos"
 
 4. **Para productNames**: Incluye el término principal de búsqueda (material, categoría, o nombre mencionado)
 
@@ -3821,7 +4567,10 @@ RESPONDE SOLO EN FORMATO JSON:
     "material": "algodón" o null,
     "color": "azul" o null,
     "category": "mantel" o null,
-    "texture": "jacquard" o null
+    "texture": "jacquard" o null,
+    "season": "verano" o null,
+    "use": "cocina" o null,
+    "feature": "impermeable" o null
   }
 }
 
@@ -3852,6 +4601,30 @@ EJEMPLOS DETALLADOS:
     "characteristics": {"material": "algodón", "color": "blanco"}
   }
 
+- "quiero cortina impermeable para verano" → {
+    "hasProducts": true,
+    "productNames": ["cortina"],
+    "characteristics": {"category": "cortina", "feature": "impermeable", "season": "verano"}
+  }
+
+- "necesito tela elástica para vestidos" → {
+    "hasProducts": true,
+    "productNames": ["tela"],
+    "characteristics": {"category": "tela", "feature": "elástico", "use": "vestidos"}
+  }
+
+- "quiero mantel de algodón jacquard para cocina" → {
+    "hasProducts": true,
+    "productNames": ["mantel", "algodón"],
+    "characteristics": {"category": "mantel", "material": "algodón", "texture": "jacquard", "use": "cocina"}
+  }
+
+- "deseo productos para invierno que sean antibacteriales" → {
+    "hasProducts": true,
+    "productNames": ["productos"],
+    "characteristics": {"season": "invierno", "feature": "antibacterial"}
+  }
+
 - "quiero agendar una cita" → {"hasProducts": false}`
 
     const chatCompletion = await openai.chat.completions.create({
@@ -3880,6 +4653,9 @@ EJEMPLOS DETALLADOS:
         color?: string
         category?: string
         texture?: string
+        season?: string
+        use?: string
+        feature?: string
       }
     }>(response, { hasProducts: false })
 
@@ -3905,6 +4681,9 @@ const findSimilarProducts = async (
     color?: string
     category?: string
     texture?: string
+    season?: string
+    use?: string
+    feature?: string
   },
   companyId: string,
   limit: number = 5
@@ -3929,20 +4708,38 @@ const findSimilarProducts = async (
         colors: true,
         material: { select: { name: true } },
         category: { select: { name: true } },
-        texture: { select: { name: true } }
+        texture: { select: { name: true } },
+        season: { select: { name: true } },
+        uses: {
+          select: {
+            use: { select: { name: true } }
+          }
+        },
+        features: {
+          select: {
+            feature: { select: { name: true } }
+          }
+        }
       }
     })
 
     if (allProducts.length === 0) return []
 
-    // Crear contexto para IA
-    const productsContext = allProducts.map(p => {
+    // Crear contexto para IA (con TODOS los atributos)
+    const productsContext = allProducts.map((p: any) => {
       const details = [p.name]
       if (p.material) details.push(`material: ${p.material.name}`)
       if (p.color) details.push(`color: ${p.color}`)
       if (p.colors && p.colors.length > 0) details.push(`colores: ${p.colors.join(', ')}`)
       if (p.category) details.push(`categoría: ${p.category.name}`)
       if (p.texture) details.push(`textura: ${p.texture.name}`)
+      if (p.season) details.push(`temporada: ${p.season.name}`)
+      if (p.uses && p.uses.length > 0) {
+        details.push(`usos: ${p.uses.map((u: any) => u.use.name).join(', ')}`)
+      }
+      if (p.features && p.features.length > 0) {
+        details.push(`características: ${p.features.map((f: any) => f.feature.name).join(', ')}`)
+      }
       return details.join(' | ')
     }).join('\n')
 
@@ -3955,11 +4752,19 @@ CARACTERÍSTICAS SOLICITADAS:
 ${JSON.stringify(characteristics, null, 2)}
 
 INSTRUCCIONES:
-1. Busca productos que coincidan con las características solicitadas
+1. Busca productos que coincidan con las características solicitadas considerando TODOS los atributos:
+   - Material (ej: algodón, lino, poliéster)
+   - Color (ej: azul, blanco, rojo)
+   - Categoría (ej: mantel, cortina, tela)
+   - Textura (ej: jacquard, liso, estampado)
+   - Temporada (ej: verano, invierno, todo el año)
+   - Uso (ej: vestidos, cocina, decoración, tapicería)
+   - Características (ej: impermeable, elástico, antibacterial)
 2. Prioriza coincidencias exactas, luego similares
 3. Si hay material solicitado, busca productos con ese material
 4. Si hay color solicitado, busca productos con ese color (o colores similares)
-5. Si no hay coincidencia exacta, busca productos relacionados
+5. Si hay categoría, textura, temporada, uso o característica solicitada, busca productos con esas características
+6. Si no hay coincidencia exacta, busca productos relacionados por cualquier atributo similar
 
 RESPONDE SOLO EN FORMATO JSON con un array de nombres de productos ordenados por relevancia:
 {
@@ -4322,6 +5127,134 @@ EJEMPLOS DE NONE:
 }
 
 /**
+ * Detecta si una búsqueda de producto es muy genérica y necesita más detalles
+ */
+const detectGenericProductSearch = async (
+  productName: string,
+  characteristics: { material?: string; color?: string; category?: string; texture?: string; season?: string; use?: string; feature?: string } | undefined,
+  foundProductsCount: number,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<boolean> => {
+  try {
+    const systemPrompt = `Eres un analizador experto. Determina si la búsqueda del usuario es MUY GENÉRICA y necesita más detalles para poder seleccionar un producto específico.
+
+BÚSQUEDA DEL USUARIO:
+"${productName}"
+
+CARACTERÍSTICAS MENCIONADAS:
+${characteristics ? JSON.stringify(characteristics, null, 2) : 'Ninguna específica'}
+
+CANTIDAD DE PRODUCTOS ENCONTRADOS: ${foundProductsCount}
+
+INSTRUCCIONES:
+1. Analiza si la búsqueda es muy genérica (ej: solo menciona un material sin más detalles)
+2. Considera si hay múltiples productos que coinciden (${foundProductsCount} productos encontrados)
+3. Determina si el usuario necesita más información para elegir un producto específico
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "isGeneric": true/false
+}
+
+EJEMPLOS:
+- "poliester" (solo material, sin categoría, color, etc.) → {"isGeneric": true}
+- "algodón" (solo material) → {"isGeneric": true}
+- "lino azul" (material + color) → {"isGeneric": false}
+- "cortina premium" (categoría + calificativo) → {"isGeneric": false}
+- "tela" (muy genérico) → {"isGeneric": true}`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: productName }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 50
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) return false
+
+    const parsed = safeJsonParse<{ isGeneric?: boolean }>(response, { isGeneric: false })
+    return parsed.isGeneric || false
+  } catch (error) {
+    console.error('Error en detectGenericProductSearch:', error)
+    return false
+  }
+}
+
+/**
+ * Genera una respuesta con recomendaciones de productos usando IA
+ */
+const generateProductRecommendationsResponse = async (
+  searchTerm: string,
+  characteristics: { material?: string; color?: string; category?: string; texture?: string; season?: string; use?: string; feature?: string } | undefined,
+  products: any[],
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<string | null> => {
+  try {
+    if (products.length === 0) return null
+
+    const productsContext = products.map((p: any, idx: number) => {
+      const details: string[] = []
+      if (p.material) details.push(`Material: ${p.material.name}`)
+      if (p.category) details.push(`Categoría: ${p.category.name}`)
+      if (p.color) details.push(`Color: ${p.color}`)
+      if (p.colors && p.colors.length > 0) details.push(`Colores: ${p.colors.join(', ')}`)
+      if (p.texture) details.push(`Textura: ${p.texture.name}`)
+      return `${idx + 1}. ${p.name}${details.length > 0 ? ` (${details.join(', ')})` : ''} - S/${p.salePrice || p.price} por ${p.unit || 'metro'} - Stock: ${p.stock} ${p.unit || 'metros'}`
+    }).join('\n')
+
+    const systemPrompt = `Eres un asistente virtual amigable y profesional. Tu trabajo es generar una respuesta natural y cálida presentando productos similares o recomendaciones cuando el usuario busca algo específico.
+
+BÚSQUEDA DEL USUARIO:
+"${searchTerm}"
+
+CARACTERÍSTICAS MENCIONADAS:
+${characteristics ? JSON.stringify(characteristics, null, 2) : 'Ninguna específica'}
+
+PRODUCTOS DISPONIBLES PARA RECOMENDAR:
+${productsContext}
+
+INSTRUCCIONES:
+1. Genera una respuesta natural, cálida y amigable en español
+2. Presenta los productos de forma clara y organizada
+3. Si la búsqueda fue muy genérica, explica que encontraste varias opciones y pide que el usuario sea más específico o elija una opción
+4. Si no encontraste exactamente lo buscado, presenta productos similares de forma empática
+5. Usa emojis de forma moderada y natural
+6. Pide al usuario que elija un producto (por número o nombre) o que sea más específico
+7. NO uses formato de lista hardcodeado, genera una respuesta conversacional natural
+8. Incluye los detalles relevantes de cada producto (precio, stock, características)
+
+IMPORTANTE:
+- NO hardcodees respuestas
+- Genera una respuesta única y natural basada en el contexto
+- Sé empático si no encontraste exactamente lo buscado
+- Motiva al usuario a elegir o ser más específico`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory.slice(-3),
+        { role: 'user', content: `Busqué: "${searchTerm}"` }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      max_tokens: 500
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    return response || null
+  } catch (error) {
+    console.error('Error en generateProductRecommendationsResponse:', error)
+    return null
+  }
+}
+
+/**
  * Determina el mejor producto de una lista cuando hay múltiples coincidencias usando IA
  */
 const selectBestProductMatch = async (
@@ -4333,19 +5266,30 @@ const selectBestProductMatch = async (
     color?: string
     category?: string
     texture?: string
+    season?: string
+    use?: string
+    feature?: string
   }
 ): Promise<any | null> => {
   try {
     if (products.length === 0) return null
     if (products.length === 1) return products[0]
 
-    // Crear contexto de productos
-    const productsContext = products.map((p, idx) => {
+    // Crear contexto de productos (con TODOS los atributos)
+    const productsContext = products.map((p: any, idx) => {
       const details: string[] = []
       if (p.material) details.push(`material: ${p.material.name}`)
       if (p.color) details.push(`color: ${p.color}`)
+      if (p.colors && p.colors.length > 0) details.push(`colores: ${p.colors.join(', ')}`)
       if (p.category) details.push(`categoría: ${p.category.name}`)
       if (p.texture) details.push(`textura: ${p.texture.name}`)
+      if (p.season) details.push(`temporada: ${p.season.name}`)
+      if (p.uses && p.uses.length > 0) {
+        details.push(`usos: ${p.uses.map((u: any) => u.use.name).join(', ')}`)
+      }
+      if (p.features && p.features.length > 0) {
+        details.push(`características: ${p.features.map((f: any) => f.feature.name).join(', ')}`)
+      }
       if (p.width) details.push(`ancho: ${p.width}`)
       if (p.weight) details.push(`gramaje: ${p.weight}`)
       return `${idx + 1}. ID: ${p.id} | ${p.name}${details.length > 0 ? ` (${details.join(', ')})` : ''}`
@@ -4364,8 +5308,17 @@ ${characteristics ? JSON.stringify(characteristics, null, 2) : 'Ninguna específ
 
 INSTRUCCIONES:
 1. Analiza el mensaje del usuario y las características mencionadas
-2. Determina qué producto de la lista es el MÁS RELEVANTE
-3. Considera: nombre, material, color, categoría, textura, y otras características
+2. Determina qué producto de la lista es el MÁS RELEVANTE considerando TODOS los atributos:
+   - **Nombre** del producto
+   - **Material** (algodón, lino, poliéster, etc.)
+   - **Color** (azul, blanco, rojo, etc.)
+   - **Categoría** (mantel, cortina, tela, etc.)
+   - **Textura** (jacquard, liso, estampado, etc.)
+   - **Temporada** (verano, invierno, todo el año, etc.)
+   - **Uso** (vestidos, cocina, decoración, tapicería, etc.)
+   - **Características** (impermeable, elástico, antibacterial, etc.)
+   - **Ancho y gramaje** (si son relevantes)
+3. Prioriza productos que coincidan con las características específicas mencionadas
 4. Si hay múltiples productos igualmente relevantes, elige el primero de la lista
 
 RESPONDE SOLO EN FORMATO JSON:
