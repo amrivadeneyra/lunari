@@ -1,4 +1,4 @@
-import { HeartHandshake, LayoutDashboard, Mail, MessageCircleMore, MessageSquareMore, Settings, Settings2, SquareUser, StarIcon, TimerIcon, FolderKanban, Package, Clock, Home, HelpCircle } from "lucide-react";
+import { HeartHandshake, LayoutDashboard, Mail, MessageCircleMore, MessageSquareMore, Settings, Settings2, SquareUser, StarIcon, TimerIcon, FolderKanban, Package, Clock, Home, HelpCircle, Users } from "lucide-react";
 
 type SIDE_BAR_MENU_PROPS = {
     label: string;
@@ -23,6 +23,11 @@ export const SIDE_BAR_MENU: SIDE_BAR_MENU_PROPS[] = [
         label: 'Citas',
         icon: <SquareUser />,
         path: 'appointment',
+    },
+    {
+        label: 'Usuarios',
+        icon: <Users />,
+        path: 'users',
     },
     {
         label: 'Inventario',
