@@ -87,6 +87,56 @@ export const useChatBot = (companyId?: string) => {
     onScrollToBottom()
   }, [onChats, messageWindowRef])
 
+  // Función helper para guardar cartItems en localStorage
+  const saveCartItemsToLocalStorage = (cartItems: any[]) => {
+    try {
+      const CART_STORAGE_KEY = 'portal-cart'
+      const existingItemsStr = localStorage.getItem(CART_STORAGE_KEY)
+      let existingItems: any[] = []
+      
+      if (existingItemsStr) {
+        try {
+          existingItems = JSON.parse(existingItemsStr)
+        } catch (error) {
+          console.error('Error parsing existing cart items:', error)
+          existingItems = []
+        }
+      }
+      
+      // Agregar o actualizar items del carrito
+      cartItems.forEach((newItem: any) => {
+        const existingItemIndex = existingItems.findIndex(item => item.productId === newItem.productId)
+        
+        if (existingItemIndex >= 0) {
+          // Actualizar item existente (sumar cantidad)
+          const existingItem = existingItems[existingItemIndex]
+          const newQuantity = existingItem.quantity + newItem.quantity
+          const newTotalPrice = newItem.unitPrice * newQuantity
+          
+          existingItems[existingItemIndex] = {
+            ...existingItem,
+            quantity: newQuantity,
+            totalPrice: newTotalPrice,
+            color: newItem.color || existingItem.color,
+            width: newItem.width || existingItem.width,
+            weight: newItem.weight || existingItem.weight
+          }
+        } else {
+          // Agregar nuevo item
+          existingItems.push(newItem)
+        }
+      })
+      
+      // Guardar en localStorage
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(existingItems))
+      
+      // Disparar evento para actualizar el contexto del carrito si existe
+      window.dispatchEvent(new CustomEvent('lunari_cart_updated', { detail: existingItems }))
+    } catch (error) {
+      console.error('Error saving cart items to localStorage:', error)
+    }
+  }
+
   useEffect(() => {
     // Solo enviar postMessage si NO estamos en el portal (compatibilidad con iframe)
     if (!companyId) {
@@ -230,6 +280,11 @@ export const useChatBot = (companyId?: string) => {
           setIsHumanMode(true)
         } else if ('response' in response && response.response) {
           setOnChats((prev: any) => [...prev, response.response])
+          
+          // Si la respuesta incluye cartItems, guardarlos en localStorage
+          if ((response.response as any).cartItems && Array.isArray((response.response as any).cartItems)) {
+            saveCartItemsToLocalStorage((response.response as any).cartItems)
+          }
         }
       }
     }
@@ -309,6 +364,11 @@ export const useChatBot = (companyId?: string) => {
           setIsHumanMode(true)
         } else if ('response' in response && response.response) {
           setOnChats((prev: any) => [...prev, response.response])
+          
+          // Si la respuesta incluye cartItems, guardarlos en localStorage
+          if ((response.response as any).cartItems && Array.isArray((response.response as any).cartItems)) {
+            saveCartItemsToLocalStorage((response.response as any).cartItems)
+          }
         }
       }
     }

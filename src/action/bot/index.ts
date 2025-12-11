@@ -21,6 +21,20 @@ const openai = new OpenAi({
 // HELPERS: Utilidades para buenas prácticas
 // ============================================
 /**
+ * Helper para logging condicional (solo en desarrollo)
+ */
+const DEBUG = process.env.NODE_ENV === 'development'
+const debugLog = (...args: any[]) => {
+  if (DEBUG) console.log(...args)
+}
+const debugError = (...args: any[]) => {
+  if (DEBUG) console.error(...args)
+}
+const debugWarn = (...args: any[]) => {
+  if (DEBUG) console.warn(...args)
+}
+
+/**
  * Parsea JSON de forma segura con manejo de errores
  */
 const safeJsonParse = <T>(jsonString: string | null | undefined, fallback: T): T => {
@@ -30,7 +44,7 @@ const safeJsonParse = <T>(jsonString: string | null | undefined, fallback: T): T
   try {
     return JSON.parse(jsonString) as T
   } catch (error) {
-    console.error('Error parsing JSON:', error, 'String:', jsonString)
+    if (DEBUG) console.error('Error parsing JSON:', error, 'String:', jsonString)
     return fallback
   }
 }
@@ -60,10 +74,11 @@ const validateCompanyId = (companyId: string | null | undefined): boolean => {
 /**
  * Obtiene solo los mensajes relevantes del historial
  * Reduce consumo de tokens en 70-90%
+ * OPTIMIZADO: Reducido a 5-7 mensajes para mejor performance
  */
 const getRelevantChatHistory = (
   chat: { role: 'user' | 'assistant'; content: string }[],
-  maxMessages: number = 10 // Solo últimos 10 mensajes
+  maxMessages: number = 5 // Optimizado: Solo últimos 5 mensajes (antes 10)
 ) => {
   if (chat.length <= maxMessages) {
     return chat
@@ -105,7 +120,7 @@ const getValidConversationId = (
     if (isValid) {
       return conversationId
     }
-    console.warn(`⚠️ ConversationId ${conversationId} no pertenece al customer`)
+    debugWarn(`⚠️ ConversationId ${conversationId} no pertenece al customer`)
     // Si el conversationId no es válido, no usar fallback - lanzar error
     if (hasMultipleConversations) {
       throw new Error(
@@ -124,7 +139,7 @@ const getValidConversationId = (
     if (isValid) {
       return realtimeMode.chatroom
     }
-    console.warn(`⚠️ RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer`)
+    debugWarn(`⚠️ RealtimeMode chatroom ${realtimeMode.chatroom} no pertenece al customer`)
     // Si el chatroom no es válido y hay múltiples conversaciones, lanzar error
     if (hasMultipleConversations) {
       throw new Error(
@@ -391,7 +406,7 @@ const handleAuthenticatedUser = async (
   sessionToken: string,
   conversationId?: string | null
 ) => {
-  console.log("🚀 ~ conversationId:", conversationId)
+  debugLog("🚀 ~ conversationId:", conversationId)
   // Obtener el conversationId válido usando la función helper
   const validConversationId = getValidConversationId(
     conversationId,
@@ -409,7 +424,7 @@ const handleAuthenticatedUser = async (
   ) || customerInfo.conversations[0]
 
   // SOLO PROCESAR TERMINACIÓN SI NO ESTÁ EN MODO HUMANO
-  console.log("Usando conversationId: ", validConversationId)
+  debugLog("Usando conversationId: ", validConversationId)
   if (!currentConversation.live) {
     // NUEVA LÓGICA: Usar IA para detectar si el usuario quiere terminar
     const shouldEndConversation = await detectConversationEndingWithAI(message, chat)
@@ -625,7 +640,7 @@ Ahora te estoy conectando con uno de nuestros agentes humanos. Un miembro de nue
 
   // 4. DETECCIÓN DE TRANSFERENCIA A HUMANO
   if (detectHumanTransferRequest(message)) {
-    console.log(`🚨 Solicitud de transferencia detectada: "${message}"`)
+    debugLog(`🚨 Solicitud de transferencia detectada: "${message}"`)
 
     // Guardar mensaje del usuario
     await client.chatMessage.create({
@@ -671,11 +686,11 @@ Tu opinión me ayuda a mejorar.`
           }
         }
       })
-      console.log("🚀 ~ companyOwner:", companyOwner)
+      debugLog("🚀 ~ companyOwner:", companyOwner)
 
       if (companyOwner?.User?.clerkId) {
         const user = await clerkClient.users.getUser(companyOwner.User.clerkId)
-        console.log("🚀 ~ user:", user)
+        debugLog("🚀 ~ user:", user)
         await onMailer(
           user.emailAddresses[0].emailAddress,
           customerInfo.name || 'Cliente',
@@ -694,7 +709,7 @@ Tu opinión me ayuda a mejorar.`
       }
     })
 
-    console.log(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
+    debugLog(`🚨 SOLICITUD DE CALIFICACIÓN ANTES DE ESCALAR: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
@@ -728,7 +743,7 @@ Tu opinión me ayuda a mejorar.`
   const quickResponse = getQuickResponse(message, customerInfo, companyId)
 
   if (quickResponse) {
-    console.log('Respuesta rápida utilizada (sin OpenAI)')
+    debugLog('Respuesta rápida utilizada (sin OpenAI)')
 
     // SIMPLIFICADO: Agregar pregunta de ayuda
     const finalQuickContent = addHelpOffer(quickResponse.content)
@@ -2111,19 +2126,27 @@ const handleOpenAIResponse = async (
     try {
       const confirmedProducts: Array<{ product: any; quantity: number; color?: string }> = []
       const productsNeedingColor: Array<{ product: any; quantity: number; availableColors: string[] }> = []
-      const notFoundProducts: Array<{ productName: string; quantity: number }> = []
+      const notFoundProducts: Array<{ productName: string; quantity: number; characteristics?: any }> = []
+      // Almacenar cartItems para localStorage (solo productos con cantidad + color confirmados)
+      const cartItemsForStorage: any[] = []
 
-      // Buscar cada producto mencionado
-      for (const productInfo of multipleProductsInfo.products) {
-        console.log(`[DEBUG] Buscando producto: "${productInfo.productName}" con características:`, productInfo.characteristics)
-
-        const foundProducts = await findProductsByCharacteristics(
+      // OPTIMIZACIÓN: Paralelizar todas las búsquedas de productos
+      const productSearchPromises = multipleProductsInfo.products.map(productInfo =>
+        findProductsByCharacteristics(
           productInfo.productName,
           companyId,
           productInfo.characteristics
         )
+      )
+      const allFoundProductsArrays = await Promise.all(productSearchPromises)
 
-        console.log(`[DEBUG] Productos encontrados para "${productInfo.productName}":`, foundProducts.length, foundProducts.map((p: any) => p.name))
+      // Procesar cada producto encontrado
+      for (let i = 0; i < multipleProductsInfo.products.length; i++) {
+        const productInfo = multipleProductsInfo.products[i]
+        const foundProducts = allFoundProductsArrays[i]
+
+        debugLog(`[DEBUG] Buscando producto: "${productInfo.productName}" con características:`, productInfo.characteristics)
+        debugLog(`[DEBUG] Productos encontrados para "${productInfo.productName}":`, foundProducts.length, foundProducts.map((p: any) => p.name))
 
         // Usar IA para determinar si la búsqueda es muy genérica y necesita más detalles
         if (foundProducts.length > 1) {
@@ -2155,6 +2178,8 @@ const handleOpenAIResponse = async (
         }
 
         if (foundProducts.length > 0) {
+          // OPTIMIZACIÓN: Combinar selectBestProductMatch con detección de genérico
+          // Si hay múltiples productos, usar selectBestProductMatch directamente
           let selectedProduct = await selectBestProductMatch(
             foundProducts,
             productInfo.productName,
@@ -2162,31 +2187,30 @@ const handleOpenAIResponse = async (
             productInfo.characteristics
           )
 
-          console.log(`[DEBUG] Producto seleccionado para "${productInfo.productName}":`, selectedProduct ? selectedProduct.name : 'null')
+          debugLog(`[DEBUG] Producto seleccionado para "${productInfo.productName}":`, selectedProduct ? selectedProduct.name : 'null')
 
           // Si selectBestProductMatch falla pero hay productos encontrados, usar el primero como último recurso
           if (!selectedProduct && foundProducts.length > 0) {
-            console.log(`[DEBUG] selectBestProductMatch falló, usando primer producto encontrado como fallback temporal`)
+            debugLog(`[DEBUG] selectBestProductMatch falló, usando primer producto encontrado como fallback temporal`)
             selectedProduct = foundProducts[0]
           }
 
           if (selectedProduct) {
-            // Obtener información completa del producto
-            const productWithDetails = await client.product.findUnique({
-              where: { id: selectedProduct.id },
-              select: {
-                id: true,
-                name: true,
-                price: true,
-                salePrice: true,
-                stock: true,
-                unit: true,
-                color: true,
-                colors: true,
-                material: { select: { name: true } },
-                category: { select: { name: true } }
-              }
-            })
+            // OPTIMIZACIÓN: Usar directamente el producto de findProductsByCharacteristics
+            // Ya tiene todos los datos necesarios, no necesitamos otra query
+            // Solo necesitamos asegurar que tenga los campos necesarios
+            const productWithDetails = {
+              id: selectedProduct.id,
+              name: selectedProduct.name,
+              price: selectedProduct.price,
+              salePrice: selectedProduct.salePrice,
+              stock: selectedProduct.stock,
+              unit: selectedProduct.unit,
+              color: selectedProduct.color,
+              colors: selectedProduct.colors || [],
+              material: selectedProduct.material,
+              category: selectedProduct.category
+            }
 
             if (productWithDetails) {
               // Verificar si tiene color especificado
@@ -2221,6 +2245,30 @@ const handleOpenAIResponse = async (
                     quantity: productInfo.quantity,
                     color: requestedColor
                   })
+
+                  // Preparar datos para guardar en localStorage (se enviará en la respuesta)
+                  // Estos datos serán procesados por el frontend para guardar en localStorage
+                  const cartItemData = {
+                    productId: productWithDetails.id,
+                    product: {
+                      id: productWithDetails.id,
+                      name: productWithDetails.name,
+                      image: (productWithDetails as any).image || '',
+                      price: productWithDetails.price,
+                      salePrice: productWithDetails.salePrice,
+                      unit: productWithDetails.unit
+                    },
+                    quantity: productInfo.quantity,
+                    unit: productWithDetails.unit || undefined,
+                    width: (productWithDetails as any).width || undefined,
+                    weight: (productWithDetails as any).weight || undefined,
+                    color: requestedColor,
+                    unitPrice: productWithDetails.salePrice || productWithDetails.price,
+                    totalPrice: (productWithDetails.salePrice || productWithDetails.price) * productInfo.quantity
+                  }
+
+                  // Almacenar temporalmente para incluir en la respuesta final
+                  cartItemsForStorage.push(cartItemData)
                 }
               } else {
                 // Color especificado pero no disponible, ofrecer colores disponibles
@@ -2238,22 +2286,41 @@ const handleOpenAIResponse = async (
             // Producto encontrado pero IA no pudo seleccionar el mejor
             notFoundProducts.push({
               productName: productInfo.productName,
-              quantity: productInfo.quantity
+              quantity: productInfo.quantity,
+              characteristics: productInfo.characteristics
             })
           }
         } else {
-          // Producto no encontrado exactamente, buscar productos similares
-          const similarProducts = await findSimilarProducts(
-            productInfo.characteristics || { material: productInfo.productName },
+          // Producto no encontrado exactamente, agregar a lista para buscar similares después
+          notFoundProducts.push({
+            productName: productInfo.productName,
+            quantity: productInfo.quantity,
+            characteristics: productInfo.characteristics
+          })
+        }
+      }
+
+      // OPTIMIZACIÓN: Buscar productos similares para todos los no encontrados en paralelo
+      if (notFoundProducts.length > 0) {
+        const similarProductsPromises = notFoundProducts.map(nf =>
+          findSimilarProducts(
+            nf.characteristics || { material: nf.productName },
             companyId,
             8
           )
+        )
+        const allSimilarProductsArrays = await Promise.all(similarProductsPromises)
+
+        // Verificar si algún producto similar fue encontrado y generar respuesta
+        for (let i = 0; i < notFoundProducts.length; i++) {
+          const similarProducts = allSimilarProductsArrays[i]
+          const nf = notFoundProducts[i]
 
           if (similarProducts.length > 0) {
             // Generar respuesta con recomendaciones usando IA
             const recommendationResponse = await generateProductRecommendationsResponse(
-              productInfo.productName,
-              productInfo.characteristics,
+              nf.productName,
+              nf.characteristics,
               similarProducts,
               chatHistory
             )
@@ -2266,12 +2333,6 @@ const handleOpenAIResponse = async (
                 }
               }
             }
-          } else {
-            // No se encontró nada, agregar a lista de no encontrados
-            notFoundProducts.push({
-              productName: productInfo.productName,
-              quantity: productInfo.quantity
-            })
           }
         }
       }
@@ -2352,8 +2413,10 @@ const handleOpenAIResponse = async (
         return {
           response: {
             role: 'assistant' as const,
-            content: `¡Excelente! He anotado tus productos: 😊\n\n${productsList}\n\n💰 **Total estimado:** S/${totalPrice}\n\n¿Te gustaría agendar una cita para ver estos productos y completar tu compra?`
-          }
+            content: `¡Excelente! He anotado tus productos: 😊\n\n${productsList}\n\n💰 **Total estimado:** S/${totalPrice}\n\n¿Te gustaría agendar una cita para ver estos productos y completar tu compra?`,
+            // Incluir datos para localStorage (será procesado por el frontend)
+            cartItems: cartItemsForStorage.length > 0 ? cartItemsForStorage : undefined
+          } as any
         }
       }
     } catch (error) {
@@ -2362,7 +2425,8 @@ const handleOpenAIResponse = async (
     }
   }
 
-  // Manejar solicitudes iniciales de compra usando IA
+  // OPTIMIZACIÓN: Usar orquestador principal para manejar todo el flujo con una sola llamada
+  // Esto reduce llamadas a OpenAI de ~10-15 a 1-2 por mensaje
   const purchaseIntent = await detectPurchaseIntent(userMessage || '', chatHistory)
   if (purchaseIntent.wantsToPurchase) {
     try {
@@ -2377,162 +2441,114 @@ const handleOpenAIResponse = async (
       })
       const companyId = chatRoom?.Customer?.companyId || ''
 
-      // PASO 1: Extraer características del mensaje del usuario usando IA
-      // Esto identifica palabras clave: material, color, categoría, textura, temporada, uso, características
-      const productsInfo = await extractProductsFromMessage(userMessage || '', companyId, chatHistory)
+      // Detectar estado actual del flujo
+      const currentState = await detectAppointmentFlowState(chatHistory)
 
-      let products: any[] = []
+      // Usar orquestador principal para procesar el mensaje
+      const orchestration = await orchestrateConversationFlow(
+        userMessage || '',
+        chatHistory,
+        companyId,
+        currentState
+      )
 
-      // PASO 2: Buscar productos basándose en las características extraídas
-      if (productsInfo.hasProducts || productsInfo.characteristics) {
-        // Si hay nombres de productos mencionados, buscar por cada uno
-        if (productsInfo.productNames && productsInfo.productNames.length > 0) {
-          for (const productName of productsInfo.productNames) {
-            const foundProducts = await findProductsByCharacteristics(
-              productName,
-              companyId,
-              productsInfo.characteristics // Pasar características para búsqueda más precisa
-            )
-            products.push(...foundProducts)
-          }
-        }
-
-        // Si hay características pero no productos encontrados aún, buscar productos similares
-        if (products.length === 0 && productsInfo.characteristics) {
-          const similarProducts = await findSimilarProducts(
-            productsInfo.characteristics,
+      // PRIORIDAD 1: Si el orquestador detectó información completa (producto + cantidad + color), confirmar directamente
+      // Esto debe verificarse ANTES de mostrar productos
+      if (orchestration.action === 'CONFIRM_COMPLETE' && orchestration.extractedData?.hasCompleteInfo) {
+        const extractedData = orchestration.extractedData
+        if (extractedData.selectedProductName && extractedData.quantity && (extractedData.color || true)) {
+          // Buscar el producto
+          const foundProducts = await findProductsByCharacteristics(
+            extractedData.selectedProductName,
             companyId,
-            8
+            extractedData.characteristics || {}
           )
-          products = similarProducts
-        }
-      } else if (purchaseIntent.productMentioned) {
-        // Fallback: si detectPurchaseIntent encontró algo pero extractProductsFromMessage no
-        // Buscar directamente por el término mencionado
-        products = await findProductsByCharacteristics(purchaseIntent.productMentioned, companyId)
-      }
 
-      // Si se encontraron productos, filtrar por características específicas si están disponibles
-      if (products.length > 0 && productsInfo.characteristics) {
-        // Filtrar productos que coincidan con las características específicas (especialmente color)
-        const filteredProducts = products.filter((p: any) => {
-          // Si se especificó color, el producto debe tener ese color
-          if (productsInfo.characteristics?.color) {
-            const requestedColor = productsInfo.characteristics.color.toLowerCase()
-            const productColor = p.color?.toLowerCase() || ''
-            const productColors = (p.colors || []).map((c: string) => c.toLowerCase())
+          if (foundProducts.length > 0) {
+            const selectedProduct = await selectBestProductMatch(
+              foundProducts,
+              extractedData.selectedProductName,
+              chatHistory,
+              extractedData.characteristics || {}
+            )
 
-            // Verificar si el color coincide
-            const colorMatch = productColor.includes(requestedColor) ||
-              productColors.some((c: string) => c.includes(requestedColor)) ||
-              requestedColor.includes(productColor) ||
-              productColors.some((c: string) => requestedColor.includes(c))
+            if (selectedProduct) {
+              // Obtener detalles completos
+              const productWithDetails = await client.product.findUnique({
+                where: { id: selectedProduct.id },
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  price: true,
+                  salePrice: true,
+                  stock: true,
+                  unit: true,
+                  width: true,
+                  weight: true,
+                  color: true,
+                  colors: true
+                }
+              })
 
-            if (!colorMatch) return false
-          }
+              if (productWithDetails) {
+                // Validar disponibilidad
+                const availability = await validateProductAvailability(productWithDetails.id, extractedData.quantity)
 
-          // Si se especificó material, el producto debe tener ese material
-          if (productsInfo.characteristics?.material) {
-            const requestedMaterial = productsInfo.characteristics.material.toLowerCase()
-            const productMaterial = p.material?.name?.toLowerCase() || ''
-            if (productMaterial && !productMaterial.includes(requestedMaterial) && !requestedMaterial.includes(productMaterial)) {
-              return false
+                if (availability.available) {
+                  // Crear cartItem para localStorage
+                  const cartItem = {
+                    productId: productWithDetails.id,
+                    product: {
+                      id: productWithDetails.id,
+                      name: productWithDetails.name,
+                      image: (productWithDetails as any).image || '',
+                      price: productWithDetails.price,
+                      salePrice: productWithDetails.salePrice,
+                      unit: productWithDetails.unit
+                    },
+                    quantity: extractedData.quantity,
+                    unit: productWithDetails.unit || undefined,
+                    width: (productWithDetails as any).width || undefined,
+                    weight: (productWithDetails as any).weight || undefined,
+                    color: extractedData.color || undefined,
+                    unitPrice: productWithDetails.salePrice || productWithDetails.price,
+                    totalPrice: (productWithDetails.salePrice || productWithDetails.price) * extractedData.quantity
+                  }
+
+                  return {
+                    response: {
+                      role: 'assistant' as const,
+                      content: orchestration.response || `¡Perfecto! He confirmado tu pedido: 😊\n\n📋 **Detalles de tu reserva:**\n- Producto: ${productWithDetails.name}\n- Cantidad: ${extractedData.quantity} ${productWithDetails.unit || 'unidad(es)'}${extractedData.color ? `\n- Color: ${extractedData.color}` : ''}\n- Precio unitario: S/${productWithDetails.salePrice || productWithDetails.price}\n- Precio total: S/${(productWithDetails.salePrice || productWithDetails.price) * extractedData.quantity}\n\n💡 **Siguiente paso:**\n¿Deseas agregar más productos a tu pedido o proceder a agendar tu cita para ver y pagar estos productos en la tienda?`,
+                      cartItems: [cartItem]
+                    } as any
+                  }
+                } else {
+                  return {
+                    response: {
+                      role: 'assistant' as const,
+                      content: `Lo siento, no hay suficiente stock disponible para "${productWithDetails.name}". 😔\n\n📊 **Disponibilidad:**\n- Stock disponible: ${availability.availableStock} ${productWithDetails.unit || 'unidades'}\n- Stock total: ${availability.totalStock} ${productWithDetails.unit || 'unidades'}\n- Stock bloqueado: ${availability.blockedStock} ${productWithDetails.unit || 'unidades'}\n\n¿Te gustaría reservar una cantidad menor o agendar una cita para ver otras opciones disponibles?`
+                    }
+                  }
+                }
+              }
             }
           }
-
-          return true
-        })
-
-        // Si después del filtro hay productos, usarlos; si no, usar los originales
-        products = filteredProducts.length > 0 ? filteredProducts : products
+        }
       }
 
-      // Si se encontraron productos, analizar necesidades y mostrar información completa
-      if (products.length > 0) {
-        // Eliminar duplicados por ID
-        const uniqueProducts = products.filter((p: any, index: number, self: any[]) =>
-          index === self.findIndex((prod: any) => prod.id === p.id)
-        )
-
-        // Obtener información completa de los productos para análisis inteligente
-        const productIds = uniqueProducts.map((p: any) => p.id)
-        const productsWithDetails = await client.product.findMany({
-          where: {
-            companyId,
-            active: true,
-            id: { in: productIds }
-          },
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            salePrice: true,
-            stock: true,
-            unit: true,
-            width: true,
-            weight: true,
-            color: true,
-            colors: true,
-            description: true,
-            material: { select: { name: true } },
-            category: { select: { name: true } },
-            texture: { select: { name: true } }
-          }
-        })
-
-        // Usar IA para generar preguntas inteligentes basadas en el contexto
-        const intelligentQuestions = await generateIntelligentQuestions(
-          userMessage || '',
-          productsWithDetails,
-          chatHistory
-        )
-
-        // Construir lista de productos con más detalles y mejor formato
-        const productsList = productsWithDetails
-          .slice(0, 8) // Mostrar más productos
-          .map((p, idx) => {
-            const details: string[] = []
-            if (p.material) details.push(p.material.name)
-            if (p.color) details.push(p.color)
-            if (p.width) details.push(`ancho: ${p.width}`)
-            if (p.weight) details.push(`gramaje: ${p.weight}`)
-            const stockInfo = p.stock > 0 ? `✅ Stock: ${p.stock} ${p.unit || 'metros'}` : '⚠️ Stock limitado'
-            return `${idx + 1}. **${p.name}**
-   ${details.length > 0 ? `   - ${details.join(' | ')}` : ''}
-   - Precio: S/${p.salePrice || p.price} por ${p.unit || 'metro'}
-   - ${stockInfo}`
-          })
-          .join('\n\n')
-
-        // Construir mensaje con análisis inteligente
-        let responseContent = `¡Excelente! Encontré ${productsWithDetails.length} productos de ${purchaseIntent.productMentioned || 'algodón'} disponibles: 😊\n\n${productsList}`
-
-        if (productsWithDetails.length > 8) {
-          responseContent += `\n\n... y ${productsWithDetails.length - 8} productos más disponibles.`
-        }
-
-        // Agregar análisis y preguntas inteligentes generadas por IA
-        if (intelligentQuestions) {
-          responseContent += `\n\n💡 **Para ayudarte mejor:**\n${intelligentQuestions}`
-        } else {
-          // Preguntas por defecto si IA no genera preguntas específicas
-          responseContent += `\n\n💡 **Para ayudarte mejor, me gustaría conocer:**
-- ¿Para qué proyecto necesitas el ${purchaseIntent.productMentioned || 'producto'}? (ropa, decoración, manualidades, etc.)
-- ¿Qué cantidad aproximada necesitas?
-- ¿Tienes alguna preferencia de color específica?
-- ¿Necesitas alguna característica especial? (ancho, gramaje, textura)`
-        }
-
-        responseContent += `\n\n🛒 **Proceso de compra:**
-Todas nuestras compras son presenciales en nuestra tienda. Una vez que elijas los productos, te ayudaré a agendar una cita para que puedas verlos, pagar y recogerlos.`
-
+      // Si el orquestador generó una respuesta, usarla
+      if (orchestration.response && orchestration.response.length > 0) {
         return {
           response: {
             role: 'assistant' as const,
-            content: responseContent
+            content: orchestration.response
           }
         }
-      } else if (purchaseIntent.productMentioned) {
+      }
+
+      // Si no hay productos pero hay producto mencionado, buscar recomendaciones
+      if (purchaseIntent.productMentioned) {
         // Si hay producto mencionado pero no se encontraron productos ni similares
         // Extraer características para mostrar recomendaciones más amplias
         const productsInfo = await extractProductsFromMessage(purchaseIntent.productMentioned, companyId, chatHistory)
@@ -2647,6 +2663,7 @@ También puedes combinar varias características o simplemente decir "quiero ver
 
   // Detectar si el usuario está mencionando productos específicos después de una solicitud de compra
   // Esto maneja el caso: "quiero comprar" -> "deseo algodón verde"
+  // OPTIMIZACIÓN: Solo ejecutar si purchaseIntent no generó respuesta para evitar duplicación
   const lastAssistantMessage = chatHistory
     .filter(msg => msg.role === 'assistant')
     .slice(-1)[0]?.content || ''
@@ -2760,7 +2777,7 @@ ${recommendationsList}
         }
       }
     } catch (error) {
-      console.error('Error buscando productos mencionados:', error)
+      debugError('Error buscando productos mencionados:', error)
       // Continuar con el flujo normal si hay error
     }
   }
@@ -2822,7 +2839,19 @@ ${recommendationsList}
             }
           }
 
-          // Crear la reserva con detalles específicos
+          // Validar disponibilidad antes de crear la reserva
+          const availability = await validateProductAvailability(product.id, quantity)
+
+          if (!availability.available) {
+            return {
+              response: {
+                role: 'assistant' as const,
+                content: `Lo siento, no hay suficiente stock disponible para "${product.name}". 😔\n\n📊 **Disponibilidad:**\n- Stock disponible: ${availability.availableStock} ${product.unit || 'unidades'}\n- Stock total: ${availability.totalStock} ${product.unit || 'unidades'}\n- Stock bloqueado: ${availability.blockedStock} ${product.unit || 'unidades'}\n\n¿Te gustaría reservar una cantidad menor o agendar una cita para ver otras opciones disponibles?`
+              }
+            }
+          }
+
+          // Crear la reserva con detalles específicos (NO descuenta stock, solo bloquea)
           const reservation = await createProductReservation(
             product.id,
             customerInfo.id,
@@ -2839,10 +2868,8 @@ ${recommendationsList}
             }
           )
 
-          // Actualizar stock
-          const stockUpdated = await updateProductStock(product.id, quantity)
-
-          console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+          // NO descontar stock aquí - se descuenta solo al confirmar la compra en la tienda
+          debugLog(`✅ Reserva creada (PENDING): ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity} - Stock NO descontado aún`)
 
           return {
             response: {
@@ -2857,10 +2884,13 @@ ${recommendationsList}
 ${purchaseDetails.width ? `- Ancho: ${purchaseDetails.width}` : ''}
 ${purchaseDetails.weight ? `- Gramaje: ${purchaseDetails.weight}` : ''}
 ${purchaseDetails.color ? `- Color: ${purchaseDetails.color}` : ''}
-- Estado: Pendiente de confirmación
+- Estado: ⏳ Pendiente de confirmación (reserva bloqueada)
 - Válida por: 7 días
 
-💳 **IMPORTANTE:** El pago se realiza presencialmente en nuestra tienda durante la cita. NO aceptamos pagos online.
+💡 **IMPORTANTE:** 
+- Tu reserva está **bloqueada** pero el stock se descontará cuando confirmes y pagues en la tienda durante tu cita.
+- Si no confirmas en 7 días, la reserva expirará y el stock quedará disponible nuevamente.
+- El pago se realiza **presencialmente** en nuestra tienda. NO aceptamos pagos online.
 
 Para completar tu compra y recoger el producto, necesitas agendar una cita. Te guiaré paso a paso:
 
@@ -2908,7 +2938,7 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
     })
 
     // Notificar al equipo humano sobre la escalación
-    console.log(`🚨 ESCALACIÓN A HUMANO: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
+    debugLog(`🚨 ESCALACIÓN A HUMANO: Chat ${validConversationId} - Cliente: ${customerInfo.email}`)
 
     return {
       response: {
@@ -2971,17 +3001,19 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
             const unitPrice = product.salePrice || product.price
             const totalPrice = calculateTotalPrice(product, quantity, purchaseDetails)
 
-            // Verificar stock disponible
-            if (product.stock < quantity) {
+            // Validar disponibilidad considerando stock bloqueado
+            const productAvailability = await validateProductAvailability(product.id, quantity)
+
+            if (!productAvailability.available) {
               return {
                 response: {
                   role: 'assistant' as const,
-                  content: `Lo siento, solo tenemos ${product.stock} ${product.unit || 'metros'} disponibles de "${product.name}". ¿Te gustaría reservar la cantidad disponible o elegir otro producto?`
+                  content: `Lo siento, no hay suficiente stock disponible para "${product.name}". 😔\n\n📊 **Disponibilidad:**\n- Stock disponible: ${productAvailability.availableStock} ${product.unit || 'unidades'}\n- Stock total: ${productAvailability.totalStock} ${product.unit || 'unidades'}\n- Stock bloqueado: ${productAvailability.blockedStock} ${product.unit || 'unidades'}\n\n¿Te gustaría reservar una cantidad menor o agendar una cita para ver otras opciones disponibles?`
                 }
               }
             }
 
-            // Crear la reserva con detalles específicos
+            // Crear la reserva con detalles específicos (NO descuenta stock, solo bloquea)
             const reservation = await createProductReservation(
               product.id,
               customerInfo.id,
@@ -2998,10 +3030,8 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
               }
             )
 
-            // Actualizar stock
-            const stockUpdated = await updateProductStock(product.id, quantity)
-
-            console.log(`RESERVA DETALLADA CREADA: ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity}`)
+            // NO descontar stock aquí - se descuenta solo al confirmar la compra en la tienda
+            debugLog(`✅ Reserva creada (PENDING): ${reservation.id} - Cliente: ${customerInfo.email} - Producto: ${product.name} - Cantidad: ${quantity} - Stock NO descontado aún`)
 
             return {
               response: {
@@ -3016,10 +3046,13 @@ Por favor, proporciona esta información para poder calcular el precio exacto y 
 ${purchaseDetails.width ? `- Ancho: ${purchaseDetails.width}` : ''}
 ${purchaseDetails.weight ? `- Gramaje: ${purchaseDetails.weight}` : ''}
 ${purchaseDetails.color ? `- Color: ${purchaseDetails.color}` : ''}
-- Estado: Pendiente de confirmación
+- Estado: ⏳ Pendiente de confirmación (reserva bloqueada)
 - Válida por: 7 días
 
-💳 **IMPORTANTE:** El pago se realiza presencialmente en nuestra tienda durante la cita. NO aceptamos pagos online.
+💡 **IMPORTANTE:** 
+- Tu reserva está **bloqueada** pero el stock se descontará cuando confirmes y pagues en la tienda durante tu cita.
+- Si no confirmas en 7 días, la reserva expirará y el stock quedará disponible nuevamente.
+- El pago se realiza **presencialmente** en nuestra tienda. NO aceptamos pagos online.
 
 Para completar tu compra y recoger el producto, necesitas agendar una cita para venir a nuestra tienda y pagar presencialmente. ¿Te gustaría agendar una cita ahora?`
               }
@@ -3332,7 +3365,77 @@ RECUERDA: Sé natural, cálido y genuinamente amigable. Muestra interés real en
 
 
 /**
+ * Calcula el stock bloqueado por reservas pendientes (PENDING)
+ * Este stock está "reservado" pero NO descontado del stock real
+ */
+const getBlockedStock = async (productId: string): Promise<number> => {
+  try {
+    const pendingReservations = await client.productReservation.findMany({
+      where: {
+        productId,
+        status: 'PENDING',
+        expiresAt: {
+          gt: new Date() // Solo reservas que no han expirado
+        }
+      },
+      select: {
+        quantity: true
+      }
+    })
+
+    return pendingReservations.reduce((total, reservation) => total + reservation.quantity, 0)
+  } catch (error) {
+    debugError('Error calculating blocked stock:', error)
+    return 0
+  }
+}
+
+/**
+ * Valida disponibilidad considerando stock real y stock bloqueado
+ * Retorna true si hay suficiente stock disponible
+ */
+const validateProductAvailability = async (
+  productId: string,
+  requestedQuantity: number
+): Promise<{ available: boolean; availableStock: number; blockedStock: number; totalStock: number }> => {
+  try {
+    const product = await client.product.findUnique({
+      where: { id: productId },
+      select: { stock: true }
+    })
+
+    if (!product) {
+      return {
+        available: false,
+        availableStock: 0,
+        blockedStock: 0,
+        totalStock: 0
+      }
+    }
+
+    const blockedStock = await getBlockedStock(productId)
+    const availableStock = product.stock - blockedStock
+
+    return {
+      available: availableStock >= requestedQuantity,
+      availableStock,
+      blockedStock,
+      totalStock: product.stock
+    }
+  } catch (error) {
+    debugError('Error validating product availability:', error)
+    return {
+      available: false,
+      availableStock: 0,
+      blockedStock: 0,
+      totalStock: 0
+    }
+  }
+}
+
+/**
  * Crea una reserva de producto con detalles específicos de compra
+ * IMPORTANTE: NO descuenta stock, solo valida disponibilidad y bloquea conceptualmente
  */
 const createProductReservation = async (
   productId: string,
@@ -3350,13 +3453,24 @@ const createProductReservation = async (
   }
 ) => {
   try {
+    // Validar disponibilidad antes de crear la reserva
+    const availability = await validateProductAvailability(productId, quantity)
+
+    if (!availability.available) {
+      throw new Error(
+        `Stock insuficiente. Disponible: ${availability.availableStock} ${purchaseDetails?.unit || 'unidades'}, ` +
+        `Solicitado: ${quantity} ${purchaseDetails?.unit || 'unidades'}. ` +
+        `Stock total: ${availability.totalStock}, Bloqueado: ${availability.blockedStock}`
+      )
+    }
+
     const reservation = await client.productReservation.create({
       data: {
         productId,
         customerId,
         quantity,
         notes,
-        status: 'PENDING',
+        status: 'PENDING', // Estado inicial: pendiente de confirmación
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expira en 7 días
         // NUEVOS CAMPOS: Detalles específicos de compra
         unitPrice: purchaseDetails?.unitPrice,
@@ -3387,10 +3501,104 @@ const createProductReservation = async (
       }
     })
 
+    // NO descontar stock aquí - solo se descuenta al confirmar la compra
+    debugLog(`✅ Reserva creada (PENDING): ${reservation.id} - Producto: ${productId} - Cantidad: ${quantity} - Stock NO descontado aún`)
+
     return reservation
   } catch (error) {
-    console.error('Error creating product reservation:', error)
+    debugError('Error creating product reservation:', error)
     throw error
+  }
+}
+
+/**
+ * Confirma una reserva y descuenta el stock definitivamente
+ * Esta función debe llamarse cuando el cliente confirma y paga en la tienda
+ */
+const confirmProductReservation = async (reservationId: string): Promise<boolean> => {
+  try {
+    const reservation = await client.productReservation.findUnique({
+      where: { id: reservationId },
+      select: {
+        productId: true,
+        quantity: true,
+        status: true
+      }
+    })
+
+    if (!reservation) {
+      debugError('Reservation not found:', reservationId)
+      return false
+    }
+
+    // Solo confirmar si está en estado PENDING
+    if (reservation.status !== 'PENDING') {
+      debugWarn(`Reservation ${reservationId} is not PENDING (current: ${reservation.status}), cannot confirm`)
+      return false
+    }
+
+    // Actualizar estado a CONFIRMED
+    await client.productReservation.update({
+      where: { id: reservationId },
+      data: { status: 'CONFIRMED' }
+    })
+
+    // AHORA SÍ descontar el stock definitivamente
+    const stockUpdated = await updateProductStock(reservation.productId, reservation.quantity)
+
+    if (!stockUpdated) {
+      debugError(`Failed to update stock for product ${reservation.productId} after confirming reservation ${reservationId}`)
+      // Revertir estado si no se pudo actualizar stock
+      await client.productReservation.update({
+        where: { id: reservationId },
+        data: { status: 'PENDING' }
+      })
+      return false
+    }
+
+    debugLog(`✅ Reserva confirmada y stock descontado: ${reservationId} - Producto: ${reservation.productId} - Cantidad: ${reservation.quantity}`)
+    return true
+  } catch (error) {
+    debugError('Error confirming product reservation:', error)
+    return false
+  }
+}
+
+/**
+ * Cancela una reserva y libera el stock bloqueado
+ * Si la reserva estaba CONFIRMED, NO se puede cancelar (ya se descontó stock)
+ */
+const cancelProductReservation = async (reservationId: string): Promise<boolean> => {
+  try {
+    const reservation = await client.productReservation.findUnique({
+      where: { id: reservationId },
+      select: {
+        status: true
+      }
+    })
+
+    if (!reservation) {
+      debugError('Reservation not found:', reservationId)
+      return false
+    }
+
+    // Si ya está CONFIRMED, no se puede cancelar (stock ya descontado)
+    if (reservation.status === 'CONFIRMED' || reservation.status === 'COMPLETED') {
+      debugWarn(`Cannot cancel reservation ${reservationId} - status is ${reservation.status} (stock already deducted)`)
+      return false
+    }
+
+    // Actualizar estado a CANCELLED (esto libera el stock bloqueado automáticamente)
+    await client.productReservation.update({
+      where: { id: reservationId },
+      data: { status: 'CANCELLED' }
+    })
+
+    debugLog(`✅ Reserva cancelada: ${reservationId} - Stock bloqueado liberado`)
+    return true
+  } catch (error) {
+    debugError('Error canceling product reservation:', error)
+    return false
   }
 }
 
@@ -3463,7 +3671,7 @@ EJEMPLOS DE MALAS PREGUNTAS (evitar):
     const response = safeExtractOpenAIResponse(chatCompletion)
     return response || null
   } catch (error) {
-    console.error('Error generando preguntas inteligentes:', error)
+    debugError('Error generando preguntas inteligentes:', error)
     return null
   }
 }
@@ -5121,8 +5329,331 @@ EJEMPLOS DE NONE:
     if (upperResponse === 'ASKING_DATE') return 'ASKING_DATE'
     return 'NONE'
   } catch (error) {
-    console.error('Error en detectAppointmentFlowState:', error)
+    debugError('Error en detectAppointmentFlowState:', error)
     return 'NONE'
+  }
+}
+
+/**
+ * ORQUESTADOR PRINCIPAL: Procesa el mensaje del usuario según el estado del flujo usando JSON estructurado
+ * OPTIMIZACIÓN: Una sola llamada a IA que detecta estado, extrae datos y genera respuesta apropiada
+ */
+const orchestrateConversationFlow = async (
+  userMessage: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  companyId: string,
+  conversationState?: string
+): Promise<{
+  state: string
+  action: string
+  extractedData: any
+  response: string
+  products?: any[]
+  needsUserInput?: boolean
+}> => {
+  try {
+    // Obtener productos disponibles para contexto
+    const allProducts = await client.product.findMany({
+      where: { companyId, active: true },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        salePrice: true,
+        stock: true,
+        unit: true,
+        width: true,
+        weight: true,
+        color: true,
+        colors: true,
+        material: { select: { name: true } },
+        category: { select: { name: true } },
+        texture: { select: { name: true } }
+      },
+      take: 50 // Limitar para contexto
+    })
+
+    const lastAssistantMessage = chatHistory
+      .filter(msg => msg.role === 'assistant')
+      .slice(-1)[0]?.content || ''
+
+    const productsContext = allProducts.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      material: p.material?.name || null,
+      color: p.color || null,
+      colors: p.colors || [],
+      category: p.category?.name || null,
+      price: p.salePrice || p.price,
+      unit: p.unit || 'metro',
+      stock: p.stock,
+      width: p.width || null,
+      weight: p.weight || null
+    }))
+
+    const systemPrompt = `Eres un orquestador inteligente de conversaciones de una tienda de textiles. Tu trabajo es analizar el mensaje del usuario, determinar el estado actual del flujo, extraer datos relevantes y determinar la acción a tomar.
+
+ESTADO ACTUAL DE LA CONVERSACIÓN:
+${conversationState || 'NONE'}
+
+ÚLTIMO MENSAJE DEL ASISTENTE:
+"${lastAssistantMessage}"
+
+MENSAJE ACTUAL DEL USUARIO:
+"${userMessage}"
+
+PRODUCTOS DISPONIBLES (JSON):
+${JSON.stringify(productsContext, null, 2)}
+
+ESTADOS POSIBLES DEL FLUJO:
+1. **ASKING_PRODUCTS**: Asistente preguntó qué productos desea el usuario
+2. **SELECTING_PRODUCT**: Asistente mostró lista de productos y espera selección
+3. **CONFIRMING_QUANTITY**: Asistente confirmó producto y pregunta cantidad
+4. **ASKING_COLOR**: Asistente pregunta por color del producto
+5. **ASKING_MORE_PRODUCTS**: Asistente pregunta si quiere agregar más productos
+6. **ASKING_DATE**: Asistente pregunta fecha/horario para agendar
+7. **NONE**: No está en flujo de compra/reserva
+
+INSTRUCCIONES CRÍTICAS:
+1. **DETECCIÓN DIRECTA (MUY IMPORTANTE - PRIORIDAD MÁXIMA)**: 
+   - Si el usuario proporciona PRODUCTO + CANTIDAD + COLOR en un solo mensaje, SIEMPRE usa action: "CONFIRM_COMPLETE" y hasCompleteInfo: true
+   - Ejemplos de mensajes COMPLETOS:
+     * "deseo Mantel Jacquard Elegante color blanco 5 unidades"
+     * "quiero algodon pima color beige 10 unidades"
+     * "deseo el de algodon pima, en color beige, un total de 10 unidades"
+     * "necesito lino azul 20 metros"
+     * "quiero 10 metros de algodón pima en color beige"
+   - Cuando detectes información completa, extrae: selectedProductName (nombre del producto), quantity (número), color (color mencionado)
+   - NO preguntes más, confirma DIRECTAMENTE el pedido
+   
+2. **Si el asistente preguntó por color y el usuario responde solo con el color**: 
+   - Extrae el color del mensaje
+   - Si ya tienes producto y cantidad del contexto anterior, usa action: "CONFIRM_COMPLETE"
+   
+3. **Si el asistente preguntó por cantidad y el usuario responde solo con la cantidad**:
+   - Extrae la cantidad del mensaje
+   - Si ya tienes producto y color del contexto anterior, usa action: "CONFIRM_COMPLETE"
+   
+4. Analiza el último mensaje del asistente para determinar el estado actual
+5. Extrae TODOS los datos relevantes del mensaje del usuario (productos, cantidades, colores, etc.)
+6. Determina la acción apropiada según el estado
+7. NO saltes pasos - el flujo debe ser secuencial: productos → selección → cantidad → color → más productos → fecha
+8. Si el usuario menciona productos pero no hay estado, inicia el flujo desde ASKING_PRODUCTS
+9. Si el usuario está en SELECTING_PRODUCT, extrae qué producto seleccionó (número, nombre, o descripción)
+10. Si el usuario está en CONFIRMING_QUANTITY, extrae la cantidad mencionada
+11. Si el usuario está en ASKING_COLOR, extrae el color mencionado
+12. Si el usuario está en ASKING_MORE_PRODUCTS, determina si quiere más o no
+13. Si el usuario está en ASKING_DATE, extrae fecha y horario
+
+RESPONDE SOLO EN FORMATO JSON:
+{
+  "state": "ASKING_PRODUCTS" | "SELECTING_PRODUCT" | "CONFIRMING_QUANTITY" | "ASKING_COLOR" | "ASKING_MORE_PRODUCTS" | "ASKING_DATE" | "NONE",
+  "action": "SHOW_PRODUCTS" | "CONFIRM_SELECTION" | "ASK_QUANTITY" | "ASK_COLOR" | "ASK_MORE" | "ASK_DATE" | "PROCEED_TO_APPOINTMENT" | "CONTINUE_CONVERSATION" | "CONFIRM_COMPLETE",
+  "extractedData": {
+    "productNames": ["nombre1", "nombre2"] o null,
+    "selectedProductId": "id" o null,
+    "selectedProductName": "nombre" o null,
+    "quantity": número o null,
+    "color": "color" o null,
+    "wantsMoreProducts": true/false o null,
+    "date": "fecha" o null,
+    "time": "horario" o null,
+    "hasCompleteInfo": true/false (true si tiene producto + cantidad + color en un solo mensaje),
+    "characteristics": {
+      "material": "material" o null,
+      "color": "color" o null,
+      "category": "categoría" o null
+    } o null
+  },
+  "response": "respuesta completa y natural en español",
+  "needsUserInput": true/false
+}
+
+EJEMPLOS DE DETECCIÓN COMPLETA:
+- Usuario: "deseo Mantel Jacquard Elegante un total de 10 unidades y en color azul claro"
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, selectedProductName: "Mantel Jacquard Elegante", quantity: 10, color: "azul claro"
+
+- Usuario: "deseo el de algodon pima, en color beige, un total de 10 unidades"
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, selectedProductName: "algodon pima", quantity: 10, color: "beige"
+
+- Usuario: "quiero Mantel Jacquard Elegante color blanco 5 unidades"
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, selectedProductName: "Mantel Jacquard Elegante", quantity: 5, color: "blanco"
+
+- Usuario: "necesito lino azul 20 metros"
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, selectedProductName: "lino", quantity: 20, color: "azul"
+
+- Asistente preguntó: "¿Cuál color prefieres?" y Usuario responde: "beige" (y ya tiene producto y cantidad del contexto)
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, color: "beige"
+
+- Asistente preguntó: "¿Cuántos necesitas?" y Usuario responde: "10 metros" (y ya tiene producto y color del contexto)
+  → action: "CONFIRM_COMPLETE", hasCompleteInfo: true, quantity: 10
+
+IMPORTANTE:
+- **PRIORIDAD MÁXIMA**: Si el usuario proporciona producto + cantidad + color en un solo mensaje, SIEMPRE usa action: "CONFIRM_COMPLETE" y hasCompleteInfo: true. NO muestres lista de productos, confirma DIRECTAMENTE.
+- El flujo es ESTRICTO y SECUENCIAL - no saltes pasos
+- Si el usuario menciona productos SIN cantidad/color, muestra la lista primero (SELECTING_PRODUCT)
+- Después de selección, SIEMPRE pregunta cantidad (CONFIRMING_QUANTITY)
+- Después de cantidad, SIEMPRE pregunta color si aplica (ASKING_COLOR)
+- Después de color, pregunta si quiere más productos (ASKING_MORE_PRODUCTS)
+- Solo después de confirmar todos los productos, pregunta fecha (ASKING_DATE)
+- Genera respuestas naturales, cálidas y sin duplicación
+- **CRÍTICO**: Si el mensaje contiene producto + cantidad + color, NO uses action: "SHOW_PRODUCTS", usa action: "CONFIRM_COMPLETE" directamente`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...getRelevantChatHistory(chatHistory, 5),
+        { role: 'user', content: userMessage }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      max_tokens: 1000
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    if (!response) {
+      return {
+        state: 'NONE',
+        action: 'CONTINUE_CONVERSATION',
+        extractedData: {},
+        response: 'Lo siento, no pude procesar tu mensaje. Por favor, intenta de nuevo.',
+        needsUserInput: true
+      }
+    }
+
+    const parsed = safeJsonParse<{
+      state?: string
+      action?: string
+      extractedData?: any
+      response?: string
+      needsUserInput?: boolean
+    }>(response, {
+      state: 'NONE',
+      action: 'CONTINUE_CONVERSATION',
+      extractedData: {},
+      response: 'Lo siento, no pude procesar tu mensaje.',
+      needsUserInput: true
+    })
+
+    // Buscar productos si se mencionaron
+    let products: any[] = []
+    if (parsed.extractedData?.productNames && parsed.extractedData.productNames.length > 0) {
+      const searchPromises = parsed.extractedData.productNames.map((name: string) =>
+        findProductsByCharacteristics(name, companyId, parsed.extractedData.characteristics)
+      )
+      const foundArrays = await Promise.all(searchPromises)
+      products = foundArrays.flat()
+    }
+
+    return {
+      state: parsed.state || 'NONE',
+      action: parsed.action || 'CONTINUE_CONVERSATION',
+      extractedData: parsed.extractedData || {},
+      response: parsed.response || 'Lo siento, no pude generar una respuesta.',
+      products: products.length > 0 ? products : undefined,
+      needsUserInput: parsed.needsUserInput !== false
+    }
+  } catch (error) {
+    debugError('Error en orchestrateConversationFlow:', error)
+    return {
+      state: 'NONE',
+      action: 'CONTINUE_CONVERSATION',
+      extractedData: {},
+      response: 'Lo siento, hubo un problema al procesar tu mensaje. Por favor, intenta de nuevo.',
+      needsUserInput: true
+    }
+  }
+}
+
+/**
+ * Genera respuesta completa de búsqueda de productos usando IA con JSON estructurado
+ * OPTIMIZACIÓN: Una sola llamada a IA en lugar de múltiples llamadas secuenciales
+ */
+const generateProductSearchResponseWithAI = async (
+  products: any[],
+  searchTerm: string,
+  userMessage: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<string> => {
+  try {
+    if (products.length === 0) {
+      return 'No encontré productos que coincidan con tu búsqueda. ¿Podrías ser más específico sobre lo que necesitas?'
+    }
+
+    // Preparar datos de productos en formato JSON para IA
+    const productsData = products.slice(0, 8).map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      material: p.material?.name || null,
+      color: p.color || null,
+      colors: p.colors || [],
+      category: p.category?.name || null,
+      price: p.salePrice || p.price,
+      unit: p.unit || 'metro',
+      stock: p.stock,
+      width: p.width || null,
+      weight: p.weight || null,
+      texture: p.texture?.name || null
+    }))
+
+    const systemPrompt = `Eres un asistente virtual especializado en textiles. Tu trabajo es generar UNA respuesta completa, natural y cálida presentando productos encontrados.
+
+PRODUCTOS ENCONTRADOS (formato JSON):
+${JSON.stringify(productsData, null, 2)}
+
+BÚSQUEDA DEL USUARIO:
+"${searchTerm}"
+
+MENSAJE ORIGINAL:
+"${userMessage}"
+
+INSTRUCCIONES CRÍTICAS:
+1. Genera UNA SOLA respuesta completa y natural en español
+2. Presenta los productos de forma clara, organizada y atractiva con números (1., 2., 3., etc.)
+3. Incluye TODA la información relevante de cada producto (nombre, material, color, precio, stock, ancho, gramaje)
+4. Genera preguntas inteligentes y contextuales basadas en los productos encontrados (máximo 3-4 preguntas)
+5. Sé empático, cálido y genuinamente amigable
+6. NO repitas información
+7. NO generes múltiples secciones con el mismo contenido
+8. NO menciones agendar cita todavía - primero debe seleccionar producto, cantidad y color
+9. El flujo es: mostrar productos → esperar selección → preguntar cantidad → preguntar color → preguntar si quiere más → agendar
+
+FORMATO DE RESPUESTA:
+- Saludo cálido y entusiasta
+- Lista numerada de productos con TODOS sus detalles (material, color, precio, stock, ancho, gramaje si aplica)
+- Preguntas inteligentes y contextuales (máximo 3-4 preguntas relevantes)
+- Cierre amigable pidiendo que seleccione un producto
+
+IMPORTANTE: Genera UNA respuesta única, completa y sin duplicaciones. NO menciones agendar cita hasta que el usuario haya completado todos los pasos anteriores.`
+
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...getRelevantChatHistory(chatHistory, 3),
+        { role: 'user', content: userMessage }
+      ],
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      max_tokens: 800
+    })
+
+    const response = safeExtractOpenAIResponse(chatCompletion)
+    return response || 'Lo siento, no pude generar una respuesta. Por favor, intenta de nuevo.'
+  } catch (error) {
+    debugError('Error en generateProductSearchResponseWithAI:', error)
+    // Fallback: respuesta básica sin duplicación
+    const productsList = products.slice(0, 8).map((p, idx) => {
+      const details: string[] = []
+      if (p.material) details.push(p.material.name)
+      if (p.color) details.push(p.color)
+      if (p.width) details.push(`ancho: ${p.width}`)
+      if (p.weight) details.push(`gramaje: ${p.weight}`)
+      const stockInfo = p.stock > 0 ? `✅ Stock: ${p.stock} ${p.unit || 'metros'}` : '⚠️ Stock limitado'
+      return `${idx + 1}. **${p.name}**${details.length > 0 ? ` (${details.join(' | ')})` : ''} - S/${p.salePrice || p.price} por ${p.unit || 'metro'} - ${stockInfo}`
+    }).join('\n\n')
+
+    return `¡Excelente! Encontré ${products.length} productos disponibles: 😊\n\n${productsList}\n\n💡 **Para ayudarte mejor:**\n¿Qué tipo de proyecto tienes en mente? ¿Qué cantidad necesitas? ¿Tienes alguna preferencia de color?\n\nPor favor, dime qué producto te interesa (puedes decir el número o el nombre).`
   }
 }
 
@@ -5849,8 +6380,133 @@ ${summaryProducts}`
       }
     }
 
-    // ETAPA 3: Si estamos confirmando cantidad (CONFIRMING_QUANTITY)
+    // ETAPA 3: Si estamos confirmando cantidad (CONFIRMING_QUANTITY) o color
     if (flowState === 'CONFIRMING_QUANTITY') {
+      // Verificar si el mensaje anterior del asistente pregunta por color
+      const lastAssistantMsg = chatHistory.filter(msg => msg.role === 'assistant').slice(-1)[0]?.content || ''
+      const isAskingForColor = lastAssistantMsg.toLowerCase().includes('color') && (lastAssistantMsg.includes('prefieres') || lastAssistantMsg.includes('disponibles'))
+
+      // Si se está preguntando por color, detectar la respuesta del usuario
+      if (isAskingForColor) {
+        // Obtener el producto que se estaba confirmando
+        const productsInfo = await extractProductsFromMessage(lastAssistantMsg, companyId, chatHistory.slice(0, -1))
+        let fullProduct: any = null
+
+        if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+          const foundProducts = await findProductsByCharacteristics(productsInfo.productNames[0], companyId, productsInfo.characteristics)
+          if (foundProducts.length > 0) {
+            const selectedProduct = await selectBestProductMatch(
+              foundProducts,
+              message,
+              chatHistory.slice(0, -1),
+              productsInfo.characteristics
+            )
+
+            if (selectedProduct) {
+              fullProduct = await client.product.findUnique({
+                where: { id: selectedProduct.id },
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  price: true,
+                  salePrice: true,
+                  unit: true,
+                  width: true,
+                  weight: true,
+                  color: true,
+                  colors: true
+                }
+              })
+            }
+          }
+        }
+
+        if (fullProduct) {
+          // Extraer color del mensaje del usuario usando IA
+          const colorPrompt = `Analiza el siguiente mensaje del usuario y extrae el color que menciona. Si menciona un color, responde SOLO con el nombre del color. Si no menciona un color, responde "NO".
+
+Mensaje: "${message}"
+
+Colores disponibles del producto: ${fullProduct.colors?.join(', ') || fullProduct.color || 'No especificados'}
+
+Respuesta (solo el nombre del color o "NO"):`
+
+          try {
+            const colorCompletion = await openai.chat.completions.create({
+              messages: [
+                { role: 'system', content: colorPrompt },
+                { role: 'user', content: message }
+              ],
+              model: 'gpt-4o-mini',
+              temperature: 0.1,
+              max_tokens: 20
+            })
+
+            const colorResponse = safeExtractOpenAIResponse(colorCompletion)
+            if (colorResponse && colorResponse.trim().toUpperCase() !== 'NO') {
+              const confirmedColor = colorResponse.trim()
+
+              // Obtener cantidad del historial (debe estar en el mensaje anterior)
+              const quantityInfo = await detectQuantity(chatHistory[chatHistory.length - 2]?.content || '', chatHistory.slice(0, -2))
+
+              // Si tenemos producto + cantidad + color, crear cartItem
+              if (quantityInfo.hasQuantity) {
+                const cartItem = {
+                  productId: fullProduct.id,
+                  product: {
+                    id: fullProduct.id,
+                    name: fullProduct.name,
+                    image: fullProduct.image || '',
+                    price: fullProduct.price,
+                    salePrice: fullProduct.salePrice,
+                    unit: fullProduct.unit
+                  },
+                  quantity: quantityInfo.quantity,
+                  unit: fullProduct.unit || undefined,
+                  width: fullProduct.width || undefined,
+                  weight: fullProduct.weight || undefined,
+                  color: confirmedColor,
+                  unitPrice: fullProduct.salePrice || fullProduct.price,
+                  totalPrice: (fullProduct.salePrice || fullProduct.price) * quantityInfo.quantity
+                }
+
+                // Obtener productos ya confirmados para mostrar resumen
+                const currentConfirmed = await extractConfirmedProductsFromHistory(chatHistory, companyId)
+                const summaryProducts = currentConfirmed.map(cp =>
+                  `- ${cp.product.name} (${cp.quantity} ${cp.product.unit || 'unidad(es)'})`
+                ).join('\n')
+
+                let response = `¡Perfecto! Has elegido el ${fullProduct.name} en color ${confirmedColor}. 🌟
+
+Para recapitular tu pedido:
+- Producto: ${fullProduct.name}
+- Color: ${confirmedColor}
+- Cantidad: ${quantityInfo.quantity} ${fullProduct.unit || 'unidad(es)'}
+- Precio Total: S/${(fullProduct.salePrice || fullProduct.price) * quantityInfo.quantity} (S/${fullProduct.salePrice || fullProduct.price} por ${fullProduct.unit || 'unidad'})
+
+Antes de proceder, me gustaría saber si necesitas más tela o algún otro producto relacionado. ¿Hay algo más en lo que te pueda ayudar? 😊`
+
+                await onStoreConversations(conversationId, message, 'user')
+                await onStoreConversations(conversationId, response, 'assistant', message)
+
+                return {
+                  response: {
+                    role: 'assistant',
+                    content: response,
+                    // Incluir cartItem cuando se confirma producto + cantidad + color
+                    cartItems: [cartItem]
+                  } as any,
+                  appointmentBooked: false
+                }
+              }
+            }
+          } catch (error) {
+            debugError('Error detecting color:', error)
+          }
+        }
+      }
+
       const quantityInfo = await detectQuantity(message, chatHistory)
 
       if (quantityInfo.hasQuantity) {
@@ -5888,20 +6544,127 @@ ${summaryProducts}`
           }
         }
 
+        // Obtener el producto completo para verificar colores disponibles
+        let fullProduct: any = null
+        if (productsInfo.hasProducts && productsInfo.productNames && productsInfo.productNames.length > 0) {
+          const foundProducts = await findProductsByCharacteristics(productsInfo.productNames[0], companyId, productsInfo.characteristics)
+          if (foundProducts.length > 0) {
+            const selectedProduct = await selectBestProductMatch(
+              foundProducts,
+              message,
+              chatHistory.slice(0, -1),
+              productsInfo.characteristics
+            )
+
+            if (selectedProduct) {
+              fullProduct = await client.product.findUnique({
+                where: { id: selectedProduct.id },
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  price: true,
+                  salePrice: true,
+                  unit: true,
+                  width: true,
+                  weight: true,
+                  color: true,
+                  colors: true
+                }
+              })
+            }
+          }
+        }
+
+        // Verificar si el producto tiene colores disponibles y si ya se confirmó el color
+        const hasColors = fullProduct && (fullProduct.colors?.length > 0 || fullProduct.color)
+        const lastAssistantMsg = chatHistory.filter(msg => msg.role === 'assistant').slice(-1)[0]?.content || ''
+        const isAskingForColor = lastAssistantMsg.toLowerCase().includes('color') && (lastAssistantMsg.includes('prefieres') || lastAssistantMsg.includes('disponibles'))
+
+        // Si se está preguntando por color, detectar la respuesta del usuario
+        let confirmedColor: string | undefined = undefined
+        if (isAskingForColor && fullProduct) {
+          // Extraer color del mensaje del usuario usando IA
+          const colorPrompt = `Analiza el siguiente mensaje del usuario y extrae el color que menciona. Si menciona un color, responde SOLO con el nombre del color. Si no menciona un color, responde "NO".
+
+Mensaje: "${message}"
+
+Colores disponibles del producto: ${fullProduct.colors?.join(', ') || fullProduct.color || 'No especificados'}
+
+Respuesta (solo el nombre del color o "NO"):`
+
+          try {
+            const colorCompletion = await openai.chat.completions.create({
+              messages: [
+                { role: 'system', content: colorPrompt },
+                { role: 'user', content: message }
+              ],
+              model: 'gpt-4o-mini',
+              temperature: 0.1,
+              max_tokens: 20
+            })
+
+            const colorResponse = safeExtractOpenAIResponse(colorCompletion)
+            if (colorResponse && colorResponse.trim().toUpperCase() !== 'NO') {
+              confirmedColor = colorResponse.trim()
+            }
+          } catch (error) {
+            debugError('Error detecting color:', error)
+          }
+        }
+
+        // Si se confirmó producto + cantidad + color, preparar cartItem
+        const cartItems: any[] = []
+        if (fullProduct && quantityInfo.hasQuantity && (confirmedColor || !hasColors)) {
+          const cartItem = {
+            productId: fullProduct.id,
+            product: {
+              id: fullProduct.id,
+              name: fullProduct.name,
+              image: fullProduct.image || '',
+              price: fullProduct.price,
+              salePrice: fullProduct.salePrice,
+              unit: fullProduct.unit
+            },
+            quantity: quantityInfo.quantity,
+            unit: fullProduct.unit || undefined,
+            width: fullProduct.width || undefined,
+            weight: fullProduct.weight || undefined,
+            color: confirmedColor || undefined,
+            unitPrice: fullProduct.salePrice || fullProduct.price,
+            totalPrice: (fullProduct.salePrice || fullProduct.price) * quantityInfo.quantity
+          }
+          cartItems.push(cartItem)
+        }
+
         // Obtener productos ya confirmados para mostrar resumen
         const currentConfirmed = await extractConfirmedProductsFromHistory(chatHistory, companyId)
         const summaryProducts = currentConfirmed.map(cp =>
           `- ${cp.product.name} (${cp.quantity} ${cp.product.unit || 'unidad(es)'})`
         ).join('\n')
 
-        let response = `¡Perfecto! He anotado: **${productName}** - ${quantityInfo.quantity} ${productUnit}. 😊`
+        let response = `¡Perfecto! He anotado: **${productName}** - ${quantityInfo.quantity} ${productUnit}${confirmedColor ? ` (Color: ${confirmedColor})` : ''}. 😊`
 
-        if (currentConfirmed.length > 0) {
-          response += `\n\n📋 **Productos que has reservado hasta ahora:**
+        // Si tiene colores pero no se confirmó el color, preguntar por color
+        if (hasColors && !confirmedColor && fullProduct) {
+          const availableColors = fullProduct.colors?.length > 0
+            ? fullProduct.colors.map((c: string) => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')
+            : (fullProduct.color ? fullProduct.color.charAt(0).toUpperCase() + fullProduct.color.slice(1) : 'No hay colores específicos')
+
+          response = `¡Perfecto! He anotado: **${productName}** - ${quantityInfo.quantity} ${productUnit}. 😊
+
+Ahora, solo necesito saber el color que prefieres para tu pedido. Las opciones disponibles son:
+${availableColors}
+
+¿Cuál color prefieres?`
+        } else {
+          if (currentConfirmed.length > 0) {
+            response += `\n\n📋 **Productos que has reservado hasta ahora:**
 ${summaryProducts}`
-        }
+          }
 
-        response += `\n\n¿Deseas reservar más productos? Puedes decirme "sí" para agregar otro producto o "no" para continuar con el agendamiento.`
+          response += `\n\n¿Deseas reservar más productos? Puedes decirme "sí" para agregar otro producto o "no" para continuar con el agendamiento.`
+        }
 
         await onStoreConversations(conversationId, message, 'user')
         await onStoreConversations(conversationId, response, 'assistant', message)
@@ -5909,8 +6672,10 @@ ${summaryProducts}`
         return {
           response: {
             role: 'assistant',
-            content: response
-          },
+            content: response,
+            // Incluir cartItems solo si se confirmó producto + cantidad + color
+            cartItems: cartItems.length > 0 ? cartItems : undefined
+          } as any,
           appointmentBooked: false
         }
       } else {
