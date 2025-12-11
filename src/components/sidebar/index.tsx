@@ -22,11 +22,11 @@ const SideBar = ({ company }: Props) => {
   return (
     <div
       className={cn(
-        "bg-cream h-full w-[60px] fill-mode-forwards fixed md:relative z-50",
-        expand == undefined && "",
+        "bg-cream h-full fill-mode-forwards fixed md:relative z-50",
+        expand == undefined && "w-[60px]",
         expand == true
-          ? "animate-open-sidebar"
-          : expand == false && "animate-close-sidebar"
+          ? "w-[300px] animate-open-sidebar"
+          : expand == false && "w-[60px] animate-close-sidebar"
       )}
     >
       {
