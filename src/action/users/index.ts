@@ -68,3 +68,75 @@ export const onGetCompanyUsers = async (companyId: string) => {
     }
 }
 
+/**
+ * Obtener un cliente específico por ID
+ * @param customerId - ID del cliente
+ * @returns Datos del cliente
+ */
+export const onGetCustomerById = async (customerId: string) => {
+    try {
+        const user = await currentUser()
+        if (!user) {
+            return {
+                status: 401,
+                message: 'No autorizado',
+                customer: null
+            }
+        }
+
+        // Verificar que el usuario actual tiene acceso a la empresa del cliente
+        const currentUserData = await client.user.findUnique({
+            where: { clerkId: user.id },
+            select: {
+                company: {
+                    select: { id: true }
+                }
+            }
+        })
+
+        if (!currentUserData?.company) {
+            return {
+                status: 403,
+                message: 'No tienes permisos para ver este cliente',
+                customer: null
+            }
+        }
+
+        // Obtener el cliente y verificar que pertenece a la empresa del usuario
+        const customer = await client.customer.findFirst({
+            where: {
+                id: customerId,
+                companyId: currentUserData.company.id
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                status: true,
+            }
+        })
+
+        if (!customer) {
+            return {
+                status: 404,
+                message: 'Cliente no encontrado',
+                customer: null
+            }
+        }
+
+        return {
+            status: 200,
+            message: 'Cliente obtenido exitosamente',
+            customer
+        }
+    } catch (error) {
+        console.log('Error en onGetCustomerById:', error)
+        return {
+            status: 500,
+            message: 'Error al obtener cliente',
+            customer: null
+        }
+    }
+}
+

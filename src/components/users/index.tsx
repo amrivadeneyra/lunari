@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { DataTable } from '../table'
 import { TableCell, TableRow } from '../ui/table'
-import { onGetCompanyUsers } from '@/action/users'
+import { onGetCompanyUsers, onGetCustomerById } from '@/action/users'
 import { Loader } from '../loader'
 import { Users as UsersIcon, MoreVertical, Edit, UserX } from 'lucide-react'
 import {
@@ -12,10 +12,31 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '../ui/dialog'
+import { Input } from '../ui/input'
+import { Label } from '../ui/label'
+import { Switch } from '../ui/switch'
+import { Button } from '../ui/button'
+
 type Customer = {
     id: string
     name: string | null
     email: string | null
+    status: boolean
+}
+
+type CustomerDetails = {
+    id: string
+    name: string | null
+    email: string | null
+    phone: string | null
     status: boolean
 }
 
@@ -27,6 +48,16 @@ const UsersTable = ({ companyId }: Props) => {
     const [users, setUsers] = useState<Customer[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+    const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
+    const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null)
+    const [loadingCustomer, setLoadingCustomer] = useState(false)
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        status: true,
+    })
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -49,6 +80,48 @@ const UsersTable = ({ companyId }: Props) => {
 
         fetchUsers()
     }, [companyId])
+
+    // Función para abrir el modal de edición y cargar los datos del cliente
+    const handleEditClick = async (customerId: string) => {
+        setEditingCustomerId(customerId)
+        setIsEditDialogOpen(true)
+        setLoadingCustomer(true)
+        setError(null)
+
+        try {
+            const result = await onGetCustomerById(customerId)
+            if (result.status === 200 && result.customer) {
+                setCustomerDetails(result.customer)
+                setFormData({
+                    name: result.customer.name || '',
+                    email: result.customer.email || '',
+                    phone: result.customer.phone || '',
+                    status: result.customer.status,
+                })
+            } else {
+                setError(result.message || 'Error al cargar datos del cliente')
+            }
+        } catch (err) {
+            setError('Error al cargar datos del cliente')
+            console.error('Error fetching customer:', err)
+        } finally {
+            setLoadingCustomer(false)
+        }
+    }
+
+    // Función para cerrar el modal
+    const handleCloseDialog = () => {
+        setIsEditDialogOpen(false)
+        setEditingCustomerId(null)
+        setCustomerDetails(null)
+        setFormData({
+            name: '',
+            email: '',
+            phone: '',
+            status: true,
+        })
+        setError(null)
+    }
 
     if (loading) {
         return (
@@ -114,8 +187,8 @@ const UsersTable = ({ companyId }: Props) => {
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <span className={`px-2 py-1 rounded-md text-xs font-medium ${customer.status
-                                                ? 'bg-green-100 text-green-800'
-                                                : 'bg-red-100 text-red-800'
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-red-100 text-red-800'
                                             }`}>
                                             {customer.status ? 'Activo' : 'Inactivo'}
                                         </span>
@@ -133,10 +206,7 @@ const UsersTable = ({ companyId }: Props) => {
                                             <DropdownMenuContent align="end" className="w-48">
                                                 <DropdownMenuItem
                                                     className="cursor-pointer"
-                                                    onClick={() => {
-                                                        // TODO: Implementar funcionalidad de editar
-                                                        console.log('Editar usuario:', customer.id)
-                                                    }}
+                                                    onClick={() => handleEditClick(customer.id)}
                                                 >
                                                     <Edit className="w-4 h-4 mr-2" />
                                                     Editar
@@ -172,6 +242,121 @@ const UsersTable = ({ companyId }: Props) => {
                     )}
                 </div>
             </div>
+
+            {/* Modal de Edición */}
+            <Dialog open={isEditDialogOpen} onOpenChange={handleCloseDialog}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-semibold text-gray-900">
+                            Editar Cliente
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-gray-600">
+                            Modifica la información del cliente. Los cambios se guardarán al confirmar.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {loadingCustomer ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader loading={true}>
+                                <div className="text-gray-600">Cargando datos del cliente...</div>
+                            </Loader>
+                        </div>
+                    ) : error ? (
+                        <div className="py-4">
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p className="text-sm text-red-800">{error}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-4 py-4">
+                            {/* Nombre */}
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">
+                                    Nombre
+                                </Label>
+                                <Input
+                                    id="edit-name"
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Nombre del cliente"
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Email */}
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-email" className="text-sm font-medium text-gray-700">
+                                    Correo Electrónico
+                                </Label>
+                                <Input
+                                    id="edit-email"
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="correo@ejemplo.com"
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Teléfono */}
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-phone" className="text-sm font-medium text-gray-700">
+                                    Teléfono
+                                </Label>
+                                <Input
+                                    id="edit-phone"
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    placeholder="Número de teléfono"
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Estado */}
+                            <div className="flex items-center justify-between py-2">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="edit-status" className="text-sm font-medium text-gray-700">
+                                        Estado
+                                    </Label>
+                                    <p className="text-xs text-gray-500">
+                                        {formData.status ? 'Cliente activo' : 'Cliente inactivo'}
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="edit-status"
+                                    checked={formData.status}
+                                    onCheckedChange={(checked) => setFormData({ ...formData, status: checked })}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCloseDialog}
+                            disabled={loadingCustomer}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => {
+                                // TODO: Implementar funcionalidad de guardar
+                                console.log('Guardar cambios:', formData)
+                                handleCloseDialog()
+                            }}
+                            disabled={loadingCustomer}
+                            className="bg-orange hover:bg-orange/90 text-white"
+                        >
+                            Guardar Cambios
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
