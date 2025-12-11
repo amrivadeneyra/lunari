@@ -76,6 +76,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Escuchar evento para actualizar el carrito desde el asistente virtual
+  useEffect(() => {
+    const handleCartUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<CartItem[]>
+      if (customEvent.detail && Array.isArray(customEvent.detail)) {
+        setItems(customEvent.detail)
+      }
+    }
+
+    window.addEventListener('lunari_cart_updated', handleCartUpdated)
+    return () => {
+      window.removeEventListener('lunari_cart_updated', handleCartUpdated)
+    }
+  }, [])
+
   const addItem = useCallback((
     product: CartItem['product'],
     quantity: number,

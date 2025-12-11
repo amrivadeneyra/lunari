@@ -44,6 +44,7 @@ type Props = {
         role: 'user' | 'assistant'
         content: string
         link?: string | undefined
+        imageUrl?: string | undefined
       }[]
     >
   >
@@ -200,7 +201,8 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
               const formattedMessages = conversationData.messages.map((msg: any) => ({
                 role: msg.role || 'assistant',
                 content: msg.message || '',
-                link: undefined
+                link: undefined,
+                imageUrl: msg.imageUrl || undefined
               }))
 
               // Actualizar los chats
@@ -278,7 +280,7 @@ export const BotWindow = forwardRef<HTMLDivElement, Props>(
     }
 
     return (
-      <div className="h-[500px] w-[380px] flex flex-col bg-white rounded-xl overflow-hidden shadow-lg">
+      <div className="h-[500px] w-[300px] md:h-[700px] md:w-[380px] flex flex-col bg-white rounded-xl overflow-hidden shadow-lg">
         {/* esto saldra unicamente cuando estes dentro de un chat en especifico */}
         {/* {activeTab === 'mensajes' && (
           <div className="bg-white border-b border-orange/10 px-4 py-3 flex-shrink-0">

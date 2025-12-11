@@ -35,7 +35,7 @@ const TabsMenu = ({ triggers, children, className, button, onTabChange, value }:
         ))}
         {button}
       </TabsList>
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 relative overflow-y-auto">
         {children}
       </div>
     </Tabs>

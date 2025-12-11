@@ -16,7 +16,7 @@ const ProductsPage = async ({ params }: Props) => {
   const currentCompany = companyData.company
 
   return (
-    <div className="overflow-y-auto w-full chat-window flex-1 h-0">
+    <div className="w-full h-full overflow-hidden">
       <ProductTable
         id={currentCompany.id}
         products={currentCompany.products || []}
