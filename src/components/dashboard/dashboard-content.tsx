@@ -147,7 +147,7 @@ const DashboardContent = ({
   }, [metrics])
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-gradient-to-br from-gray-50 via-white to-gray-50">
+    <div className="w-full min-h-full bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Header con Filtro de Fechas */}
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 mb-6">
         <div className="flex flex-col gap-4">
@@ -200,7 +200,7 @@ const DashboardContent = ({
             <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Análisis y Tendencias</h2>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="space-y-4 sm:space-y-6">
             <ConversationChart stats={conversationStats} />
             <BusinessMetrics metrics={businessMetricsData} />
           </div>
@@ -220,7 +220,7 @@ const DashboardContent = ({
           <div className="flex items-center gap-2 flex-wrap">
             <div className="w-1 h-6 bg-orange-500 rounded-full"></div>
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Indicadores de Investigación</h2>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Datos para tesis</span>
+            {/* <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Datos para tesis</span> */}
           </div>
           <ResearchMetricsChart metrics={qualityMetrics} />
         </section>

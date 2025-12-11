@@ -24,7 +24,7 @@ const KPICards = ({ metrics }: Props) => {
       icon: Users,
       color: 'bg-blue-500',
       iconBg: 'bg-blue-50',
-      trend: `+${metrics.newCustomersThisWeek} esta semana`,
+      subtitle: `+${metrics.newCustomersThisWeek} esta semana`,
       trendUp: true
     },
     {
@@ -76,13 +76,7 @@ const KPICards = ({ metrics }: Props) => {
                 <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
                   {card.value}
                 </h3>
-                {card.trend && (
-                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-medium">
-                    <TrendingUp className="w-3 h-3 mr-1" />
-                    {card.trend}
-                  </Badge>
-                )}
-                {card.subtitle && !card.trend && (
+                {card.subtitle && (
                   <p className="text-xs text-gray-500 font-medium">{card.subtitle}</p>
                 )}
               </div>

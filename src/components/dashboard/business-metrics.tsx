@@ -3,39 +3,39 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Doughnut, Bar } from 'react-chartjs-2'
 import {
-    Chart as ChartJS,
-    ArcElement,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
+  Chart as ChartJS,
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
 } from 'chart.js'
 import { Bot, Target } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 
 ChartJS.register(
-    ArcElement,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
 )
 
 type Props = {
-    metrics: {
-        conversionRate: number
-        aiEfficiency: number
-        totalConversationsLastMonth: number
-        customersWithBookings: number
-    } | null
+  metrics: {
+    conversionRate: number
+    aiEfficiency: number
+    totalConversationsLastMonth: number
+    customersWithBookings: number
+  } | null
 }
 
 const BusinessMetrics = ({ metrics }: Props) => {
-    if (!metrics) return null
+  if (!metrics) return null
 
   // Datos para el gráfico de conversión (Doughnut)
   const conversionData = {
@@ -53,31 +53,31 @@ const BusinessMetrics = ({ metrics }: Props) => {
     ]
   }
 
-    const conversionOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                backgroundColor: 'rgba(31, 41, 55, 0.95)',
-                padding: 12,
-                borderColor: 'rgba(16, 185, 129, 0.5)',
-                borderWidth: 1,
-                cornerRadius: 8,
-                callbacks: {
-                    label: function (context: any) {
-                        const label = context.label || ''
-                        const value = context.parsed || 0
-                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
-                        const percentage = ((value / total) * 100).toFixed(1)
-                        return `${label}: ${value} (${percentage}%)`
-                    }
-                }
-            }
+  const conversionOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(31, 41, 55, 0.95)',
+        padding: 12,
+        borderColor: 'rgba(16, 185, 129, 0.5)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        callbacks: {
+          label: function (context: any) {
+            const label = context.label || ''
+            const value = context.parsed || 0
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
+            const percentage = ((value / total) * 100).toFixed(1)
+            return `${label}: ${value} (${percentage}%)`
+          }
         }
+      }
     }
+  }
 
   // Datos para el gráfico de eficiencia (Bar horizontal)
   const efficiencyData = {
@@ -93,57 +93,57 @@ const BusinessMetrics = ({ metrics }: Props) => {
     ]
   }
 
-    const efficiencyOptions = {
-        indexAxis: 'y' as const,
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            },
-            tooltip: {
-                backgroundColor: 'rgba(31, 41, 55, 0.95)',
-                padding: 12,
-                borderColor: 'rgba(59, 130, 246, 0.5)',
-                borderWidth: 1,
-                cornerRadius: 8,
-                callbacks: {
-                    label: function (context: any) {
-                        return `${context.parsed.x.toFixed(1)}%`
-                    }
-                }
-            }
-        },
-        scales: {
-            x: {
-                beginAtZero: true,
-                max: 100,
-                grid: {
-                    display: false
-                },
-                ticks: {
-                    color: '#6b7280',
-                    font: {
-                        size: 11
-                    },
-                    callback: function (value: any) {
-                        return value + '%'
-                    }
-                }
-            },
-            y: {
-                grid: {
-                    display: false
-                },
-                ticks: {
-                    color: '#6b7280',
-                    font: {
-                        size: 11
-                    }
-                }
-            }
+  const efficiencyOptions = {
+    indexAxis: 'y' as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(31, 41, 55, 0.95)',
+        padding: 12,
+        borderColor: 'rgba(59, 130, 246, 0.5)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        callbacks: {
+          label: function (context: any) {
+            return `${context.parsed.x.toFixed(1)}%`
+          }
         }
+      }
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        max: 100,
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          font: {
+            size: 11
+          },
+          callback: function (value: any) {
+            return value + '%'
+          }
+        }
+      },
+      y: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          color: '#6b7280',
+          font: {
+            size: 11
+          }
+        }
+      }
     }
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -166,14 +166,14 @@ const BusinessMetrics = ({ metrics }: Props) => {
           </div>
         </CardHeader>
 
-                <CardContent>
-                    <div className="space-y-4">
-                        <div style={{ height: '200px' }}>
-                            <Doughnut data={conversionData} options={conversionOptions} />
-                        </div>
+        <CardContent>
+          <div className="space-y-4">
+            <div style={{ height: '200px' }}>
+              <Doughnut data={conversionData} options={conversionOptions} />
+            </div>
 
-                        <div className="space-y-2">
-                            <Progress value={metrics.conversionRate} className="h-3" />
+            <div className="space-y-2">
+              <Progress value={metrics.conversionRate} className="h-3" />
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-600">
                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2"></span>
@@ -183,10 +183,10 @@ const BusinessMetrics = ({ metrics }: Props) => {
                   {metrics.totalConversationsLastMonth} conversaciones
                 </span>
               </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Eficiencia del Asistente */}
       <Card className="border border-gray-200 shadow-md bg-white">
@@ -207,14 +207,14 @@ const BusinessMetrics = ({ metrics }: Props) => {
           </div>
         </CardHeader>
 
-                <CardContent>
-                    <div className="space-y-4">
-                        <div style={{ height: '200px' }}>
-                            <Bar data={efficiencyData} options={efficiencyOptions} />
-                        </div>
+        <CardContent>
+          <div className="space-y-4">
+            <div style={{ height: '200px' }}>
+              <Bar data={efficiencyData} options={efficiencyOptions} />
+            </div>
 
-                        <div className="space-y-2">
-                            <Progress value={metrics.aiEfficiency} className="h-3" />
+            <div className="space-y-2">
+              <Progress value={metrics.aiEfficiency} className="h-3" />
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-600">
                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500 mr-2"></span>
@@ -224,12 +224,12 @@ const BusinessMetrics = ({ metrics }: Props) => {
                   Escalado: {(100 - metrics.aiEfficiency).toFixed(1)}%
                 </span>
               </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    )
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
 
 export default BusinessMetrics

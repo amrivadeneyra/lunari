@@ -19,8 +19,10 @@ const ContentWrapper = ({ children }: Props) => {
     }
 
     return (
-        <div className={`w-full h-screen flex flex-col ${getMarginClass()} md:ml-0 transition-all duration-200`}>
-            {children}
+        <div className={`w-full h-screen flex flex-col overflow-hidden ${getMarginClass()} md:ml-0 transition-all duration-200`}>
+            <div className="flex-1 overflow-y-auto">
+                {children}
+            </div>
         </div>
     )
 }
