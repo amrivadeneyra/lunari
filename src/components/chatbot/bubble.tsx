@@ -1,6 +1,8 @@
-import React from 'react'
+'use client'
+
+import React, { useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { User } from 'lucide-react'
+import { User, X } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { cn, extractUUIDFromString, getMonthName } from '@/lib/utils'
@@ -21,10 +23,32 @@ const Bubble = ({ message, createdAt }: Props) => {
     return null
   }
 
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
+
   let d = new Date()
 
   // SIMPLIFICADO: Usar directamente la URL de imagen del mensaje
   const imageUrl = message.imageUrl
+
+  // Cerrar lightbox con Escape
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isLightboxOpen) {
+        setIsLightboxOpen(false)
+      }
+    }
+
+    if (isLightboxOpen) {
+      document.addEventListener('keydown', handleEscape)
+      // Prevenir scroll del body cuando el lightbox está abierto
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'unset'
+    }
+  }, [isLightboxOpen])
 
   return (
     <div
@@ -63,28 +87,84 @@ const Bubble = ({ message, createdAt }: Props) => {
 
         {/* Si hay imagen, mostrarla debajo del texto */}
         {imageUrl && (
-          <div className="relative aspect-square rounded-md overflow-hidden bg-gray-100 mt-2">
-            <Image
-              src={imageUrl}
-              fill
-              alt="Imagen del producto"
-              className="object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                const container = target.parentElement
-                if (container) {
-                  container.innerHTML = `
-                    <div class="flex items-center justify-center h-full text-xs text-gray-500">
-                      <div class="text-center">
-                        <div class="mb-1">🖼️</div>
-                        <div>Imagen no disponible</div>
+          <>
+            <div
+              className="relative w-20 h-20 rounded-md overflow-hidden bg-gray-100 mt-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setIsLightboxOpen(true)}
+            >
+              <Image
+                src={imageUrl}
+                fill
+                alt="Imagen del producto"
+                className="object-cover"
+                sizes="80px"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  const container = target.parentElement
+                  if (container) {
+                    container.innerHTML = `
+                      <div class="flex items-center justify-center h-full text-xs text-gray-500">
+                        <div class="text-center">
+                          <div class="mb-1">🖼️</div>
+                          <div>Imagen no disponible</div>
+                        </div>
                       </div>
-                    </div>
-                  `
-                }
-              }}
-            />
-          </div>
+                    `
+                  }
+                }}
+              />
+            </div>
+
+            {/* Lightbox */}
+            {isLightboxOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 animate-in fade-in-0"
+                onClick={() => setIsLightboxOpen(false)}
+              >
+                {/* Botón cerrar */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsLightboxOpen(false)
+                  }}
+                  className="absolute top-4 right-4 z-[60] rounded-full bg-white/10 hover:bg-white/20 p-2 transition-colors"
+                  aria-label="Cerrar imagen"
+                >
+                  <X className="h-6 w-6 text-white" />
+                </button>
+
+                {/* Imagen expandida */}
+                <div
+                  className="relative z-[55] w-auto max-w-[95vw] h-auto max-h-[90vh] flex items-center justify-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="relative w-full h-full">
+                    <img
+                      src={imageUrl}
+                      alt="Imagen del producto ampliada"
+                      className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-lg"
+                      style={{ opacity: 1, display: 'block' }}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                        const container = target.parentElement
+                        if (container) {
+                          container.innerHTML = `
+                            <div class="flex items-center justify-center h-full text-white">
+                              <div class="text-center">
+                                <div class="mb-2 text-4xl">🖼️</div>
+                                <div class="text-lg">Imagen no disponible</div>
+                              </div>
+                            </div>
+                          `
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
