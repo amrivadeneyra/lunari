@@ -35,26 +35,32 @@ html {
 
 /* Scrollbar personalizado transparente */
 .scrollbar-custom::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .scrollbar-custom::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f5f5f5;
+  border-radius: 4px;
 }
 
 .scrollbar-custom::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 3px;
+  background: #d1d1d1;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: #FFA947;
 }
 
 /* Firefox */
 .scrollbar-custom {
   scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-color: #d1d1d1 #f5f5f5;
 }
 
 .scrollbar-custom:hover {
-  scrollbar-color: #9D9FA1 transparent;
+  scrollbar-color: #FFA947 #f5f5f5;
 }
 
 @layer base {
