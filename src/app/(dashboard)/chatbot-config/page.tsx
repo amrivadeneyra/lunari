@@ -16,14 +16,12 @@ const ChatbotConfigPage = async ({ params }: Props) => {
   const currentCompany = companyData.company
 
   return (
-    <div className="overflow-y-auto w-full chat-window flex-1 h-0">
-      <ChatbotSettings
-        id={currentCompany.id}
-        name={currentCompany.name}
-        chatBot={currentCompany.chatBot}
-        helpdesk={currentCompany.helpdesk || []}
-      />
-    </div>
+    <ChatbotSettings
+      id={currentCompany.id}
+      name={currentCompany.name}
+      chatBot={currentCompany.chatBot}
+      helpdesk={currentCompany.helpdesk || []}
+    />
   )
 }
 
