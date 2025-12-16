@@ -49,10 +49,10 @@ const HelpPage = async ({ params }: Props) => {
               Envíanos un correo y te responderemos en menos de 24 horas
             </p>
             <a
-              href="mailto:soporte@ejemplo.com"
+              href="mailto:emendozamego@gmail.com"
               className="text-sm text-orange-600 hover:text-orange-700 font-medium"
             >
-              soporte@ejemplo.com
+              emendozamego@gmail.com
             </a>
           </div>
 
@@ -66,7 +66,7 @@ const HelpPage = async ({ params }: Props) => {
               href="tel:+51999999999"
               className="text-sm text-orange-600 hover:text-orange-700 font-medium"
             >
-              +51 999 999 999
+              +51 984 984 625
             </a>
           </div>
 
