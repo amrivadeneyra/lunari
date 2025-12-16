@@ -270,7 +270,7 @@ const UsersTable = ({ companyId }: Props) => {
                 ) : users.length > 0 ? (
                     <DataTable headers={['Nombre', 'Email', 'Estado', 'Acciones']}>
                         {users.map((customer) => (
-                            <TableRow key={customer.id}>
+                            <TableRow key={customer.id} className="bg-white">
                                 <TableCell className="font-medium text-gray-900">
                                     {customer.name || <span className="text-gray-400 italic">Sin nombre</span>}
                                 </TableCell>
