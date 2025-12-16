@@ -220,6 +220,7 @@ export const onGetChatMessages = async (id: string) => {
             seen: true,
             responseTime: true,
             respondedWithin2Hours: true,
+            imageUrl: true,
           },
           orderBy: {
             createdAt: 'asc',

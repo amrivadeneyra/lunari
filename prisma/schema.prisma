@@ -143,6 +143,7 @@ model ChatMessage {
   updatedAt      DateTime @updatedAt
   conversationId String   @db.Uuid
   seen           Boolean  @default(false)
+  imageUrl       String?  // URL de imagen del producto asociada al mensaje
 
   // Métricas para la tesis - FR1 y FR2
   responseTime          Int? // Tiempo en segundos desde mensaje user hasta respuesta assistant

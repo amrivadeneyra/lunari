@@ -3,7 +3,7 @@ import React from 'react'
 import { DataTable } from '../table'
 import { TableCell, TableRow } from '../ui/table'
 import { getMonthName } from '@/lib/utils'
-import { CardDescription } from '../ui/card'
+import { CalendarDays } from 'lucide-react'
 
 type Props = {
   bookings:
@@ -26,9 +26,11 @@ type Props = {
 }
 
 const AllAppointments = ({ bookings }: Props) => {
+  const hasBookings = bookings && bookings.length > 0
+
   return (
     <DataTable headers={APPOINTMENT_TABLE_HEADER}>
-      {bookings ? (
+      {hasBookings ? (
         bookings.map((booking) => (
           <TableRow key={booking.id}>
             <TableCell className="text-xs">
@@ -58,7 +60,21 @@ const AllAppointments = ({ bookings }: Props) => {
           </TableRow>
         ))
       ) : (
-        <CardDescription className="text-xs">Sin citas</CardDescription>
+        <TableRow>
+          <TableCell colSpan={APPOINTMENT_TABLE_HEADER.length} className="text-center py-12">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-16 h-16 mx-auto bg-orange/10 rounded-full flex items-center justify-center mb-4">
+                <CalendarDays className="w-8 h-8 text-orange" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No hay citas programadas
+              </h3>
+              <p className="text-sm text-gray-600 max-w-md">
+                No tienes citas registradas en este momento. Las citas agendadas por tus clientes aparecerán aquí.
+              </p>
+            </div>
+          </TableCell>
+        </TableRow>
       )}
     </DataTable>
   )

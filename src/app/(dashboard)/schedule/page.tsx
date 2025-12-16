@@ -16,9 +16,7 @@ const SchedulePage = async ({ params }: Props) => {
   const currentCompany = companyData.company
 
   return (
-    <div className="overflow-y-auto w-full chat-window flex-1 h-0">
-      <AvailabilityScheduleForm id={currentCompany.id} />
-    </div>
+    <AvailabilityScheduleForm id={currentCompany.id} />
   )
 }
 

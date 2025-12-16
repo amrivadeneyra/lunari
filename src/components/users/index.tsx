@@ -225,8 +225,8 @@ const UsersTable = ({ companyId }: Props) => {
     if (error) {
         return (
             <div className="w-full h-full overflow-y-auto">
-                <div className="w-full p-4 md:p-6">
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-full h-full flex items-center justify-center p-4 md:p-6">
+                    <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
                             <UsersIcon className="w-8 h-8 text-red-600" />
                         </div>
@@ -270,7 +270,7 @@ const UsersTable = ({ companyId }: Props) => {
                 ) : users.length > 0 ? (
                     <DataTable headers={['Nombre', 'Email', 'Estado', 'Acciones']}>
                         {users.map((customer) => (
-                            <TableRow key={customer.id}>
+                            <TableRow key={customer.id} className="bg-white">
                                 <TableCell className="font-medium text-gray-900">
                                     {customer.name || <span className="text-gray-400 italic">Sin nombre</span>}
                                 </TableCell>

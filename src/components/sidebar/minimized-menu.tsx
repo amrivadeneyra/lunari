@@ -60,7 +60,7 @@ const MinMenu = ({ current, company, onShrink, onSignOut }: MinMenuProps) => {
                 <div className="flex flex-col">
                     <MenuItem
                         size="min"
-                        label="Sign out"
+                        label="Salir"
                         icon={<LogOut />}
                         onSignOut={onSignOut}
                     />

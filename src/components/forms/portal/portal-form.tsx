@@ -75,7 +75,8 @@ const PortalForm = ({
         availableSlots={availableSlots}
         loadingSlots={loadingSlots}
       />
-      {(step == 1 || step == 2) && (
+      {/* TODO: Add progress bar */}
+      {/* {(step == 1 || step == 2) && (
         <div className="w-full flex justify-center">
           <div className="w-[400px] grid grid-cols-2 gap-3">
             <div
@@ -92,7 +93,7 @@ const PortalForm = ({
             ></div>
           </div>
         </div>
-      )}
+      )} */}
     </form>
   )
 }

@@ -1,5 +1,4 @@
 'use client'
-import { Separator } from '@/components/ui/separator'
 import { useSettings } from '@/hooks/settings/use-settings'
 import React from 'react'
 import { Button } from '@/components/ui/button'

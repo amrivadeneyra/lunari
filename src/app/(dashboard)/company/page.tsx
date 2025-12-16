@@ -1,4 +1,4 @@
-import { onGetCurrentCompanyInfo } from '@/action/settings'
+import { onGetAccountCompany } from '@/action/settings'
 import CompanySettings from '@/components/forms/settings/company-settings'
 import { redirect } from 'next/navigation'
 import React from 'react'
@@ -7,21 +7,28 @@ import React from 'react'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-type Props = { params: { company: string } }
+type Props = {}
 
-const CompanyPage = async ({ params }: Props) => {
-  const companyData = await onGetCurrentCompanyInfo(params.company)
-  if (!companyData || !companyData.company) redirect('/dashboard')
+const CompanyPage = async (props: Props) => {
+  const companyData = await onGetAccountCompany()
+  
+  if (!companyData || !companyData.company) {
+    redirect('/dashboard')
+    return null
+  }
 
   const currentCompany = companyData.company
 
+  if (!currentCompany.id || !currentCompany.name) {
+    redirect('/dashboard')
+    return null
+  }
+
   return (
-    <div className="overflow-y-auto w-full chat-window flex-1 h-0">
-      <CompanySettings
-        id={currentCompany.id}
-        name={currentCompany.name}
-      />
-    </div>
+    <CompanySettings
+      id={currentCompany.id}
+      name={currentCompany.name}
+    />
   )
 }
 
